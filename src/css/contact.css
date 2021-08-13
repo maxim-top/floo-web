@@ -1,0 +1,123 @@
+.contact {
+  float: left;
+  background: white;
+  overflow: scroll;
+  width: 240px;
+  height: 100%;
+  border-radius: 10px 0px 0px 10px;
+}
+
+.contact-root {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.contact .header {
+  height: 22px;
+  padding: 10px 20px;
+  font-size: 16px;
+  line-height: 22px;
+  background: white;
+}
+
+.contact .header span {
+  float: right;
+  line-height: 22px;
+  color: #83898f;
+}
+
+.contact .list .item {
+  height: 24px;
+  line-height: 24px;
+  padding: 8px 12px;
+}
+
+.contact .list .item:hover {
+  background: rgba(176, 208, 253, 0.3);
+}
+
+.contact .list .item .avatar {
+  width: 24px;
+  height: 24px;
+  overflow: hidden;
+  border-radius: 3px;
+  background-image: url(/image/roster.png);
+  background-size: 24px 24px;
+  float: left;
+}
+
+.contact .list .item .name {
+  float: left;
+  height: 24px;
+  line-height: 22px;
+  font-size: 14px;
+  margin-left: 15px;
+  color: #333;
+}
+
+.contact .l_conversation {
+  width: 240px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.contact .l_conversation .sel {
+  background: rgba(176, 208, 253, 0.3);
+}
+
+.contact .l_conversation .item {
+  height: 60px;
+  font-size: 12px;
+  position: relative;
+  border-bottom: 1px solid #ececec;
+}
+
+.contact .l_conversation .item .unread_number {
+  position: absolute;
+  top: 8px;
+  left: 36px;
+  height: 14px;
+  color: white;
+  background: red;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 0 3px;
+  border-radius: 7px;
+  line-height: 14px;
+  min-width: 8px;
+  text-align: center;
+}
+
+.contact .l_conversation .item .avatar {
+  height: 32px;
+  width: 32px;
+  border-radius: 3px;
+  margin: 14px 10px 0px 10px;
+  float: left;
+}
+
+.contact .l_conversation .item .name {
+  margin-left: 60px;
+  line-height: 20px;
+  padding-top: 12px;
+  color: #000;
+}
+
+.contact .l_conversation .item .last_msg_time {
+  position: absolute;
+  right: 10px;
+  line-height: 10px;
+  margin-top: -14px;
+  font-size: 10px;
+  color: #8798a4;
+}
+
+.contact .l_conversation .item .last_msg {
+  height: 20px;
+  line-height: 20px;
+  margin-left: 60px;
+  color: #8798a4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}

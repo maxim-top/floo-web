@@ -1,0 +1,20 @@
+@import './util.css';
+@import './login.css';
+@import './reg.css';
+
+@import './header.css';
+@import './contact.css';
+@import './content.css';
+@import './setting.css';
+@import './layers.css';
+
+/**** log 的css  先放这里 ***/
+#slog {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  font-size: 8px;
+  height: 55px;
+  line-height: 11px;
+  color: #eee;
+}

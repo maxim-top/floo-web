@@ -1,0 +1,548 @@
+.content {
+  background: #fafbfc;
+  height: 100%;
+  margin-left: 240px;
+  border-radius: 0px 0px 10px 0px;
+  overflow: hidden;
+}
+
+/** roster info ***/
+.content .roster_info .remove {
+  height: 44px;
+  margin-top: 40px;
+}
+
+.content .roster_info .remove span {
+  width: 300px;
+  height: 44px;
+  font-size: 16px;
+  line-height: 44px;
+  color: #fff;
+  text-align: center;
+  display: block;
+  margin: 0 auto;
+  background-color: #319de1;
+  border-radius: 5px;
+}
+
+.content .chat-index {
+  height: 100%;
+}
+
+.content .header {
+  height: 39px;
+  line-height: 40px;
+  position: relative;
+  border-bottom: 1px solid #ececec;
+  border-radius: 0px;
+  text-indent: 15px;
+  background-color: #f0f0f0;
+}
+
+.content .header .delete_button {
+  position: absolute;
+  right: 24px;
+  width: 64px;
+  height: 18px;
+  line-height: 32px;
+  margin-top: -32px;
+  font-size: 12px;
+  color: #319de1;
+}
+
+.content .header .delete_button:hover {
+  color: #880000;
+}
+
+.content .list {
+  width: auto;
+  height: 75%;
+  overflow-y: auto;
+  background-color: #f6f6f6;
+}
+
+.content .list .messageFrame {
+  padding: 10px 15px;
+  overflow: hidden;
+  position: relative;
+  background-color: #f6f6f6;
+}
+
+.content .list .timeline {
+  background-color: #f6f6f6;
+}
+
+.content .list .messageFrame .contentFrame .c_content {
+  word-break: break-all;
+  max-width: 300px;
+  border-radius: 3px;
+  padding: 10px 15px;
+  line-height: 16px;
+  font-size: 12px;
+  position: relative;
+}
+
+.content .list .messageFrame .contentFrame .c_content .h_image {
+  position: absolute;
+  top: 40%;
+  width: 21px;
+  height: 10px;
+  border: 1px solid #d1d1d1;
+  line-height: 10px;
+  vertical-align: middle;
+  border-radius: 2px;
+  text-align: center;
+}
+
+.self .h_image {
+  left: -30px;
+}
+
+.roster .h_image {
+  right: -30px;
+}
+
+.content .list .messageFrame .contentFrame .c_content .h_image img {
+  width: 15px;
+  vertical-align: middle;
+}
+
+.contentFrame .messageExt {
+  clear: both;
+  margin-top: 3px;
+  font-size: 10px;
+  color: #ccc;
+  overflow: hidden;
+}
+
+.content .list .messageFrame .rosterInfo {
+  height: 24px;
+  width: 24px;
+}
+
+.content .list .messageFrame .rosterInfo img {
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
+}
+
+.self .rosterInfo {
+  float: right;
+}
+
+.roster .rosterInfo {
+  float: left;
+}
+
+.self .contentFrame {
+  margin-right: 32px;
+}
+
+.roster .contentFrame {
+  margin-left: 32px;
+}
+
+.contentFrame .username {
+  font-size: 12px;
+  color: #000;
+  padding: 0;
+  margin: 0;
+}
+
+.history .messageExt {
+  display: none;
+}
+
+.messageExt .item {
+  line-height: 25px;
+}
+
+.content .c_content {
+  white-space: pre-line;
+}
+.content .self .c_content {
+  float: right;
+  background: #b3d0fd;
+}
+
+.content .roster .c_content {
+  float: left;
+  background: white;
+}
+
+.content .c_content img {
+  max-width: 200px;
+  max-height: 200px;
+}
+
+.content .notice_frame {
+  height: 60px;
+  line-height: 60px;
+  text-align: center;
+  color: #83898f;
+  font-size: 14px;
+}
+
+.content .c_content .video_frame {
+  position: relative;
+  max-width: 200px;
+}
+
+.content .c_content .video_frame .preview {
+  display: block;
+  max-width: 200px;
+  z-index: 1;
+}
+
+.content .c_content .video_frame .play {
+  position: absolute;
+  width: 64px;
+  height: auto;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  align: center;
+  opacity: 0.65;
+  z-index: 2;
+}
+
+.content .c_content .video_frame:hover .play {
+  opacity: 1;
+}
+
+.content .c_content .loc_frame {
+  overflow: hidden;
+}
+
+.content .c_content .loc_frame .loc {
+  width: 40px;
+  height: 40px;
+  float: left;
+}
+
+.content .c_content .loc_txt {
+  margin-left: 5px;
+  line-height: 40px;
+  cursor: pointer;
+  color: #4a90e2;
+}
+
+.content .c_content .audio_frame {
+  overflow: hidden;
+}
+
+.content .c_content .audio_frame .audio {
+  width: 20px;
+  height: 25px;
+  float: left;
+  padding: 7px 20px;
+}
+
+.content .c_content .audio_txt {
+  margin-left: 8px;
+  line-height: 40px;
+  cursor: pointer;
+  color: #4a90e2;
+}
+
+/** input **/
+.content .inputer_frame {
+  background-color: #f6f6f6;
+}
+
+.content .inputer_frame .attach {
+  height: 20px;
+  overflow: hidden;
+  background-color: #f6f6f6;
+  border-top: 1px solid #e6e6e6;
+}
+
+.content .inputer_frame .attach .ico {
+  float: left;
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+  margin-top: 4px;
+  margin-left: 10px;
+  background-size: 14px 14px;
+}
+
+.content .inputer_frame .attach .image {
+  background-image: url(/image/picture.png);
+}
+
+.content .inputer_frame .attach .file {
+  background-image: url(/image/file.png);
+}
+
+.content .inputer_frame .attach .location {
+  background-image: url(/image/loc2.png);
+}
+
+.content .inputer_frame .attach .mentionList {
+  position: absolute;
+  width: 150px;
+  height: 200px;
+  top: -180px;
+  left: 0;
+  background: orange;
+  overflow-y: auto;
+}
+
+.content .inputer_frame .input {
+  background-color: #f6f6f6;
+}
+
+.content .inputer_frame .input .input_text {
+  background-color: #f6f6f6;
+  width: 100%;
+}
+
+.content .chat-index .inputer_frame {
+  height: 80px;
+  background: white;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.content .chat-index .inputer_frame textarea {
+  height: 110px;
+  width: 100%;
+  box-sizing: border-box;
+  outline: none;
+  padding-left: 20px;
+  font-size: 14px;
+  border: none;
+}
+
+/**** 群 ...*****/
+.content .chat-index .header .mention_title {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 20px;
+  background: #eee;
+  color: #880000;
+  line-height: 20px;
+}
+
+.content .chat-index .header .mention_title .text {
+  line-height: 20px;
+}
+
+.content .chat-index .header .mention_title .closer {
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  position: absolute;
+  top: 0;
+  right: 15px;
+  line-height: 20px;
+  font-size: 20px;
+}
+
+.content .chat-index .group_memberlist {
+  float: right;
+  width: 200px;
+  border-left: 1px solid #eee;
+  height: 75%;
+  margin-top: 38px;
+  background: white;
+  box-sizing: border-box;
+  border-bottom-right-radius: 10px;
+}
+
+.content .chat-index .group_memberlist .infos {
+  height: 29px;
+  line-height: 22px;
+  border-bottom: 1px solid #ececec;
+  padding: 10px 10px 0;
+  font-size: 14px;
+}
+
+.content .chat-index .group_memberlist .group_count {
+  color: #83898f;
+  margin-left: 15px;
+}
+
+.content .chat-index .group_memberlist .setting {
+  float: right;
+  color: #4a90e2;
+  font-size: 12px;
+  margin-top: 1px;
+}
+
+.content .chat-index .group_memberlist .search {
+  height: 35px;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  margin: 12px 20px;
+  overflow: hidden;
+}
+
+.content .chat-index .group_memberlist .search input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  text-indent: 5px;
+  font-size: 14px;
+}
+
+.content .chat-index .group_memberlist .gm_list {
+  height: 100%;
+  overflow-y: auto;
+  margin-top: 10px;
+}
+
+.content .chat-index .group_memberlist .gm_list .item {
+  height: 22px;
+  padding: 5px 10px;
+  line-height: 22px;
+}
+
+.content .chat-index .group_memberlist .gm_list .item .avatar {
+  width: 22px;
+  height: 22px;
+  float: left;
+  border-radius: 3px;
+}
+
+.content .chat-index .group_memberlist .gm_list .item .name {
+  height: 22px;
+  margin-left: 28px;
+  line-height: 22px;
+  font-size: 12px;
+  color: #333;
+}
+
+/********** user setting 部分 *********/
+
+.user_setting_frame {
+  position: relative;
+}
+
+.user_setting {
+  background: #ffffff;
+  box-shadow: 0 2px 4px 2px rgba(199, 199, 199, 0.5);
+  border-radius: 10px;
+  width: 240px;
+  height: 330px;
+  padding: 22px 45px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  align: center;
+  position: relative;
+}
+
+.user_setting .avatar {
+  height: 80px;
+  position: relative;
+  margin-bottom: 10px;
+}
+
+.user_setting .avatar img.av {
+  width: 80px;
+  height: 80px;
+  border: 4px solid #ffffff;
+  box-shadow: 0 2px 20px 0 #ffffff;
+  border-radius: 13px;
+  box-sizing: border-box;
+}
+
+.user_setting .avatar img.qrcode {
+  width: 24px;
+  height: 24px;
+  position: absolute;
+  right: 0;
+  top: 28px;
+}
+
+.user_setting .line {
+  height: 35px;
+  line-height: 35px;
+  border-bottom: 1px solid #ececec;
+  font-size: 14px;
+  color: #4a4a4a;
+}
+
+.user_setting .line .ll {
+  float: left;
+  line-height: 35px;
+}
+
+.user_setting .line .lr {
+  line-height: 35px;
+  text-align: right;
+  padding: 0;
+  margin: 0;
+}
+
+.user_setting .line .switcher {
+  margin-top: 8px;
+}
+
+.user_setting .logout {
+  line-height: 32px;
+  background: #319de1;
+  border-radius: 3px;
+  font-size: 14px;
+  text-align: center;
+  margin: 2px 0;
+  color: white;
+}
+
+.roster_notice_list {
+  height: 620px;
+  overflow-y: auto;
+}
+
+.roster_notice_list .item {
+  line-height: 20px;
+  border: 1px solid #eee;
+  border-radius: 5px;
+  margin: 20px;
+  padding: 10px 20px;
+}
+
+.roster_notice_list .item .agree {
+  background: green;
+  padding: 5px 15px;
+  border-radius: 3px;
+  color: white;
+  font-size: 12px;
+}
+
+.roster_notice_list .item .decline {
+  background: red;
+  padding: 5px 15px;
+  border-radius: 3px;
+  color: white;
+  font-size: 12px;
+}
+
+.forwardMemberList {
+  /*** 转发选择用户那个层 ***/
+  position: absolute;
+  right: 0;
+  top: 60px;
+  width: 140px;
+  background: #eee;
+  line-height: 22px;
+  max-height: 470px;
+  overflow-y: auto;
+  padding-left: 15px;
+}
+
+.closer {
+  width: 20px;
+  height: 20px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 18px;
+  line-height: 20px;
+  cursor: pointer;
+}

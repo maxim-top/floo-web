@@ -1,0 +1,186 @@
+.log p {
+  padding: 0;
+  margin: 0;
+  line-height: 13px;
+}
+
+.mt21 {
+  margin-top: 21px;
+}
+
+.mt14 {
+  margin-top: 14px;
+}
+
+.mt22 {
+  margin-top: 22px;
+}
+
+.colorb {
+  color: #62749c;
+}
+
+.mr5 {
+  margin-right: 5px;
+}
+
+.ml5 {
+  margin-left: 5px;
+}
+
+.login {
+  position: absolute;
+  width: 320px;
+  height: 380px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  align: center;
+  background: #fff;
+  border: 1px solid rgba(238, 244, 246, 0.99);
+  box-shadow: 0 8px 10px 0 rgba(240, 242, 245, 0.98);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.login .qrcode {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  filter: brightness(0) invert(1);
+}
+
+.login .skip {
+  position: absolute;
+  top: 16px;
+  right: 10px;
+  font-size: 16px;
+  color: #f0f0f0;
+}
+
+.login .tip {
+  background: #7c7c7c;
+  border-radius: 3px;
+  position: absolute;
+  font-size: 10px;
+  color: #fff;
+  position: absolute;
+  right: 24px;
+  top: 35px;
+  padding: 3px 6px;
+}
+
+.login .logo {
+  height: 40px;
+  padding: 10px;
+  text-align: center;
+}
+
+.logo img {
+  height: 60px;
+}
+
+.login .canvas {
+  width: 200px;
+  height: 200px;
+  margin-left: 60px;
+}
+
+.login .iptFrame {
+  border: 1px solid #e6e8eb;
+  border-radius: 4px;
+  height: 32px;
+  margin-left: 28px;
+  margin-right: 28px;
+}
+
+.login .iptFrame input {
+  border: none;
+  width: 90%;
+  height: 90%;
+  font-size: 14px;
+  text-indent: 10px;
+  outline: none;
+}
+
+.login .loginBtn {
+  margin-left: 28px;
+  margin-right: 28px;
+  line-height: 38px;
+  background: #409fe0;
+  border-radius: 4px;
+  font-size: 14px;
+  text-align: center;
+  margin-top: 20px;
+  color: white;
+}
+
+/* .log{height: 60px;  margin-top: 10px;line-height: 20px; color:#5555FF; font-size: 12px;} */
+.login .header {
+  line-height: 50px;
+  margin-top: 0px;
+}
+
+.header .hint {
+  position: relative;
+  margin-top: 20px;
+  margin-left: 10px;
+  font-size: 14px;
+  text-align: left;
+  color: #e6e6e6;
+}
+
+.header .edit_logo {
+  width: 12px;
+  height: 12px;
+  margin-left: 10px;
+  filter: brightness(0) invert(1);
+}
+
+.login .tab {
+  line-height: 20px;
+  margin-top: 10px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.login .cframe {
+  height: 34px;
+  margin-right: 28px;
+  margin-left: 28px;
+}
+
+.login .cframe .ipframe {
+  width: 166px;
+  height: 32px;
+  float: left;
+  border: 1px solid #e6e8eb;
+}
+
+.login .cframe .ipframe input {
+  border: none;
+  width: 95%;
+  height: 90%;
+  font-size: 14px;
+  text-indent: 10px;
+  outline: none;
+}
+
+.login .cframe img {
+  display: block;
+  height: 34px;
+  margin-left: 172px;
+  width: 90px;
+}
+
+.login .smallbtn {
+  background: #409fe0;
+  line-height: 32px;
+  margin-left: 170px;
+  text-align: center;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+}

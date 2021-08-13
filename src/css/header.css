@@ -1,0 +1,82 @@
+.header {
+  height: 48px;
+  background: #409fe0;
+  border-radius: 10px 10px 0px 0px;
+}
+
+.header .searchArea {
+  height: 48px;
+  width: 280px;
+  float: left;
+}
+
+.header .searchArea input {
+  width: 180px;
+  height: 24px;
+  float: left;
+  margin-left: 10px;
+  margin-top: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 100px;
+  background-image: url(/image/search.png);
+  filter: brightness(0) invert(1);
+  background-repeat: no-repeat;
+  background-size: 17px 17px;
+  background-position: 8px center;
+  background-color: rgba(255, 255, 255, 0);
+  text-indent: 40px;
+  font-size: 14px;
+}
+
+.header .searchArea .addBtn {
+  float: left;
+  width: 20px;
+  height: 20px;
+  background-image: url(/image/add.png);
+  cursor: pointer;
+  margin: 14px 0px 0px 20px;
+  background-size: 20px 20px;
+  filter: brightness(0) invert(1);
+}
+
+.header .tab {
+  height: 48px;
+  float: left;
+}
+
+.header .tab .stab {
+  float: left;
+  margin: 14px 36px 0px 0px;
+}
+
+.header .tab .stab img {
+  width: 20px;
+  height: 20px;
+  filter: brightness(0) invert(1);
+}
+
+.header .profile {
+  height: 48px;
+  float: right;
+}
+
+.header .profile .proAvater {
+  float: right;
+  width: 30px;
+  height: 30px;
+  border-radius: 15px;
+  background-size: 30px 30px;
+  background-image: url(/image/roster.png);
+  background-repeat: no-repeat;
+  margin-right: 10px;
+  margin-top: 9px;
+}
+
+.header .profile .proname {
+  float: right;
+  margin-right: 20px;
+  line-height: 20px;
+  margin-top: 14px;
+  font-size: 16px;
+  color: white;
+}

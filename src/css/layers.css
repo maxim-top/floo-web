@@ -1,0 +1,405 @@
+.layer_frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 100%;
+  z-index: 3;
+}
+
+.layer_mask {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 120%;
+  height: 120%;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 2;
+}
+
+/** layer 公用部分 **/
+.layer {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 10px;
+  background: white;
+  border: 1px solid goldenrod;
+  box-shadow: 0 1px 10px 0 rgba(240, 242, 245, 0.98);
+}
+
+.layer .layer_header {
+  height: 52px;
+  line-height: 52px;
+  background: #409fe0;
+  position: relative;
+  text-indent: 48px;
+  font-size: 16px;
+  color: #000;
+}
+
+.layer .closer {
+  margin: 10px 10px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 18px;
+  line-height: 20px;
+  cursor: pointer;
+  background-image: url(/image/close.png);
+  background-size: 20px 20px;
+  filter: brightness(0) invert(1);
+}
+
+.layer .iptFrame {
+  border: 1px solid #e6e8eb;
+  border-radius: 4px;
+  height: 32px;
+  margin-left: 28px;
+  margin-right: 28px;
+}
+
+.layer .iptFrame input {
+  border: none;
+  width: 90%;
+  height: 90%;
+  font-size: 14px;
+  text-indent: 10px;
+  outline: none;
+}
+
+.layer .button {
+  width: 68px;
+  height: 25px;
+  text-align: center;
+  line-height: 25px;
+  color: #000;
+  background: #409fe0;
+  font-size: 14px;
+  float: right;
+  border-radius: 3px;
+  padding: 0px 8px 0px 8px;
+  margin-right: 15px;
+}
+
+.layer .layer_content {
+  padding: 20px 10px 10px 20px;
+}
+
+.layer .layer_content p.inputer {
+  padding: 0;
+  margin: 0;
+  height: 25px;
+  padding: 10px 0;
+}
+
+.layer .layer_content p.inputer span {
+  height: 25px;
+  line-height: 25px;
+  float: left;
+  text-align: right;
+}
+
+.layer .layer_content p.inputer input {
+  width: 200px;
+  height: 18px;
+  border: 1px solid #eee;
+  border-radius: 3px;
+  float: left;
+  margin-left: 15px;
+  padding: 2px 5px;
+}
+
+.layer .layer_footer {
+  height: 66px;
+  padding-right: 32px;
+}
+
+.layer .layer_footer .button-ok {
+  width: 68px;
+  height: 40px;
+  text-align: center;
+  line-height: 40px;
+  color: #000;
+  background: #409fe0;
+  font-size: 14px;
+  float: right;
+  margin-right: 16px;
+  margin-top: 13px;
+  border-radius: 3px;
+}
+
+.layer .layer_footer .button-cancel {
+  width: 68px;
+  height: 40px;
+  text-align: center;
+  line-height: 40px;
+  color: #000;
+  background: #f0f2f5;
+  font-size: 14px;
+  float: right;
+  margin-right: 16px;
+  margin-top: 13px;
+  border-radius: 3px;
+}
+
+/*****************************************************************************************/
+
+/** 建群的弹层 **/
+.create_group_layer {
+  position: absolute;
+  left: 280px;
+  top: 100px;
+  width: 400px;
+}
+
+.create_group_layer .layer_content {
+  height: 250px;
+  overflow-y: auto;
+}
+
+.create_group_layer .layer_content .avatar {
+  height: 90px;
+  width: 90px;
+}
+
+.create_group_layer .layer_content .create_group_member_List {
+  max-height: 140px;
+  overflow-y: auto;
+  line-height: 40px;
+}
+
+.create_group_layer .layer_content .create_group_member_List > div {
+  text-indent: 10px;
+  border: 1px solid #eee;
+}
+
+.create_group_layer .layer_content .create_group_member_List input {
+  float: right;
+  margin-top: 15px;
+  margin-right: 10px;
+}
+
+.create_group_layer .ispublic {
+  float: left;
+  margin-left: 15px;
+  margin-top: 5px;
+}
+
+/** 添加好友，建群的弹层  很小的那个弹层**/
+.header_add_layer {
+  position: absolute;
+  left: 200px;
+  top: 48px;
+  width: 120px;
+  height: 100px;
+  background: #419fe0;
+  box-shadow: 0 2px 4px 0 rgba(173, 185, 193, 0.5);
+  border-radius: 0 0 2px 2px;
+  padding: 10px 0;
+}
+
+.header_add_layer p {
+  padding: 0;
+  margin: 0;
+  height: 34px;
+  line-height: 34px;
+  text-align: center;
+  font-size: 14px;
+  color: #f0f0f0;
+  cursor: pointer;
+}
+
+.header_add_layer p:hover {
+  background: #f0f0f0;
+  color: #4a4a4a;
+}
+
+/** 添加好友的layer **/
+.add_friend_layer {
+  position: fixed;
+  width: 400px;
+  height: auto;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.add_friend_layer .searcher {
+  float: right;
+}
+
+.add_friend_layer .canvas {
+  width: 200px;
+  height: 200px;
+  margin-left: 88px;
+}
+
+.image_layer {
+  position: fixed;
+  max-width: 400px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: black;
+  text-align: center;
+  z-index: 3;
+}
+
+.image {
+  max-width: 400px;
+}
+
+.video_layer {
+  position: fixed;
+  max-width: 400px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: black;
+  text-align: center;
+  z-index: 3;
+}
+
+.change_appid_layer {
+  position: absolute;
+  left: 280px;
+  top: 150px;
+  width: 400px;
+}
+
+/*** 群设置 ***/
+.group_setting_layer {
+  position: fixed;
+  width: 400px;
+  height: auto;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.group_setting_layer .group_setting_group {
+  border-bottom: 10px solid #ececec;
+  margin-bottom: 10px;
+}
+
+.group_setting_layer .group_setting_group p {
+  border-bottom: 1px solid #ececec;
+  margin: 6px;
+}
+
+.group_setting_layer .group_setting_group .category {
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.group_setting_layer .group_setting_group .category a {
+  float: left;
+  padding: 0 8px;
+  background: #319de1;
+  color: white;
+  font-size: 12px;
+  cursor: pointer;
+  margin-left: 10px;
+  text-align: center;
+  line-height: 25px;
+  border-radius: 3px;
+}
+
+.group_setting_layer .group_setting_group .setting_lists {
+  margin: 10px 0px 10px 0px;
+}
+
+.group_setting_layer .group_setting_group .setting_lists .item {
+  padding: 5px;
+  line-height: 15px;
+  overflow: hidden;
+}
+
+.group_setting_layer .group_setting_group .setting_lists .item span {
+  float: left;
+}
+
+.group_setting_layer .group_setting_group .setting_lists .item input {
+  float: right;
+}
+
+.group_setting_layer .group_setting_group .setting_lists .category a {
+  background: #b3d0fd;
+}
+
+/** search result ***/
+
+.layer_frame .search_result_layer {
+  position: absolute;
+  width: 240px;
+  height: 100%;
+  top: 48px;
+  background: #fafafa;
+  border-radius: 10px 0px 0px 10px;
+}
+
+.layer_frame .search_result_layer .list {
+  overflow-y: auto;
+  background: #fafafa;
+}
+
+.layer_frame .search_result_layer .header {
+  height: 16px;
+  padding: 10px 20px;
+  font-size: 12px;
+  line-height: 16px;
+  background: white;
+}
+
+.layer_frame .search_result_layer .item {
+  height: 60px;
+  font-size: 12px;
+  position: relative;
+  border-bottom: 1px solid #ececec;
+}
+
+.layer_frame .search_result_layer .item:hover {
+  background: rgba(176, 208, 253, 0.3);
+  color: #4a4a4a;
+}
+
+.layer_frame .search_result_layer .item i.red {
+  color: red;
+  padding: 0;
+  margin: 0;
+}
+
+.layer_frame .search_result_layer .item .avatar {
+  height: 32px;
+  width: 32px;
+  border-radius: 3px;
+  margin: 14px 10px 0px 10px;
+  float: left;
+}
+
+.layer_frame .search_result_layer .item .name {
+  margin-left: 60px;
+  line-height: 20px;
+  padding-top: 12px;
+  color: #000;
+}
+
+.layer_frame .search_result_layer .item .last_msg {
+  height: 20px;
+  line-height: 20px;
+  margin-left: 60px;
+  color: #8798a4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.change_appid_layer .hint {
+  position: relative;
+  margin-top: 20px;
+  margin-left: 10px;
+  font-size: 14px;
+  text-align: left;
+  color: #e6e6e6;
+}

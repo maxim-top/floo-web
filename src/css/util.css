@@ -1,0 +1,171 @@
+html {
+  overflow: auto;
+}
+
+body {
+  display: inline-block;
+  font-size: 14px;
+  width: 100%;
+  height: 100%;
+  font-family: 'PingFangSC-Regular', 'Helvetica Neue', 'Luxi Sans', 'DejaVu Sans', Tahoma, 'Hiragino Sans GB', STHeiti, 'Microsoft YaHei';
+  background: black;
+  color: #333;
+}
+
+#app {
+  position: absolute;
+  align: center;
+  background: #e6e6e6;
+  border-radius: 10px;
+  width: 95%;
+  min-width: 760px;
+  height: 80%;
+  min-height: 400px;
+}
+
+.ui-index {
+  height: 100%;
+}
+
+.chat-index {
+  height: 100%;
+}
+
+input[type='file'] {
+  position: fixed;
+  top: 2px;
+  left: 2px;
+  width: 1px;
+  height: 1px;
+  visibility: hidden;
+}
+
+input[type='text'] {
+  outline: none;
+  line-height: 20px;
+  text-indent: 3px;
+  border-radius: 3px;
+  border: 1px solid #ddd;
+  margin-right: 5px;
+  font-size: 13px;
+}
+
+input::-webkit-input-placeholder {
+  color: #ddd;
+}
+
+input:-moz-placeholder {
+  color: #ddd;
+}
+
+input::-moz-placeholder {
+  color: #ddd;
+}
+
+input:-ms-input-placeholder {
+  color: #ddd;
+}
+
+input:input-placeholder {
+  color: #ddd;
+}
+
+textarea {
+  resize: none;
+}
+
+textarea::-webkit-input-placeholder {
+  color: #ddd;
+}
+
+textarea:-moz-placeholder {
+  color: #ddd;
+}
+
+textarea::-moz-placeholder {
+  color: #ddd;
+}
+
+textarea:-ms-input-placeholder {
+  color: #ddd;
+}
+
+textarea:input-placeholder {
+  color: #ddd;
+}
+
+i.switcher_on {
+  width: 42px;
+  height: 20px;
+  background-size: 42px 20px;
+  background-image: url(/image/sw_on.png);
+  display: block;
+}
+
+i.switcher_off {
+  width: 42px;
+  height: 20px;
+  background-size: 42px 20px;
+  background-image: url(/image/sw_off.png);
+  display: block;
+}
+
+.el-popover {
+  min-width: 10px !important;
+}
+
+/*** public class **/
+.timeline {
+  text-align: center;
+  padding: 10px 0;
+  font-size: 10px;
+  color: #bbb;
+}
+
+.r {
+  float: right;
+}
+
+.mr10 {
+  margin-right: 10px;
+}
+
+.mr5 {
+  margin-right: 5px;
+}
+
+.ml5 {
+  margin-left: 5px;
+}
+
+.ml10 {
+  margin-left: 10px;
+}
+
+.border {
+  border: 1px solid #eee;
+  border-radius: 3px;
+}
+
+.p5 {
+  padding: 5px;
+}
+
+.mt5 {
+  margin-top: 5px;
+}
+
+#roster_history_btn {
+  height: 20px;
+  background: #eee;
+  line-height: 20px;
+  text-align: center;
+}
+
+.mention_content {
+  color: #8eb9f5;
+}
+
+.none {
+  display: none;
+}
