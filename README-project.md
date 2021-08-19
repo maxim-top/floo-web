@@ -70,6 +70,18 @@ module.exports = {
 };
 ```
 
+2. 找不到 long 模块，提示
+```
+module "third/long" is not defined
+```
+
+这是因为 fsevent1 的问题，在 windows 下安装会失败，导致 npm 失败，可参考[这里](https://github.com/angular/angular/issues/13935)，解决方法：
+
+```
+npm i -f
+```
+
+
 ## 其他
 
 了解更多信息可以阅读[在线文档](https://www.maximtop.com/docs/)，或者在本仓库提问，好好玩 :)
