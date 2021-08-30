@@ -68,7 +68,7 @@ const rosterStore = {
 
   getRosterInfo: (uid) => {
     const userMap = getItem('key_roster_infos') || {};
-    let user = userMap[uid];
+    let user = userMap[uid] || { user_id: uid };
     return (
       user &&
       Object.assign(user, {
