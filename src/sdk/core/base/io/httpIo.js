@@ -46,6 +46,7 @@ const groupDestroy = (params) => request('/group/destroy', 'post', params, ['gro
 const groupInfo = (params) => request('/group/info', 'get', params, ['group_id']);
 const groupInfoAvatar = (params) => request('/group/info/avatar', 'post', params, ['group_id', 'value']);
 const groupInfoDdscription = (params) => request('/group/info/description', 'post', params, ['group_id', 'value']);
+const groupInfoExt = (params) => request('/group/info/ext', 'post', params, ['group_id', 'value']);
 const groupInfoName = (params) => request('/group/info/name', 'post', params, ['group_id', 'value']);
 const groupMemberlist = (params) => request('/group/member_list', 'get', params, ['group_id']);
 const groupMsgMutemode = (params) => request('/group/msg/mute_mode', 'post', params, ['group_id', 'msg_mute_mode']);
@@ -60,6 +61,8 @@ const groupSettingsAllowmembermodify = (params) => request('/group/settings/allo
 const groupSettingsEnablereadack = (params) => request('/group/settings/enable_read_ack', 'post', params, ['group_id', 'value']);
 const groupSettingsHistoryvisible = (params) => request('/group/settings/history_visible', 'post', params, ['group_id', 'value']);
 const groupSettingsRequireadminapproval = (params) => request('/group/settings/require_admin_approval', 'post', params, ['group_id', 'apply_approval']);
+const groupSettingsBanAll = (params) => request('/group/settings/ban_all', 'post', params, ['group_id', 'duration']);
+const groupSettingsUnBanAll = (params) => request('/group/settings/unban_all', 'post', params, ['group_id']);
 const groupTransfer = (params) => request('/group/transfer', 'post', params, ['group_id', 'new_owner']);
 const groupUserjoined = (params) => request('/group/user_joined', 'get', params);
 const groupApply = (params) => request('/group/apply', 'post', params, ['group_id']);
@@ -171,6 +174,7 @@ export {
   groupInfo,
   groupInfoAvatar,
   groupInfoDdscription,
+  groupInfoExt,
   groupInfoName,
   groupMemberlist,
   groupMsgMutemode,
@@ -185,6 +189,8 @@ export {
   groupSettingsEnablereadack,
   groupSettingsHistoryvisible,
   groupSettingsRequireadminapproval,
+  groupSettingsBanAll,
+  groupSettingsUnBanAll,
   groupTransfer,
   groupUserjoined,
   groupApply,

@@ -145,7 +145,7 @@ export default {
             case 'action':
               if ('relogin' == desc) {
                 console.log('Token失效，尝试自动登录中');
-                const info = window.localStorage.getItem('maxim_logininfo') || {};
+                const info = this.getLoginInfo();
                 if (info.name && autoLoginTimes < AUTO_LOGIN_TIMES_MAX) {
                   console.log('Token失效，尝试自动登录中:', autoLoginTimes);
                   setTimeout(() => {

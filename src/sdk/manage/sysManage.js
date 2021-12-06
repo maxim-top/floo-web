@@ -23,6 +23,8 @@ const sendRosterMessage = (msg) => {
   const meta = msgFrm.payload.meta;
   messageStore.saveSendingRosterMessage(meta);
   io.sendMessage(msgFrm);
+  const { id } = meta;
+  return id;
 };
 
 const sendGroupMessage = (msg) => {
@@ -30,6 +32,8 @@ const sendGroupMessage = (msg) => {
   const meta = msgFrm.payload.meta;
   messageStore.saveSendingGroupMessage(meta);
   io.sendMessage(msgFrm);
+  const { id } = meta;
+  return id;
 };
 
 const requireHistoryMessage = (uid, sid, amount) => {

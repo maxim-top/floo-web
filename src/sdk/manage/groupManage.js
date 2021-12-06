@@ -147,6 +147,7 @@ export default {
 
   asyncUpdateAvatar: http.groupInfoAvatar,
   asyncUpdateDescription: http.groupInfoDdscription,
+  asyncUpdateExt: http.groupInfoExt,
   asyncUpdateName: http.groupInfoName,
 
   asyncGetMemberList, //: http.groupMemberlist,
@@ -163,6 +164,8 @@ export default {
   asyncUpdateEnableReadack: http.groupSettingsEnablereadack,
   asyncUpdateHistoryVisible: http.groupSettingsHistoryvisible,
   asyncUpdateRequireadminapproval: http.groupSettingsRequireadminapproval,
+  asyncBanAll: http.groupSettingsBanAll,
+  asyncUnBanAll: http.groupSettingsUnBanAll,
   asyncOwnerTransfer: http.groupTransfer,
 
   asyncGetUserJoined: http.groupUserjoined, //todo ..可能有了，优化下

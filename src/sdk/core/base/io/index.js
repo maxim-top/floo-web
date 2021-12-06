@@ -117,7 +117,7 @@ const socket_connect = () => {
   });
   socket.on('reconnect_attempt', (attemptNum) => {
     log.log('=================  socket reconnect_attempt: ', attemptNum);
-    socket.io.opts.transports = ['polling', 'websocket'];
+    socket.io.opts.transports = ['websocket'];
   });
 };
 

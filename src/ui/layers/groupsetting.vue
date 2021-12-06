@@ -48,6 +48,13 @@
               <i :class="['r', groupInfo.msg_mute_mode ? 'switcher_on' : 'switcher_off']" @click="switchTouched(5)"></i>
             </span>
           </p>
+
+          <p>
+            <span class="sl">全员禁言</span>
+            <span class="sr">
+              <i :class="['r', isGroupBanAll() ? 'switcher_on' : 'switcher_off']" @click="switchTouched(6)"></i>
+            </span>
+          </p>
         </div>
         <div class="group_setting_group">
           <div class="category">
@@ -344,6 +351,28 @@ export default {
             this.groupInfo.msg_mute_mode = this.groupInfo.msg_mute_mode ? 0 : 2;
           });
       } //
+
+      if (index === 6) {
+        //全员禁言
+        if (this.isGroupBanAll()) {
+          this.im.groupManage
+            .asyncUnBanAll({
+              group_id: this.getSid
+            })
+            .then(() => {
+              this.groupInfo.ban_expire_time = 0;
+            });
+        } else {
+          this.im.groupManage
+            .asyncBanAll({
+              group_id: this.getSid,
+              duration: -1
+            })
+            .then((res) => {
+              this.groupInfo.ban_expire_time = res.ban_expire_time;
+            });
+        }
+      } //
     },
     //////
     clickGroupsettingCloseHandler() {
@@ -594,6 +623,14 @@ export default {
         this.selIdList = [];
         this.requireMember();
       });
+    },
+
+    isGroupBanAll() {
+      const banExpireTime = this.groupInfo.ban_expire_time;
+      if (!banExpireTime) {
+        return false;
+      }
+      return banExpireTime < 0 || new Date().getTime() < banExpireTime;
     }
 
     //methods finish

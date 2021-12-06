@@ -5,7 +5,7 @@
 
 本仓库是 IMSDK 的源码仓库，如果你只是开发自己的聊天App，建议直接使用美信拓扑IM web版仓库[maxim-web](https://github.com/maxim-top/maxim-web)，也可以直接[在线试用](https://chat.maximtop.com)。
 
-[![Awesome](https://awesome.re/badge.svg)](https://awesome.re) [![Scc Count Badge](https://sloc.xyz/github/ericliang/floo-web/?category=total&avg-wage=1)](https://github.com/maxim-top/floo-web/) [![Scc Count Badge](https://sloc.xyz/github/ericliang/floo-web/?category=code&avg-wage=1)](https://github.com/maxim-top/floo-web/)
+[![Awesome](https://awesome.re/badge.svg)](https://awesome.re) [![Scc Count Badge](https://sloc.xyz/github/maxim-top/floo-web/?category=total&avg-wage=1)](https://github.com/maxim-top/floo-web/) [![Scc Count Badge](https://sloc.xyz/github/maxim-top/floo-web/?category=code&avg-wage=1)](https://github.com/maxim-top/floo-web/)
 
 ## 开发
 
