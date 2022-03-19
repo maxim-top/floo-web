@@ -98,7 +98,7 @@ const dealParams = (param) => {
   return param;
 };
 
-const request = (url, method = 'get', params = {}, checks = [], isQuery = false, config = {}) => {
+const request = (url, method = 'get', params = {}, checks = [], isQuery = false, config = {}, processCallback = undefined) => {
   log.log('========request=============', url, method, params, checks, isQuery);
   const arr = paramCheck(params, checks);
   if (arr.length) {
@@ -120,6 +120,21 @@ const request = (url, method = 'get', params = {}, checks = [], isQuery = false,
     params2 = dealParams(params);
   }
 
+  if (processCallback) {
+    if (!isQuery) {
+      axios.defaults.onUploadProgress = function (progressEvent) {
+        if (progressEvent.lengthComputable) {
+          processCallback(progressEvent);
+        }
+      };
+    } else {
+      axios.defaults.onDownloadProgress = function (progressEvent) {
+        if (progressEvent.lengthComputable) {
+          processCallback(progressEvent);
+        }
+      };
+    }
+  }
   return axios[_method](url, params2, config)
     .then((response) => {
       clearErrCounter();

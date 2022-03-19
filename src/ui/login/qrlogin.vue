@@ -7,7 +7,7 @@
     <div class="layer_content">
       <canvas class="canvas" ref="canvas"></canvas>
     </div>
-    <p class="tab">使用「美信拓扑IM」App 扫码</p>
+    <p class="tab">使用「蓝莺IM」App 扫码</p>
     <p class="tab">
       <intput>返回</intput>
       <span @click="switchLogin('login')" class="mr5 colorb">密码登录</span>

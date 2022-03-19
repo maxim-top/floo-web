@@ -3,7 +3,6 @@ import groupManage from './manage/groupManage';
 import userManage from './manage/userManage';
 import sysManage from './manage/sysManage';
 import webim from './core/base/index';
-
 webim.rosterManage = rosterManage;
 webim.groupManage = groupManage;
 webim.userManage = userManage;

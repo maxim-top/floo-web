@@ -127,7 +127,10 @@ export default {
         .asyncFileUpload({
           file,
           toType: 'groupAvatar',
-          group_id: this.getSid
+          group_id: this.getSid,
+          processCallback: function (res) {
+            console.log('fileChangeHandler groupAvatar file upload percent :' + 100 * (res.loaded / res.total));
+          }
         })
         .then((res) => {
           this.$refs.fileRef.value = '';

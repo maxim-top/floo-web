@@ -265,10 +265,10 @@ export default {
     },
     saveLoginInfo(info) {
       // const {name, password} = info;
-      window.localStorage.setItem('maxim_logininfo', JSON.stringify(info));
+      window.localStorage.setItem('lanying_im_logininfo', JSON.stringify(info));
     },
     getLoginInfo() {
-      const info_str = window.localStorage.getItem('maxim_logininfo') || {};
+      const info_str = window.localStorage.getItem('lanying_im_logininfo') || {};
       let info = {};
       try {
         info = JSON.parse(info_str);
@@ -279,13 +279,13 @@ export default {
       return info;
     },
     removeLoginInfo() {
-      window.localStorage.removeItem('maxim_logininfo');
+      window.localStorage.removeItem('lanying_im_logininfo');
     },
     saveAppId(appid) {
-      window.localStorage.setItem('maxim_appid', appid);
+      window.localStorage.setItem('lanying_im_appid', appid);
     },
     retrieveAppId() {
-      return window.localStorage.getItem('maxim_appid') || 'welovemaxim';
+      return window.localStorage.getItem('lanying_im_appid') || 'welovemaxim';
     }
   }
 };

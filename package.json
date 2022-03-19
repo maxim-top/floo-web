@@ -1,5 +1,5 @@
 {
-  "name": "maxim-web",
+  "name": "lanying-im-web",
   "version": "2.7.0",
   "private": true,
   "scripts": {
@@ -10,13 +10,15 @@
     "dev": "vue-cli-service serve --fix",
     "prod": "vue-cli-service build --mode production --fix",
     "prepackage": "yarn prod",
-    "package": "tar zcvf maxim-web.tar.gz dist",
+    "package": "tar zcvf lanying-im-web.tar.gz dist",
     "format": "yarn prettier -w .",
     "presdk": "yarn",
     "sdk": "webpack --mode production --config ./config/webpack.sdk.config.js",
     "sdk2": "rollup --config ./config/rollup.sdk.config.js",
     "prerelease": "yarn sdk",
-    "release": "./floo.sh maxim-web"
+    "release": "./floo.sh lanying-im-web",
+    "doc": "./node_modules/.bin/jsdoc -c ./jsdoc.config.json",
+    "doc-md": "node_modules/jsdoc-to-markdown/bin/cli.js src/*/*/*.js src/*/*/*/*.js > doc.md"
   },
   "dependencies": {
     "core-js": "2",
@@ -54,6 +56,8 @@
     "eslint-plugin-vue": "^6.1.2",
     "html-webpack-plugin": "^4.2.0",
     "husky": "^4.3.7",
+    "jsdoc": "^3.6.10",
+    "jsdoc-to-markdown": "^7.1.1",
     "lodash": "^4.17.11",
     "long": "^4.0.0",
     "mini-css-extract-plugin": "^0.9.0",

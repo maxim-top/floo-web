@@ -6,12 +6,34 @@ import './messageReceiver';
 import rosterManage from '../../manage/rosterManage';
 import groupManage from '../../manage/groupManage';
 import dnsManager from '../../manage/dnsManager';
-
+/**
+ * @module flooim
+ */
 let config = {};
 let loginSwap = null;
 let sdkOk = false;
 let isLogin = false;
-
+/**
+ * 初始化SDK
+ * @function flooim
+ * @static
+ * @example
+ * const config = {
+ * // dnsServer: "https://dns.maximtop.com/v2/app_dns",
+ * appid: "YOUR_APP_ID",
+ * ws: false,
+ * autoLogin: true
+ * };
+ * import flooim from 'floo-2.0.0';
+ * const im = flooim(config);
+ *
+ * @param {object} config SDK初始化设置
+ * @param {string} config.appid APPID
+ * @param {boolean} config.ws 连接地址前缀是否为ws/wss: true - 连接地址前缀为ws或wss, false - 连接地址前缀为http/https
+ * @param {boolean} config.autoLogin 是否自动登录
+ * @param {(string|undefined)} config.dnsServer DNS服务器地址， 可以不设置，默认为 https://dns.maximtop.com/v2/app_dns
+ * @returns {object} flooim对象
+ */
 const webim = function ({ autoLogin = true, dnsServer = 'https://dns.maximtop.com/v2/app_dns', appid = 'welovemaxim', ws = false }) {
   infoStore.saveAppid(appid);
   dnsManager
@@ -83,6 +105,14 @@ const setup_servers = function (appID) {
 };
 
 // 系统相关 ////////////////////////////////////////////////////////////
+/**
+ * 登录
+ * @function login
+ * @static
+ * @param {object} opt
+ * @param {string} opt.name - 用户名
+ * @param {string} opt.password - 密码
+ */
 webim.login = function (opt) {
   console.log('webim.login', opt, 'sdkOk:', sdkOk);
   if (!sdkOk) {
@@ -139,6 +169,14 @@ webim.login = function (opt) {
     });
 };
 
+/**
+ * 二维码登录
+ * @function qrlogin
+ * @static
+ * @param {object} opt
+ * @param {number} opt.user_id 用户ID
+ * @param {string} opt.password 密码
+ */
 webim.qrlogin = function (opt) {
   console.log('webim.qrlogin', opt);
   if (!sdkOk) {
@@ -195,6 +233,14 @@ webim.qrlogin = function (opt) {
     });
 };
 
+/**
+ * token登录
+ * @function tokenLogin
+ * @static
+ * @param {object} opt
+ * @param {number} opt.user_id 用户ID
+ * @param {string} opt.token Token
+ */
 webim.tokenLogin = function (user_id, token, public_key) {
   console.log('webim.tokenLogin', user_id, token);
   if (!sdkOk) {
@@ -245,6 +291,14 @@ webim.tokenLogin = function (user_id, token, public_key) {
 };
 
 // 系统相关 ////////////////////////////////////////////////////////////
+/**
+ * 使用用户ID和密码登录
+ * @function idLogin
+ * @static
+ * @param {object} opt
+ * @param {number} opt.user_id 用户ID
+ * @param {string} opt.password 密码
+ */
 webim.idLogin = function (opt) {
   io.tokenId(opt)
     .then((res) => {
@@ -294,10 +348,35 @@ webim.cleanup = function () {
   messageStore.clearAll();
 };
 
+/**
+ * 是否已登录
+ * @function isLogin
+ * @static
+ * @returns {boolean} 是否已登录
+ */
 webim.isLogin = function () {
   return isLogin && infoStore.getUid() && infoStore.getToken();
 };
 
+/**
+ * 事件监听
+ * @function on
+ * @static
+ * @example
+ * const im = flooim(config);
+ * im.on('event', (ret) => {
+ *    //do something with ret
+ *  })
+ *  // or
+ * im.on({
+ *    eventName: (ret) => {
+ *      //do something with ret
+ *    },
+ *    ...
+ *  })
+ * @param {(module:types~Event | Object.<module:types~Event, module:types~EventCallback>)} options 可以为事件名，也可以为事件名和事件回调
+ * @param {(module:types~EventCallback | undefined)} ext 事件回调，只有options为事件名时需要设置
+ */
 webim.on = webim.listen = function (options, ext) {
   if (ext) {
     bind(options, ext);
@@ -309,6 +388,25 @@ webim.on = webim.listen = function (options, ext) {
   }
 };
 
+/**
+ * 取消监听
+ * @function off
+ * @static
+ * @example
+ *  const im = flooim(config);
+ *  im.off('events', (ret) => {
+ *    //do something with ret
+ *  })
+ *  // or
+ *  im.off({
+ *    eventName: (ret) => {
+ *      //do something with ret
+ *    },
+ *  ...
+ *  })
+ * @param {(module:types~Event | Object.<module:types~Event, module:types~EventCallback>)} options 可以为事件名，也可以为事件名和事件回调
+ * @param {(module:types~EventCallback | undefined)} ext 事件回调，只有options为事件名时需要设置
+ */
 webim.off = function (options, ext) {
   if (ext) {
     unBind(options, ext);
@@ -320,6 +418,11 @@ webim.off = function (options, ext) {
   }
 };
 
+/**
+ * 退出账户
+ * @function logout
+ * @static
+ */
 webim.logout = function () {
   io.disConnect();
   webim.cleanup();

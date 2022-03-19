@@ -71,7 +71,10 @@ export default {
       this.$store.getters.im.sysManage
         .asyncFileUpload({
           file,
-          toType: 'rosterAvatar'
+          toType: 'rosterAvatar',
+          processCallback: function (res) {
+            console.log('fileChangeHandler rosterAvatar file upload percent :' + 100 * (res.loaded / res.total));
+          }
         })
         .then((res) => {
           this.$refs.fileRef.value = '';

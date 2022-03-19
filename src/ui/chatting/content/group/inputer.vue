@@ -189,7 +189,10 @@ export default {
           fileType: this.fileType,
           to_id: this.getSid,
           toType: 'chat',
-          chatType: 'group'
+          chatType: 'group',
+          processCallback: function (res) {
+            console.log('fileChangeHandler group chat file upload percent :' + 100 * (res.loaded / res.total));
+          }
         })
         .then((res) => {
           const fileInfo = {

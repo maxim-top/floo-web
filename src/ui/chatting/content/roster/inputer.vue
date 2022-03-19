@@ -98,7 +98,10 @@ export default {
           fileType: this.fileType,
           to_id: this.getSid,
           toType: 'chat',
-          chatType: 'roster'
+          chatType: 'roster',
+          processCallback: function (res) {
+            console.log('fileChangeHandler roster chat file upload percent :' + Math.floor(100 * (res.loaded / res.total)));
+          }
         })
         .then((res) => {
           const fileInfo = {

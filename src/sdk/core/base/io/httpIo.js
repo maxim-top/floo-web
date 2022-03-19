@@ -110,7 +110,7 @@ const unbindDeviceToken = (params) => request('/user/token/unbind', 'post', para
 
 // file upload
 const fileForward = (params) => request('/file/upload/forward', 'get', params, ['file_sign', 'access-token', 'to_id', 'to_type'], true);
-const asyncFileUpload = (url, params, config) => request(url, 'post', params, [], false, config);
+const asyncFileUpload = (url, params, config, processCallback) => request(url, 'post', params, [], false, config, processCallback);
 
 //avatar ....
 const fileUploadAvatarUrl = (params) => request('/file/upload/avatar/user', 'get', params, [], true);
@@ -118,7 +118,7 @@ const fileUploadGroupAvatarUrl = (params) => request('/file/upload/avatar/group'
 const fileUploadChatFileUrl = (params) => request('/file/upload/chat', 'get', params, ['file_type', 'to_id', 'to_type'], true);
 
 // file download
-const fileDownloadChatFileUrl = (url, params, config) => request(url, 'get', params, [], true, config);
+const fileDownloadChatFileUrl = (url, params, config, processCallback) => request(url, 'get', params, [], true, config, processCallback);
 
 // qrcode
 const qrcode = (params) => request('/app/qr_code', 'get', params, []);

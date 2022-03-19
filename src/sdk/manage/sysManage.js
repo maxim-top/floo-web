@@ -16,8 +16,23 @@ import {
 import { fire } from '../utils/cusEvent';
 import { STATIC_MESSAGE_STATUS } from '../utils/static';
 
+/**
+ * @module sysManage
+ */
+
 const getStaticVars = () => statics;
 
+/**
+ * 发送单聊消息
+ * @static
+ * @param {object} msg 消息体
+ * @param {string} msg.uid 接收者ID
+ * @param {string} msg.content 消息内容
+ * @param {string} msg.type 消息类型： text - 文本, image - 图片， audio - 语音, video - 视频，file - 文件, location - 位置， command - 命令, forward - 转发
+ * @param {(string|object)} msg.ext 扩展字段
+ * @param {(string|object)} msg.attachment 附件信息
+ * @returns {number} 客户端生成的消息ID
+ */
 const sendRosterMessage = (msg) => {
   const msgFrm = makeRosterMessage(msg);
   const meta = msgFrm.payload.meta;
@@ -27,6 +42,18 @@ const sendRosterMessage = (msg) => {
   return id;
 };
 
+/**
+ * 发送群聊消息
+ * @static
+ * @param {object} msg 发送消息体
+ * @param {string} msg.gid 群组ID
+ * @param {string} msg.content 消息内容
+ * @param {string} msg.type 消息类型： text - 文本, image - 图片， audio - 语音, video - 视频，file - 文件, location - 位置， command - 命令, forward - 转发
+ * @param {(string|object)} msg.ext 扩展字段
+ * @param {(string|object)} msg.attachment 附件信息
+ * @param {number} msg.priority 设置消息的扩散优先级，默认为0。0表示扩散，数字越小扩散的越多。
+ * @returns {number} 客户端生成的消息ID
+ */
 const sendGroupMessage = (msg) => {
   const msgFrm = makeGroupMessage(msg);
   const meta = msgFrm.payload.meta;
@@ -36,25 +63,65 @@ const sendGroupMessage = (msg) => {
   return id;
 };
 
+/**
+ * 请求历史消息
+ * @static
+ * @param {number} uid 会话ID
+ * @param {number} sid 消息ID: 从哪个消息向前拉取，传0表示从最新一条消息开始拉取。
+ * @param {number} amount 拉取的条数
+ */
 const requireHistoryMessage = (uid, sid, amount) => {
   const msgFrm = makeHistorySyncul(uid, sid, amount);
   io.sendMessage(msgFrm);
 };
 
+/**
+ * 群发送@消息
+ * @static
+ * @param {object} params
+ * @param {number} params.gid 群ID
+ * @param {string} params.txt 消息文本内容
+ * @param {boolean} params.mentionAll 是否@所有人
+ * @param {Array.<number>} params.mentionList @的成员ID列表
+ * @param {string} params.mentionedMessage @消息的显示内容
+ * @param {string} params.mentionedMessage @消息的推送内容
+ * @param {string} params.senderNickname 发送者昵称
+ * @returns {number} 客户端生成的消息ID
+ */
 const sendMentionMessage = (params) => {
   const msgFrm = makeMentionMessage(params);
   const meta = msgFrm.payload.meta;
   messageStore.saveSendingGroupMessage(meta);
   io.sendMessage(msgFrm);
+  const { id } = meta;
+  return id;
 };
 
+/**
+ * 发送输入状态消息
+ * @static
+ * @param {number} uid 会话ID
+ * @param {string} status 状态： nothing - 未输入， typing - 正在输入
+ * @returns {number} 客户端生成的消息ID
+ */
 const sendInputStatusMessage = (uid, status) => {
   const msgFrm = makeTypingMessage(uid, status);
-  // const meta = msgFrm.payload.meta;
+  const meta = msgFrm.payload.meta;
   // messageStore.saveSendingRosterMessage(meta);
   io.sendMessage(msgFrm);
+  const { id } = meta;
+  return id;
 };
 
+/**
+ * 转发消息
+ * @static
+ * @param {object} param 参数
+ * @param {number} param.uid 接收方用户ID（仅转发单聊时设置）
+ * @param {number} param.gid 接收方群组ID（仅转发群聊时设置）
+ * @param {number} param.mid 要转发的消息ID
+ * @returns {number} 客户端生成的消息ID
+ */
 const forwardMessage = function (param) {
   //FIXME: bad style param
   const { uid, mid, gid } = param;
@@ -85,6 +152,8 @@ const forwardMessage = function (param) {
         messageStore.saveSendingGroupMessage(smeta);
       }
       io.sendMessage(msgFrm);
+      const { id } = smeta;
+      return id;
     });
   } else {
     const msgFrm = makeForwardMessage(uid, gid, message);
@@ -95,6 +164,8 @@ const forwardMessage = function (param) {
       messageStore.saveSendingGroupMessage(smeta);
     }
     io.sendMessage(msgFrm);
+    const { id } = smeta;
+    return id;
   }
 };
 
@@ -165,6 +236,14 @@ const makeSearch = (kw) => {
   };
 };
 
+/**
+ * 获取消息的状态
+ * @static
+ * @param {number} cid 会话ID
+ * @param {number} mid 消息ID
+ * @param {boolean} isGroup 是否是群聊
+ * @returns {string} 消息状态:   unread - 未读， delivered - 已投递， read - 已读
+ */
 const getMessageStatus = (cid, mid, isGroup = false) => {
   let message = {};
   if (isGroup) {
@@ -177,9 +256,22 @@ const getMessageStatus = (cid, mid, isGroup = false) => {
   return status ? status.toLowerCase() : undefined;
 };
 
+/**
+ * 上传文件
+ * @static
+ * @param {object} param 参数
+ * @param {number} param.group_d 群组ID
+ * @param {number} param.toType 接收者类型：rosterAvatar - 用户头像， chat - 聊天文件， groupAvatar - 群头像
+ * @param {number} param.to_id 接收者ID
+ * @param {File} param.file 文件
+ * @param {string} param.fileType 文件类型：file - 普通聊天文件, audio - 语音聊天文件(amr格式),image - 图片聊天文件, video - 视频聊天文件, audio-mp3 - 语音聊天文件(mp3格式), shareFile - 普通共享文件, shareAudio - 语音共享文件, shareImage - 图片共享文件, shareVideo - 视频共享文件
+ * @param {number} param.chatType 聊天类型： roster - 单聊, group - 群聊
+ * @param {module:types~fileUploadProgress} param.processCallback 上传进度回调
+ * @returns {Promise.<module:types~FileUploadResult>} 文件上传结果
+ */
 const asyncFileUpload = (param) => {
   return new Promise((success, rej) => {
-    const { group_id, to_id, toType, file, fileType, chatType } = param;
+    const { group_id, to_id, toType, file, fileType, chatType, processCallback } = param;
     let target = '';
     if (toType === 'rosterAvatar') {
       target = 'fileUploadAvatarUrl';
@@ -224,7 +316,7 @@ const asyncFileUpload = (param) => {
           headers: { 'Content-Type': 'multipart/form-data' }
         };
 
-        io.asyncFileUpload(res.upload_url, param, config)
+        io.asyncFileUpload(res.upload_url, param, config, processCallback)
           .then(() => {
             success({ url: res.download_url });
           })
@@ -238,6 +330,16 @@ const asyncFileUpload = (param) => {
   });
 };
 
+/**
+ * 拼装图片路径
+ * @static
+ * @param {object} param
+ * @param {string} param.avatar 文件地址
+ * @param {string} param.type 类型： roster - 用户, group - 群
+ * @param {boolean} param.thumbnail 是否缩略图：默认为true
+ * @param {string} param.sdefault 默认图片地址
+ * @returns {string} 图片地址
+ */
 const getImage = ({ avatar = '', type = 'roster', thumbnail = true, sdefault = '' }) => {
   if (/^\//.test(avatar)) {
     return avatar;
@@ -305,25 +407,32 @@ const getChatFile = ({ url = '', params = {} }) => {
   return url + queryString.stringify(params);
 };
 
-const downloadAudio = ({ url = '', type = 'audio' }) => {
+const downloadAudio = ({ url = '', type = 'audio', processCallback = undefined }) => {
   return downloadChatFile({
     url,
     type,
     params: {
       format: 'mp3'
-    }
+    },
+    processCallback
   });
 };
 
-const downloadChatFile = ({ url = '', type = '', params = {} }) => {
+const downloadChatFile = ({ url = '', type = '', params = {}, processCallback = undefined }) => {
   console.log('Download chat file: ', type, ' ', url);
   if (!url) return '';
   let config = {
     operation: 'download_file'
   };
-  return io.fileDownloadChatFileUrl(url, params, config);
+  return io.fileDownloadChatFileUrl(url, params, config, processCallback);
 };
 
+/**
+ * 删除会话
+ * @static
+ * @param {number} id 会话ID
+ * @param {boolean} other_devices 是否同时删除其它设备上的会话
+ */
 const deleteConversation = function (id, other_devices = true) {
   fire('deleteConversation', { id, other_devices, source: 'user_operation' });
 
@@ -346,7 +455,23 @@ export default {
   requireHistoryMessage,
   makeSearch,
   asyncGetUserAvatarUploadUrl: io.fileUploadAvatarUrl,
+  /**
+   * 获取上传群头像URL
+   * @function
+   * @param {object} params 参数
+   * @param {number} params.group_id 群组ID
+   * @returns {Promise.<module:types~FileUpload>} 文件上传信息
+   */
   asyncGetGroupAvatarUploadUrl: io.fileUploadGroupAvatarUrl,
+  /**
+   * 获取聊天文件上传地址
+   * @function
+   * @param {object} params 参数
+   * @param {number} params.file_type 文件类型: 100 - 普通聊天文件, 101 - 语音聊天文件(amr格式),102 - 图片聊天文件, 103 - 视频聊天文件, 104 - 语音聊天文件(mp3格式)200 - 普通共享文件, 201 - 语音共享文件, 202 - 图片共享文件, 203 - 视频共享文件
+   * @param {number} params.to_type 会话类型： 1 - 用户，2 - 群组
+   * @param {number} params.to_id 会话ID
+   * @returns {Promise.<module:types~FileUpload>} 文件上传信息
+   */
   asyncGetFileUploadChatFileUrl: io.fileUploadChatFileUrl,
   asyncQrcode: io.qrcode,
   asyncQrlogin: io.qrlogin,
