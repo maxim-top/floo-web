@@ -59,7 +59,7 @@ yarn doc
 
 ## 其他
 
-了解更多信息可以阅读[在线文档](https://www.maximtop.com/docs/)，或者在本仓库提问，好好玩 :)
+了解更多信息可以阅读[在线文档](https://docs.maximtop.com/quick-start/floo-web-quick-start.html)，或者在本仓库提问，好好玩 :)
 
 -- --
 **蓝莺IM 专业SDK，私有云按月付费**
