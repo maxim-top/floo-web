@@ -30,3 +30,6 @@ yarn.lock
 *.sln
 .vscode
 *.sw*
+
+# jsdoc output html dir
+docs/

@@ -49,14 +49,6 @@ const asyncGetRosterInfo = (roster_id, force) => {
     });
 };
 
-/**
- * 用户注册
- * @static
- * @param {object} opt  用户信息
- * @param {string} opt.username 用户名
- * @param {string} opt.password 密码
- * @returns {Promise.<module:types~UserSettings>} 用户设置
- */
 const asyncRegester = (opt) => http.userRegister(opt);
 
 /**
@@ -202,7 +194,7 @@ const getRosterInfo = (rid) => rosterStore.getRosterInfo(rid);
 /**
  * 获取指定会话的未读数
  * @static
- * @param {number} uid 会话IID
+ * @param {number} uid 会话ID
  * @returns {number} 未读数
  */
 const getUnreadCount = (uid) => messageStore.getUnreadByRosterId(uid);
@@ -284,6 +276,8 @@ export default {
    * @param {object} params 参数
    * @param {number} params.user_id 用户ID
    * @param {string} params.ext 扩展字段
+   * @param {string} params.alias 备注名称
+   * @param {boolean} params.mute_notification 是否接收消息提醒
    * @returns {Promise.<boolean>} 是否成功
    */
   asyncUpdateRosterExt: http.rosterExt,

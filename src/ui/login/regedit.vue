@@ -63,7 +63,7 @@ export default {
         return;
       }
       const im = this.$store.state.im;
-      im.rosterManage.asyncRegester(this.user).then(() => {
+      im.userManage.asyncRegister(this.user).then(() => {
         this.$store.dispatch('login/actionSetLoginInfo', this.user);
         this.$store.dispatch('login/actionChangeAppStatus', 'bind');
       });

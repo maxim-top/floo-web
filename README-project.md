@@ -1,8 +1,8 @@
-## 蓝莺IM web 版
+## 蓝莺 IM web 版
 
-蓝莺IM，是由[美信拓扑](https://www.maximtop.com/)团队研发的新一代即时通讯云服务，SDK设计简单集成方便，服务采用云原生技术和多云架构，私有云也可按月付费。
+蓝莺 IM，是由[美信拓扑](https://www.lanyingim.com/)团队研发的新一代即时通讯云服务，SDK 设计简单集成方便，服务采用云原生技术和多云架构，私有云也可按月付费。
 
-蓝莺IM APP 为方便体验试用蓝莺 IMSDK 的 DemoApp。开发者可直接[在线试用](https://chat.maximtop.com)，也可在官网[下载页面](https://www.maximtop.com/downloads/)选择试用所有客户端。
+蓝莺 IM APP 为方便体验试用蓝莺 IMSDK 的 DemoApp。开发者可直接[在线试用](https://chat.lanyingim.com)，也可在官网[下载页面](https://www.lanyingim.com/downloads/)选择试用所有客户端。
 
 DemoApp 是为了演示 IM SDK 调用而开发，也因此最好的开发方式为根据 DemoApp 找到功能，然后直接查看使用示例。
 
@@ -21,7 +21,7 @@ DemoApp 是为了演示 IM SDK 调用而开发，也因此最好的开发方式�
    配置本地 `/etc/hosts` 表，增加一行
 
    ```
-   127.0.0.1   dev.maximtop.com
+   127.0.0.1   dev.lanyingim.com
    ```
 
    然后再运行
@@ -37,9 +37,9 @@ DemoApp 是为了演示 IM SDK 调用而开发，也因此最好的开发方式�
 
 ## 开发自己的应用
 
-请先修改美信拓扑 AppID
+请先修改蓝莺 IM AppID
 
-打开文件 `./src/App.vue`, 将默认 AppID: welovemaxim 更改为你的应用 AppID，此 AppID 为在[美信拓扑后台](https://console.maximtop.com/)创建应用后获取。
+打开文件 `./src/App.vue`, 将默认 AppID: welovemaxim 更改为你的应用 AppID，此 AppID 为在[蓝莺 IM 后台](https://console.lanyingim.com/)创建应用后获取。
 
 ## 代码风格
 
@@ -71,6 +71,7 @@ module.exports = {
 ```
 
 2. 找不到 long 模块，提示
+
 ```
 module "third/long" is not defined
 ```
@@ -81,10 +82,10 @@ module "third/long" is not defined
 npm i -f
 ```
 
-
 ## 其他
 
-了解更多信息可以阅读[在线文档](https://www.maximtop.com/docs/)，或者在本仓库提问，好好玩 :)
+了解更多信息可以阅读[在线文档](https://docs.lanyingim.com/)，或者在本仓库提问，好好玩 :)
 
--- --
-**蓝莺IM 专业SDK，私有云按月付费**
+---
+
+**蓝莺 IM 专业 SDK，私有云按月付费**

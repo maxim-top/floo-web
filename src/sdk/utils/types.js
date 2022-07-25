@@ -354,7 +354,7 @@
  * @example
  * {category: 'USER_BANNED', desc:'用户被禁言'}
  * {category: 'USER_FROZEN', desc:'用户被冻结，请联系App管理员。'}
- * {category: 'APP_FROZEN', desc:'APP 被冻结，请登陆美信拓扑控制台查看详情。'}
+ * {category: 'APP_FROZEN', desc:'APP 被冻结，请登陆蓝莺IM控制台查看详情。'}
  * {category: 'LICENSE', desc:'无效 LICENSE，请确认服务已按时付费。'}
  * {category: 'LICENSE', desc:'超出 LICENSE 用户数限制，请购买更高规格服务。'}
  * {category: 'DNS_FAILED', desc: dnsServer } // DNS错误: 无法访问
@@ -456,6 +456,12 @@
  * 好友列表变更
  * @event onRosterListUpdate
  * @param {module:types~Meta} meta 好友通知的消息内容
+ */
+
+/**
+ * 收到好友申请
+ * @event onRosterApplied
+ * @param {module:types~Meta} meta 好友申请的消息内容
  */
 
 /**

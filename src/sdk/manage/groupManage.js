@@ -73,10 +73,10 @@ const openGroup = (group_id) => {
  */
 const getAllGroupDetail = () => groupStore.getAllGroupInfos();
 /**
- * 获取群组成员（异步）
+ * 获取群组成员ID列表（异步）
  * @static
  * @param {number} group_id 群组ID
- * @returns {Promise.<Array.<module:types~GroupMember>>} 群成员列表
+ * @returns {Promise.<Array.<number>>} 群成员ID列表
  */
 const asyncGetGroupMembers = (group_id) => {
   return http

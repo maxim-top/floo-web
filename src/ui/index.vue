@@ -103,7 +103,7 @@ export default {
 
     initFlooIM() {
       const config = {
-        // dnsServer: "https://dns.maximtop.com/v2/app_dns",
+        // dnsServer: "https://dns.lanyingim.com/v2/app_dns",
         appid: this.appid,
         ws: false,
         autoLogin: true
@@ -198,7 +198,7 @@ export default {
     },
 
     //如果你在原生App中集成Web版，尤其是Uniapp这样的场景，你才可能需要绑定 DeviceToken 以利用厂商推送通道。
-    //其中 notifier_name 为证书名称，也即在美信拓扑控制台内上传证书时候设置的名称。
+    //其中 notifier_name 为证书名称，也即在蓝莺IM控制台内上传证书时候设置的名称。
     bindDeviceToken(device_token, notifier_name) {
       const imUser = this.getIM().userManage;
       const device_sn = imUser.getDeviceSN();

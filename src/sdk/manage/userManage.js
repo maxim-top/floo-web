@@ -36,12 +36,41 @@ export default {
   getConversationList,
   deleteToken: infoStore.deleteToken,
 
+  /**
+   * 获取设备序号
+   * @function
+   * @returns {number} 设备序号
+   */
   getDeviceSN,
+  /**
+   * 绑定推送设备
+   * @function
+   * @param {object} param  绑定请求
+   * @param {number} param.device_sn 设备序号
+   * @param {string} param.notifier_name 证书名称，即在蓝莺IM控制台内上传证书时候设置的名称。
+   * @param {string} param.device_token 推送设备Token
+   * @returns {Promise.<boolean>} 是否成功
+   */
   asyncBindDeviceToken: http.bindDeviceToken,
+  /**
+   * 解绑推送设备
+   * @function
+   * @param {object} param  解绑请求
+   * @param {number} param.deviceSn 设备序号
+   * @returns {Promise.<boolean>} 是否成功
+   */
   asyncUnbindDeviceToken: http.unbindDeviceToken,
 
   asyncTokenUser: http.tokenUser,
   asyncTokenId: http.tokenId,
+  /**
+   * 用户注册
+   * @function
+   * @param {object} opt  用户信息
+   * @param {string} opt.username 用户名
+   * @param {string} opt.password 密码
+   * @returns {Promise.<module:types~UserSettings>} 用户设置
+   */
   asyncRegister: http.userRegister,
   asyncUserBindMobile: http.userBindMobile,
   asyncUserUpdateMobile: http.userUpdateMobile,

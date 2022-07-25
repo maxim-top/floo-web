@@ -1,8 +1,8 @@
-# 蓝莺IM SDK：floo-web API 介绍
+# 蓝莺 IM SDK：floo-web API 介绍
 
 ## 选型先读
 
-蓝莺IM 前端 Web SDK 共有三个版本，请按需选择：
+蓝莺 IM 前端 Web SDK 共有三个版本，请按需选择：
 
 1.  [Web 版](https://github.com/maxim-top/lanying-im-web)，主要供 PC 桌面浏览器使用，适合各种传统前端应用；
 2.  [Uni-app 版](https://github.com/maxim-top/lanying-im-uniapp)，基于 DCloud.io 的 uni-app 框架开发，供 H5 和各种小程序（微信/支付宝/百度/头条/QQ/钉钉/淘宝），也可发布到 iOS、Android、快应用等平台；
@@ -12,7 +12,7 @@
 
 ## 前期准备
 
-下载对应 SDK 文件，桌面 Web 版地址为：[floo-2.0.0.js](https://package.maximtop.com/floo-2.0.0.js)，并在代码中引用。
+下载对应 SDK 文件，桌面 Web 版地址为：[floo-2.0.0.js](https://package.lanyingim.com/floo-2.0.0.js)，并在代码中引用。
 
 ## 初始化
 
@@ -20,7 +20,7 @@
 
 ```
     const config = {
-      // dnsServer: "https://dns.maximtop.com/v2/app_dns",
+      // dnsServer: "https://dns.lanyingim.com/v2/app_dns",
       appid: "YOUR_APP_ID",
       ws: false,
       autoLogin: true
@@ -111,6 +111,198 @@ token 登录
 
 ```
 
+## userManager
+
+用户注册
+
+```
+        userManage.asyncRegister({
+          username,
+          password
+        }).then(() => {
+          //
+        });
+
+```
+
+获取登录用户的 token
+
+```
+        const token =  im.userManage.getToken();
+
+```
+
+获取登录用户的 uid
+
+```
+        const cuid = im.userManage.getUid();
+
+```
+
+获取 appid
+
+```
+        const appid = im.userManage.getAppid();
+
+```
+
+获取最近回话列表
+
+```
+        const list = im.userManage.getConversationList();
+
+```
+
+发送验证码
+
+```
+        im.userManage
+        .asyncUserSendSms({
+          mobile,
+        })
+        .then(() => {
+          //
+        });
+
+```
+
+发送验证码（通过图片验证码）
+
+```
+        im.userManage
+        .asyncCaptchaSms({
+          captcha,
+          image_id,
+          mobile,
+        })
+        .then(() => {
+          //
+        });
+
+```
+
+检查用户名是否可用
+
+```
+        im.userManage.asyncUserNameCheck(username).then(() => {
+          //
+        });
+
+```
+
+绑定手机号-使用签名绑定
+
+```
+        im.userManage.asyncUserMobileBindSign({
+            mobile,
+            sign,
+          }).then(() => {
+            //
+          });
+
+```
+
+手机号验证码登录
+
+```
+        im.userManage.asyncUserMobileLogin({
+          captcha,
+          mobile
+        })
+        .then(res => {
+          //
+        });
+
+```
+
+更新手机号
+
+```
+        im.userManage
+        .asyncUpdateMobile({ mobile })
+        .then(() => {
+          //
+        });
+
+```
+
+更新头像
+
+```
+        im.userManage
+        .asyncUpdateAvatar({
+          avatar
+        })
+        .then(() => {
+          //
+        });
+
+```
+
+更新昵称
+
+```
+        im.userManage.asyncUpdateNickName({ nick_name }).then(() => {
+          //
+        });
+
+```
+
+获取用户 profile
+
+```
+        im.userManage.asyncGetProfile(true).then(res => {
+          //
+        })
+
+```
+
+更新用户 profile
+
+```
+        im.userManage.asyncUpdateProfile({
+          username,
+          avatar
+        }).then(res => {
+          //
+        })
+
+```
+
+获取用户设置信息
+
+```
+        im.userManage.asyncGetSettings().then(res => {
+          //
+        })
+
+```
+
+修改用户设置
+
+```
+        im.userManage
+        .asyncUpdateSettings({
+          "auth_answer": "string",
+          "auth_mode": 0,
+          "auth_question": "string",
+          "auto_download": true,
+          "group_confirm": true,
+          "id": 0,
+          "no_push": true,
+          "no_push_detail": true,
+          "no_push_end_hour": 0,
+          "no_push_start_hour": 0,
+          "no_sounds": true,
+          "push_nick_name": "string",
+          "user_id",
+          "vibratory": true
+        }).then(() => {
+          //
+        });
+
+```
+
 ## rosterManager
 
 获取好友 id 列表
@@ -128,18 +320,6 @@ token 登录
         im.rosterManage.asyncGetRosterInfo(state.sid).then(res => {
           //
         })
-
-```
-
-用户注册
-
-```
-        rosterManage.asyncRegester({
-          username,
-          password
-        }).then(() => {
-          //
-        });
 
 ```
 
@@ -942,186 +1122,6 @@ token 登录
 
 ```
 
-## userManager
-
-获取登录用户的 token
-
-```
-        const token =  im.userManage.getToken();
-
-```
-
-获取登录用户的 uid
-
-```
-        const cuid = im.userManage.getUid();
-
-```
-
-获取 appid
-
-```
-        const appid = im.userManage.getAppid();
-
-```
-
-获取最近回话列表
-
-```
-        const list = im.userManage.getConversationList();
-
-```
-
-发送验证码
-
-```
-        im.userManage
-        .asyncUserSendSms({
-          mobile,
-        })
-        .then(() => {
-          //
-        });
-
-```
-
-发送验证码（通过图片验证码）
-
-```
-        im.userManage
-        .asyncCaptchaSms({
-          captcha,
-          image_id,
-          mobile,
-        })
-        .then(() => {
-          //
-        });
-
-```
-
-检查用户名是否可用
-
-```
-        im.userManage.asyncUserNameCheck(username).then(() => {
-          //
-        });
-
-```
-
-绑定手机号-使用签名绑定
-
-```
-        im.userManage.asyncUserMobileBindSign({
-            mobile,
-            sign,
-          }).then(() => {
-            //
-          });
-
-```
-
-手机号验证码登录
-
-```
-        im.userManage.asyncUserMobileLogin({
-          captcha,
-          mobile
-        })
-        .then(res => {
-          //
-        });
-
-```
-
-更新手机号
-
-```
-        im.userManage
-        .asyncUpdateMobile({ mobile })
-        .then(() => {
-          //
-        });
-
-```
-
-更新头像
-
-```
-        im.userManage
-        .asyncUpdateAvatar({
-          avatar
-        })
-        .then(() => {
-          //
-        });
-
-```
-
-更新昵称
-
-```
-        im.userManage.asyncUpdateNickName({ nick_name }).then(() => {
-          //
-        });
-
-```
-
-获取用户 profile
-
-```
-        im.userManage.asyncGetProfile(true).then(res => {
-          //
-        })
-
-```
-
-更新用户 profile
-
-```
-        im.userManage.asyncUpdateProfile({
-          username,
-          avatar
-        }).then(res => {
-          //
-        })
-
-```
-
-获取用户设置信息
-
-```
-        im.userManage.asyncGetSettings().then(res => {
-          //
-        })
-
-```
-
-修改用户设置
-
-```
-        im.userManage
-        .asyncUpdateSettings({
-          "auth_answer": "string",
-          "auth_mode": 0,
-          "auth_question": "string",
-          "auto_download": true,
-          "group_confirm": true,
-          "id": 0,
-          "no_push": true,
-          "no_push_detail": true,
-          "no_push_end_hour": 0,
-          "no_push_start_hour": 0,
-          "no_sounds": true,
-          "push_nick_name": "string",
-          "user_id",
-          "vibratory": true
-        }).then(() => {
-          //
-        });
-
-```
-
 ## 事件通知
 
 1.  Floo 通知
@@ -1160,7 +1160,7 @@ token 登录
 事件内容：({category, desc})
 {category: 'USER_BANNED', desc:'用户被禁言'}
 {category: 'USER_FROZEN', desc:'用户被冻结，请联系App管理员。'}
-{category: 'APP_FROZEN', desc:'APP 被冻结，请登陆美信拓扑控制台查看详情。'}
+{category: 'APP_FROZEN', desc:'APP 被冻结，请登陆蓝莺IM控制台查看详情。'}
 {category: 'LICENSE', desc:'无效 LICENSE，请确认服务已按时付费。'}
 {category: 'LICENSE', desc:'超出 LICENSE 用户数限制，请购买更高规格服务。'}
 {category: 'DNS_FAILED', desc: dnsServer } // DNS错误: 无法访问

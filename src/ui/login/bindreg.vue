@@ -50,8 +50,8 @@ export default {
         return;
       }
       const im = this.$store.state.im;
-      im.rosterManage
-        .asyncRegester(this.user)
+      im.userManage
+        .asyncRegister(this.user)
         .then(() => {
           im.login({
             name: this.user.username,

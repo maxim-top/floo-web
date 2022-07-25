@@ -41,7 +41,7 @@ module.exports = (env) => {
       })
     ],
     devServer: {
-      host: 'dev.maximtop.com',
+      host: 'dev.lanyingim.com',
       port: '443',
       // open: true,//自动拉起浏览器
       hot: false, //热加载

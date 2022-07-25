@@ -58,7 +58,7 @@ module.exports = (env) => {
       // inline: true,
       hot: true,
       open: true,
-      host: 'dev.maximtop.com',
+      host: 'dev.lanyingim.com',
       disableHostCheck: true,
       https: true
       // proxy: {

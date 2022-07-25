@@ -52,7 +52,7 @@ const checkSuccess = (messageObj) => {
     fire('flooError', { category, desc });
   } else if (code === STATIC_FRAME_ERROR_STATUS.APP_FROZEN) {
     const category = 'APP_FROZEN';
-    const desc = 'APP 被冻结，请登陆美信拓扑控制台查看详情。';
+    const desc = 'APP 被冻结，请登陆蓝莺IM控制台查看详情。';
     fire('flooError', { category, desc });
   } else if (code === STATIC_FRAME_ERROR_STATUS.INVALID_LICENSE) {
     const category = 'LICENSE';
@@ -216,9 +216,9 @@ const receiveConversation = (meta) => {
   const { type, operation } = payload;
 
   if (type === STATIC_CONVERSATION_TYPE.OPER) {
-    if (operation.op_type == STATIC_CONVERSATION_OPTYPE.DELETE || operation.op_type == STATIC_CONVERSATION_OPTYPE.DELETE_EVERYWHERE) {
+    if (operation.type == STATIC_CONVERSATION_OPTYPE.DELETE || operation.type == STATIC_CONVERSATION_OPTYPE.DELETE_EVERYWHERE) {
       const { xid } = operation;
-      fire('deleteConveration', { id: xid.uid, source: 'other_operation' });
+      fire('deleteConversation', { id: xid.uid, source: 'other_operation' });
     } else {
       log.log('received unknown conversation operation: ', operation);
     }
@@ -290,6 +290,7 @@ const receiveRosterNotice = (meta) => {
   }
   type === STATIC_ROSTERNONTICE_TYPE.ADDED && fire('imRosterAdded', meta);
   type === STATIC_ROSTERNONTICE_TYPE.REMOVED && fire('imRosterRemoved', meta);
+  type === STATIC_ROSTERNONTICE_TYPE.APPLIED && fire('imRosterApplied', meta);
   type === STATIC_ROSTERNONTICE_TYPE.ACCEPTED && fire('imRosterAccepted', meta);
   type === STATIC_ROSTERNONTICE_TYPE.DECLINED && fire('imRosterDeclined', meta);
   type === STATIC_ROSTERNONTICE_TYPE.BANNED && fire('imRosterBaned', meta);

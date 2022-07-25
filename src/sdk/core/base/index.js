@@ -19,7 +19,7 @@ let isLogin = false;
  * @static
  * @example
  * const config = {
- * // dnsServer: "https://dns.maximtop.com/v2/app_dns",
+ * // dnsServer: "https://dns.lanyingim.com/v2/app_dns",
  * appid: "YOUR_APP_ID",
  * ws: false,
  * autoLogin: true
@@ -31,10 +31,10 @@ let isLogin = false;
  * @param {string} config.appid APPID
  * @param {boolean} config.ws 连接地址前缀是否为ws/wss: true - 连接地址前缀为ws或wss, false - 连接地址前缀为http/https
  * @param {boolean} config.autoLogin 是否自动登录
- * @param {(string|undefined)} config.dnsServer DNS服务器地址， 可以不设置，默认为 https://dns.maximtop.com/v2/app_dns
+ * @param {(string|undefined)} config.dnsServer DNS服务器地址， 可以不设置，默认为 https://dns.lanyingim.com/v2/app_dns
  * @returns {object} flooim对象
  */
-const webim = function ({ autoLogin = true, dnsServer = 'https://dns.maximtop.com/v2/app_dns', appid = 'welovemaxim', ws = false }) {
+const webim = function ({ autoLogin = true, dnsServer = 'https://dns.lanyingim.com/v2/app_dns', appid = 'welovemaxim', ws = false }) {
   infoStore.saveAppid(appid);
   dnsManager
     .asyncGetDns(dnsServer, appid, ws)
@@ -237,12 +237,11 @@ webim.qrlogin = function (opt) {
  * token登录
  * @function tokenLogin
  * @static
- * @param {object} opt
- * @param {number} opt.user_id 用户ID
- * @param {string} opt.token Token
+ * @param {number} user_id 用户ID
+ * @param {string} token Token
  */
 webim.tokenLogin = function (user_id, token, public_key) {
-  console.log('webim.tokenLogin', user_id, token);
+  console.log('webim.tokenLogin', user_id);
   if (!sdkOk) {
     loginSwap = {
       type: 'tokenLogin',
@@ -426,6 +425,7 @@ webim.off = function (options, ext) {
 webim.logout = function () {
   io.disConnect();
   webim.cleanup();
+  window.location.reload();
 };
 
 webim.isReady = function () {

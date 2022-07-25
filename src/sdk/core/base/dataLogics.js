@@ -362,6 +362,10 @@ bind('imRosterRemoved', (meta) => {
   // 自己被删 先不做处理
 });
 
+bind('imRosterApplied', (meta) => {
+  fire('onRosterApplied', meta);
+});
+
 bind('imRosterAccepted', (meta) => {
   // from === 点同意的， to， 被同意
   const { payload } = meta;
