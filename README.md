@@ -1,8 +1,8 @@
-# 蓝莺 IM SDK web 版
+# 蓝莺IM SDK web 版
 
-蓝莺 IM，是由[美信拓扑](https://www.lanyingim.com/)团队研发的新一代即时通讯云服务，SDK 设计简单集成方便，服务采用云原生技术和多云架构，私有云也可按月付费。
+蓝莺IM，是由[美信拓扑](https://www.lanyingim.com/)团队研发的新一代即时通讯云服务，SDK 设计简单集成方便，服务采用云原生技术和多云架构，私有云也可按月付费。
 
-本仓库是 IMSDK 的源码仓库，如果你只是开发自己的聊天 App，建议直接使用蓝莺 IM web 版仓库 [lanying-im-web](https://github.com/maxim-top/lanying-im-web)，也可以直接[在线试用](https://chat.lanyingim.com)。
+本仓库是 IMSDK 的源码仓库，如果你只是开发自己的聊天 App，建议直接使用蓝莺IM web 版仓库 [lanying-im-web](https://github.com/maxim-top/lanying-im-web)，也可以直接[在线试用](https://chat.lanyingim.com)。
 
 [![Awesome](https://awesome.re/badge.svg)](https://awesome.re) [![Scc Count Badge](https://sloc.xyz/github/maxim-top/floo-web/?category=total&avg-wage=1)](https://github.com/maxim-top/floo-web/) [![Scc Count Badge](https://sloc.xyz/github/maxim-top/floo-web/?category=code&avg-wage=1)](https://github.com/maxim-top/floo-web/)
 
@@ -63,4 +63,4 @@ yarn doc
 
 ---
 
-**蓝莺 IM 专业 SDK，私有云按月付费**
+**蓝莺IM 专业 SDK，私有云按月付费**

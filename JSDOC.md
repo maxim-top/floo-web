@@ -1,8 +1,8 @@
-# 蓝莺 IM SDK：floo-web API 介绍
+# 蓝莺IM SDK：floo-web API 介绍
 
 ## 选型先读
 
-蓝莺 IM 前端 Web SDK 共有三个版本，请按需选择：
+蓝莺IM 前端 Web SDK 共有三个版本，请按需选择：
 
 1.  [Web 版](https://github.com/maxim-top/lanying-im-web)，主要供 PC 桌面浏览器使用，适合各种传统前端应用；
 2.  [Uni-app 版](https://github.com/maxim-top/lanying-im-uniapp)，基于 DCloud.io 的 uni-app 框架开发，供 H5 和各种小程序（微信/支付宝/百度/头条/QQ/钉钉/淘宝），也可发布到 iOS、Android、快应用等平台；
