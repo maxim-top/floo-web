@@ -14,6 +14,8 @@ import { makeDeleteMessage, makeRecallMessage, makeUnreadMessage } from '../core
  * @static
  * @param {boolean} force 是否强制从服务器拉取：true - 从服务器获取， false - 从本地存储获取
  * @returns {Promise.<Array.<number>>} 用户ID列表
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncGetRosterIdList" %}{% endlanying_code_snippet %}
  */
 const asyncGetRosterIdList = (force) => {
   if (force) {
@@ -31,6 +33,8 @@ const asyncGetRosterIdList = (force) => {
  * @param {number} roster_id 好友ID
  * @param {boolean} force 是否强制从服务器拉取： true - 从服务器拉取， false - 优先从本地存储获取
  * @returns {Promise.<module:types~RosterItem>} 好友信息
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncGetRosterInfo" %}{% endlanying_code_snippet %}
  */
 const asyncGetRosterInfo = (roster_id, force) => {
   const ret = rosterStore.getRosterInfo(roster_id);
@@ -57,6 +61,8 @@ const asyncRegester = (opt) => http.userRegister(opt);
  * @param {object} param 参数
  * @param {number} param.user_id 好友的用户ID
  * @returns {Promise.<boolean>} 请求结果
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncDeleteRoster" %}{% endlanying_code_snippet %}
  */
 const asyncDeleteRoster = (param) => {
   return http.rosterDelete(param).then((res) => {
@@ -72,6 +78,8 @@ const asyncDeleteRoster = (param) => {
  * @static
  * @param {Array.<number>} roster_ids 用户ID列表
  * @returns {Promise.<Array.<module:types~RosterItem>>} 用户详细信息列表
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asnycGetRosterListDetailByIds" %}{% endlanying_code_snippet %}
  */
 const asnycGetRosterListDetailByIds = (roster_ids) => {
   // todo ... fix一下
@@ -106,6 +114,8 @@ const asnycGetRosterListDetailByIds = (roster_ids) => {
  * 获取缓存的所有用户详细信息
  * @static
  * @returns {Array.<module:types~RosterItem>} 用户详细信息列表
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="getAllRosterDetail" %}{% endlanying_code_snippet %}
  */
 const getAllRosterDetail = () => rosterStore.getAllRosterInfos();
 
@@ -114,6 +124,8 @@ const getAllRosterDetail = () => rosterStore.getAllRosterInfos();
  * @static
  * @param {boolean} force 是否强制从服务器拉取： true - 从服务器拉取， false - 优先从本地存储获取
  * @returns {Promise.<module:types~UserProfile>} 用户信息
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncGetUserProfile" %}{% endlanying_code_snippet %}
  */
 const asyncGetUserProfile = (force) => {
   const item = infoStore.getProfile();
@@ -131,6 +143,8 @@ const asyncGetUserProfile = (force) => {
  * @static
  * @param {number} uid 会话ID
  * @returns {Array.<module:types~Meta>} 聊天消息列表
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="getRosterMessageByRid" %}{% endlanying_code_snippet %}
  */
 const getRosterMessageByRid = (uid) => messageStore.getRosterMessage(uid);
 
@@ -139,6 +153,8 @@ const getRosterMessageByRid = (uid) => messageStore.getRosterMessage(uid);
  * @static
  * @param {number} roster_id 会话ID
  * @param {number} mid 消息ID
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="readRosterMessage" %}{% endlanying_code_snippet %}
  */
 const readRosterMessage = (roster_id, mid) => {
   fire('imReadRosterMessage', {
@@ -152,6 +168,8 @@ const readRosterMessage = (roster_id, mid) => {
  * @static
  * @param {number} uid 会话ID
  * @param {number} mid 消息ID
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="recallMessage" %}{% endlanying_code_snippet %}
  */
 const recallMessage = (uid, mid) => {
   const smessage = makeRecallMessage(uid, mid);
@@ -164,6 +182,8 @@ const recallMessage = (uid, mid) => {
  * @static
  * @param {number} uid 会话ID
  * @param {number} mid 消息ID
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="unreadMessage" %}{% endlanying_code_snippet %}
  */
 const unreadMessage = (uid, mid) => {
   const smessage = makeUnreadMessage(uid, mid);
@@ -176,6 +196,8 @@ const unreadMessage = (uid, mid) => {
  * @static
  * @param {number} uid 会话ID
  * @param {number} mid 消息ID
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="deleteMessage" %}{% endlanying_code_snippet %}
  */
 const deleteMessage = (uid, mid) => {
   const smessage = makeDeleteMessage(uid, mid);
@@ -188,6 +210,8 @@ const deleteMessage = (uid, mid) => {
  * @static
  * @param {number} rid 好友ID
  * @returns {module:types~RosterItem} 好友信息
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="getRosterInfo" %}{% endlanying_code_snippet %}
  */
 const getRosterInfo = (rid) => rosterStore.getRosterInfo(rid);
 
@@ -196,6 +220,8 @@ const getRosterInfo = (rid) => rosterStore.getRosterInfo(rid);
  * @static
  * @param {number} uid 会话ID
  * @returns {number} 未读数
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="getUnreadCount" %}{% endlanying_code_snippet %}
  */
 const getUnreadCount = (uid) => messageStore.getUnreadByRosterId(uid);
 
@@ -220,6 +246,8 @@ export default {
    * @param {object} params 参数
    * @param {number} params.cursor 从哪开始获取：可以传空字符串表示从头开始取
    * @returns {Promise.<Array.<module:types~RosterApplication>>} 好友申请列表
+   * @example
+   * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncGetApplyList" %}{% endlanying_code_snippet %}
    */
   asyncGetApplyList: http.rosterApplylist,
   /**
@@ -227,6 +255,8 @@ export default {
    * @function
    * @param {object} params 参数：空对象
    * @returns {Promise.<Array.<number>>} 用户ID列表
+   * @example
+   * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncGetBlockedlist" %}{% endlanying_code_snippet %}
    */
   asyncGetBlockedlist: http.rosterBlockedlist,
   /**
@@ -235,6 +265,8 @@ export default {
    * @param {object} params 参数
    * @param {number} params.user_id 用户ID
    * @returns {Promise.<boolean>} 是否成功
+   * @example
+   * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncBlockeAdd" %}{% endlanying_code_snippet %}
    */
   asyncBlockeAdd: http.rosterBlockedAdd,
   /**
@@ -243,6 +275,8 @@ export default {
    * @param {object} params 参数
    * @param {number} params.user_id 用户ID
    * @returns {Promise.<boolean>} 是否成功
+   * @example
+   * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncBlockeRemove" %}{% endlanying_code_snippet %}
    */
   asyncBlockeRemove: http.rosterBlockeRemove,
   /**
@@ -252,6 +286,8 @@ export default {
    * @param {number} params.user_id 用户ID
    * @param {string} params.alias 备注
    * @returns {Promise.<boolean>} 是否成功
+   * @example
+   * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncApply" %}{% endlanying_code_snippet %}
    */
   asyncApply: http.rosterApply,
   /**
@@ -260,6 +296,8 @@ export default {
    * @param {object} params 参数
    * @param {number} params.user_id 用户ID
    * @returns {Promise.<boolean>} 是否成功
+   * @example
+   * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncAccept" %}{% endlanying_code_snippet %}
    */
   asyncAccept: http.rosterAccept,
   /**
@@ -268,6 +306,8 @@ export default {
    * @param {object} params 参数
    * @param {number} params.user_id 用户ID
    * @returns {Promise.<boolean>} 是否成功
+   * @example
+   * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncDecline" %}{% endlanying_code_snippet %}
    */
   asyncDecline: http.rosterDecline,
   /**
@@ -279,6 +319,8 @@ export default {
    * @param {string} params.alias 备注名称
    * @param {boolean} params.mute_notification 是否接收消息提醒
    * @returns {Promise.<boolean>} 是否成功
+   * @example
+   * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncUpdateRosterExt" %}{% endlanying_code_snippet %}
    */
   asyncUpdateRosterExt: http.rosterExt,
   /**
@@ -287,6 +329,8 @@ export default {
    * @param {object} params 参数
    * @param {string} params.username 用户名
    * @returns {Promise.<module:types~RosterItem>} 用户信息
+   * @example
+   * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncSearchRosterByName" %}{% endlanying_code_snippet %}
    */
   asyncSearchRosterByName: http.rosterName,
   /**
@@ -295,6 +339,8 @@ export default {
    * @param {object} params 参数
    * @param {number} params.user_id 用户ID
    * @returns {Promise.<module:types~RosterItem>} 用户信息
+   * @example
+   * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncSearchRosterById" %}{% endlanying_code_snippet %}
    */
   asyncSearchRosterById: http.rosterId
 };

@@ -17,6 +17,12 @@ let isLogin = false;
  * 初始化SDK
  * @function flooim
  * @static
+ * @param {object} config SDK初始化设置
+ * @param {string} config.appid APPID
+ * @param {boolean} config.ws 连接地址前缀是否为ws/wss: true - 连接地址前缀为ws或wss, false - 连接地址前缀为http/https
+ * @param {boolean} config.autoLogin 是否自动登录
+ * @param {(string|undefined)} config.dnsServer DNS服务器地址， 可以不设置，默认为 https://dns.lanyingim.com/v2/app_dns
+ * @returns {object} flooim对象
  * @example
  * const config = {
  * // dnsServer: "https://dns.lanyingim.com/v2/app_dns",
@@ -26,13 +32,7 @@ let isLogin = false;
  * };
  * import flooim from 'floo-2.0.0';
  * const im = flooim(config);
- *
- * @param {object} config SDK初始化设置
- * @param {string} config.appid APPID
- * @param {boolean} config.ws 连接地址前缀是否为ws/wss: true - 连接地址前缀为ws或wss, false - 连接地址前缀为http/https
- * @param {boolean} config.autoLogin 是否自动登录
- * @param {(string|undefined)} config.dnsServer DNS服务器地址， 可以不设置，默认为 https://dns.lanyingim.com/v2/app_dns
- * @returns {object} flooim对象
+ * {% lanying_code_snippet repo="lanying-im-web",class="",function="flooim" %}{% endlanying_code_snippet %}
  */
 const webim = function ({ autoLogin = true, dnsServer = 'https://dns.lanyingim.com/v2/app_dns', appid = 'welovemaxim', ws = false }) {
   infoStore.saveAppid(appid);
@@ -112,6 +112,8 @@ const setup_servers = function (appID) {
  * @param {object} opt
  * @param {string} opt.name - 用户名
  * @param {string} opt.password - 密码
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="im",function="login" %}{% endlanying_code_snippet %}
  */
 webim.login = function (opt) {
   console.log('webim.login', opt, 'sdkOk:', sdkOk);
@@ -176,6 +178,8 @@ webim.login = function (opt) {
  * @param {object} opt
  * @param {number} opt.user_id 用户ID
  * @param {string} opt.password 密码
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="im",function="qrlogin" %}{% endlanying_code_snippet %}
  */
 webim.qrlogin = function (opt) {
   console.log('webim.qrlogin', opt);
@@ -239,6 +243,8 @@ webim.qrlogin = function (opt) {
  * @static
  * @param {number} user_id 用户ID
  * @param {string} token Token
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="im",function="tokenLogin" %}{% endlanying_code_snippet %}
  */
 webim.tokenLogin = function (user_id, token, public_key) {
   console.log('webim.tokenLogin', user_id);
@@ -297,6 +303,8 @@ webim.tokenLogin = function (user_id, token, public_key) {
  * @param {object} opt
  * @param {number} opt.user_id 用户ID
  * @param {string} opt.password 密码
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="im",function="idLogin" %}{% endlanying_code_snippet %}
  */
 webim.idLogin = function (opt) {
   io.tokenId(opt)
@@ -352,6 +360,8 @@ webim.cleanup = function () {
  * @function isLogin
  * @static
  * @returns {boolean} 是否已登录
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="im",function="isLogin" %}{% endlanying_code_snippet %}
  */
 webim.isLogin = function () {
   return isLogin && infoStore.getUid() && infoStore.getToken();
@@ -361,6 +371,8 @@ webim.isLogin = function () {
  * 事件监听
  * @function on
  * @static
+ * @param {(module:types~Event | Object.<module:types~Event, module:types~EventCallback>)} options 可以为事件名，也可以为事件名和事件回调
+ * @param {(module:types~EventCallback | undefined)} ext 事件回调，只有options为事件名时需要设置
  * @example
  * const im = flooim(config);
  * im.on('event', (ret) => {
@@ -373,8 +385,7 @@ webim.isLogin = function () {
  *    },
  *    ...
  *  })
- * @param {(module:types~Event | Object.<module:types~Event, module:types~EventCallback>)} options 可以为事件名，也可以为事件名和事件回调
- * @param {(module:types~EventCallback | undefined)} ext 事件回调，只有options为事件名时需要设置
+ * {% lanying_code_snippet repo="lanying-im-web",class="im",function="on" %}{% endlanying_code_snippet %}
  */
 webim.on = webim.listen = function (options, ext) {
   if (ext) {
@@ -391,6 +402,8 @@ webim.on = webim.listen = function (options, ext) {
  * 取消监听
  * @function off
  * @static
+ * @param {(module:types~Event | Object.<module:types~Event, module:types~EventCallback>)} options 可以为事件名，也可以为事件名和事件回调
+ * @param {(module:types~EventCallback | undefined)} ext 事件回调，只有options为事件名时需要设置
  * @example
  *  const im = flooim(config);
  *  im.off('events', (ret) => {
@@ -403,8 +416,7 @@ webim.on = webim.listen = function (options, ext) {
  *    },
  *  ...
  *  })
- * @param {(module:types~Event | Object.<module:types~Event, module:types~EventCallback>)} options 可以为事件名，也可以为事件名和事件回调
- * @param {(module:types~EventCallback | undefined)} ext 事件回调，只有options为事件名时需要设置
+ * {% lanying_code_snippet repo="lanying-im-web",class="im",function="off" %}{% endlanying_code_snippet %}
  */
 webim.off = function (options, ext) {
   if (ext) {
@@ -421,6 +433,8 @@ webim.off = function (options, ext) {
  * 退出账户
  * @function logout
  * @static
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="im",function="logout" %}{% endlanying_code_snippet %}
  */
 webim.logout = function () {
   io.disConnect();

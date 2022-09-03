@@ -32,6 +32,8 @@ const getStaticVars = () => statics;
  * @param {(string|object)} msg.ext 扩展字段
  * @param {(string|object)} msg.attachment 附件信息
  * @returns {number} 客户端生成的消息ID
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="sysManage",function="sendRosterMessage" %}{% endlanying_code_snippet %}
  */
 const sendRosterMessage = (msg) => {
   const msgFrm = makeRosterMessage(msg);
@@ -53,6 +55,8 @@ const sendRosterMessage = (msg) => {
  * @param {(string|object)} msg.attachment 附件信息
  * @param {number} msg.priority 设置消息的扩散优先级，默认为0。0表示扩散，数字越小扩散的越多。
  * @returns {number} 客户端生成的消息ID
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="sysManage",function="sendGroupMessage" %}{% endlanying_code_snippet %}
  */
 const sendGroupMessage = (msg) => {
   const msgFrm = makeGroupMessage(msg);
@@ -69,6 +73,8 @@ const sendGroupMessage = (msg) => {
  * @param {number} uid 会话ID
  * @param {number} sid 消息ID: 从哪个消息向前拉取，传0表示从最新一条消息开始拉取。
  * @param {number} amount 拉取的条数
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="sysManage",function="requireHistoryMessage" %}{% endlanying_code_snippet %}
  */
 const requireHistoryMessage = (uid, sid, amount) => {
   const msgFrm = makeHistorySyncul(uid, sid, amount);
@@ -87,6 +93,8 @@ const requireHistoryMessage = (uid, sid, amount) => {
  * @param {string} params.mentionedMessage @消息的推送内容
  * @param {string} params.senderNickname 发送者昵称
  * @returns {number} 客户端生成的消息ID
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="sysManage",function="sendMentionMessage" %}{% endlanying_code_snippet %}
  */
 const sendMentionMessage = (params) => {
   const msgFrm = makeMentionMessage(params);
@@ -103,6 +111,8 @@ const sendMentionMessage = (params) => {
  * @param {number} uid 会话ID
  * @param {string} status 状态： nothing - 未输入， typing - 正在输入
  * @returns {number} 客户端生成的消息ID
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="sysManage",function="sendInputStatusMessage" %}{% endlanying_code_snippet %}
  */
 const sendInputStatusMessage = (uid, status) => {
   const msgFrm = makeTypingMessage(uid, status);
@@ -121,6 +131,8 @@ const sendInputStatusMessage = (uid, status) => {
  * @param {number} param.gid 接收方群组ID（仅转发群聊时设置）
  * @param {number} param.mid 要转发的消息ID
  * @returns {number} 客户端生成的消息ID
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="sysManage",function="forwardMessage" %}{% endlanying_code_snippet %}
  */
 const forwardMessage = function (param) {
   //FIXME: bad style param
@@ -243,6 +255,8 @@ const makeSearch = (kw) => {
  * @param {number} mid 消息ID
  * @param {boolean} isGroup 是否是群聊
  * @returns {string} 消息状态:   unread - 未读， delivered - 已投递， read - 已读
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="sysManage",function="getMessageStatus" %}{% endlanying_code_snippet %}
  */
 const getMessageStatus = (cid, mid, isGroup = false) => {
   let message = {};
@@ -268,6 +282,8 @@ const getMessageStatus = (cid, mid, isGroup = false) => {
  * @param {number} param.chatType 聊天类型： roster - 单聊, group - 群聊
  * @param {module:types~fileUploadProgress} param.processCallback 上传进度回调
  * @returns {Promise.<module:types~FileUploadResult>} 文件上传结果
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="sysManage",function="asyncFileUpload" %}{% endlanying_code_snippet %}
  */
 const asyncFileUpload = (param) => {
   return new Promise((success, rej) => {
@@ -339,6 +355,8 @@ const asyncFileUpload = (param) => {
  * @param {boolean} param.thumbnail 是否缩略图：默认为true
  * @param {string} param.sdefault 默认图片地址
  * @returns {string} 图片地址
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="sysManage",function="getImage" %}{% endlanying_code_snippet %}
  */
 const getImage = ({ avatar = '', type = 'roster', thumbnail = true, sdefault = '' }) => {
   if (/^\//.test(avatar)) {
@@ -432,6 +450,8 @@ const downloadChatFile = ({ url = '', type = '', params = {}, processCallback = 
  * @static
  * @param {number} id 会话ID
  * @param {boolean} other_devices 是否同时删除其它设备上的会话
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="sysManage",function="deleteConversation" %}{% endlanying_code_snippet %}
  */
 const deleteConversation = function (id, other_devices = true) {
   fire('deleteConversation', { id, other_devices, source: 'user_operation' });
