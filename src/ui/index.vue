@@ -102,11 +102,13 @@ export default {
     },
 
     initFlooIM() {
+      const logLevel = process.env.NODE_ENV === 'production' ? 'off' : 'debug'; // debug|info|warn|error|off
       const config = {
         // dnsServer: "https://dns.lanyingim.com/v2/app_dns",
         appid: this.appid,
-        ws: false,
-        autoLogin: true
+        ws: false, // uniapp版需要设置为true, web版需要设置为false
+        autoLogin: true,
+        logLevel: logLevel
       };
       console.log('Init floo IM for ', this.appid);
 

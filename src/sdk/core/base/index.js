@@ -22,19 +22,21 @@ let isLogin = false;
  * @param {boolean} config.ws 连接地址前缀是否为ws/wss: true - 连接地址前缀为ws或wss, false - 连接地址前缀为http/https
  * @param {boolean} config.autoLogin 是否自动登录
  * @param {(string|undefined)} config.dnsServer DNS服务器地址， 可以不设置，默认为 https://dns.lanyingim.com/v2/app_dns
+ * @param {string} config.logLevel SDK的日志等级， 默认为debug, 取值为 debug、info、warn、error 或 off, 其中off为不打印日志。
  * @returns {object} flooim对象
  * @example
  * const config = {
  * // dnsServer: "https://dns.lanyingim.com/v2/app_dns",
  * appid: "YOUR_APP_ID",
- * ws: false,
+ * ws: false, // uniapp版需要设置为true, web版需要设置为false
  * autoLogin: true
  * };
  * import flooim from 'floo-2.0.0';
  * const im = flooim(config);
  * {% lanying_code_snippet repo="lanying-im-web",class="",function="flooim" %}{% endlanying_code_snippet %}
  */
-const webim = function ({ autoLogin = true, dnsServer = 'https://dns.lanyingim.com/v2/app_dns', appid = 'welovemaxim', ws = false }) {
+const webim = function ({ autoLogin = true, dnsServer = 'https://dns.lanyingim.com/v2/app_dns', appid = 'welovemaxim', ws = false, logLevel = 'debug' }) {
+  log.setLogLevel(logLevel);
   infoStore.saveAppid(appid);
   dnsManager
     .asyncGetDns(dnsServer, appid, ws)
@@ -444,6 +446,18 @@ webim.logout = function () {
 
 webim.isReady = function () {
   return sdkOk;
+};
+
+/**
+ * 设置日志等级
+ * @function setLogLevel
+ * @static
+ * @param {string} logLevel SDK的日志等级， 默认为debug, 取值为 debug、info、warn、error 或 off, 其中off为不打印日志。
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="im",function="setLogLevel" %}{% endlanying_code_snippet %}
+ */
+webim.setLogLevel = function (logLevel) {
+  log.setLogLevel(logLevel);
 };
 
 webim.disConnect = io.disConnect;
