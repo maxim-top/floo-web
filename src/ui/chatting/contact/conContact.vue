@@ -18,6 +18,15 @@
         </div>
       </div>
     </div>
+    <div v-if="showsupports" class="supports">
+      <div @click="supportTitleClick" class="header">客服 ({{ staticList.length }})</div>
+      <div class="list" v-show="supportShow">
+        <div @click="touchSupport(roster.user_id)" class="item" v-bind:key="roster.user_id" v-for="roster in staticList">
+          <img :src="roster.avatar" class="avatar" />
+          <span class="name">{{ roster.nickname || roster.username || roster.user_id }}</span>
+        </div>
+      </div>
+    </div>
     <div class="notice">
       <div @click="noticeTitleClick" class="header">系统消息</div>
       <div class="list" v-show="noticeShow">
@@ -43,12 +52,19 @@ export default {
     return {
       groupShow: true,
       rosterShow: true,
-      noticeShow: false
+      noticeShow: false,
+      supportShow: true,
+      showsupports: false,
+      staticList: []
     };
   },
   mounted() {
     this.$store.dispatch('contact/actionLazyGetRosterList');
     this.$store.dispatch('contact/actionLazyGetGroupList');
+    this.showsupports = this.getApp().retrieveAppId() == 'welovemaxim';
+    if (this.showsupports) {
+      this.asyncGetStatics();
+    }
   },
 
   computed: {
@@ -72,7 +88,13 @@ export default {
         type: 'groupinfo'
       });
     },
-
+    touchSupport(user_id) {
+      this.$store.dispatch('header/actionChangeHeaderStatus', 'conversation');
+      this.$store.dispatch('content/actionSetType', {
+        sid: user_id,
+        type: 'rosterchat'
+      });
+    },
     noticeClick(n) {
       this.$store.dispatch('content/actionSetType', {
         type: n
@@ -84,8 +106,27 @@ export default {
     groupTitleClick() {
       this.groupShow = !this.groupShow;
     },
+    supportTitleClick() {
+      this.supportShow = !this.supportShow;
+    },
     noticeTitleClick() {
       this.noticeShow = !this.noticeShow;
+    },
+    getApp() {
+      return this.$parent.$parent.$parent;
+    },
+    asyncGetStatics: function () {
+      const im = this.getApp().getIM();
+      im.sysManage.asyncGetStaticContact().then((res) => {
+        res = res.map((x) => {
+          x.avatar = im.sysManage.getImage({
+            avatar: x.avatar,
+            sdefault: '/static/pages/image/r.png'
+          });
+          return x;
+        });
+        this.staticList = res;
+      });
     }
     //finish
   }
