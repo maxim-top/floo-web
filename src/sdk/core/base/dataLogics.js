@@ -16,6 +16,7 @@ import { STATIC_MESSAGE_OPTYPE, STATIC_MESSAGE_TYPE, STATIC_MESSAGE_STATUS } fro
 bind('imRostersGroupslistReady', (lists) => {
   const { rosters } = lists;
   rosterStore.saveRosterList([].concat(rosters));
+  rosters.push(infoStore.getUid()); //request user self info
   rostersInfoLogic(rosters);
 });
 
