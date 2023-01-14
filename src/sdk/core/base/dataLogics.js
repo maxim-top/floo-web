@@ -674,7 +674,7 @@ bind('imGroupLeaved', (meta) => {
   // from 是 离开群的人，也有可能是自己。
   meta = Object.assign({}, meta);
   const { payload } = meta;
-  const { gid, from, to = [] } = payload;
+  const { gid, from } = payload;
   const fromUid = toNumber(from.uid);
   const uid = infoStore.getUid();
   const groupId = toNumber(gid.uid);
