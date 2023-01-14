@@ -183,20 +183,9 @@ const groupAddMemberLogic = (group_id, uids, isNotice, replace) => {
   });
 };
 
-const groupDeleteMemberLogic = (group_id, uid) => {
-  const members = groupStore.getGroupMembers(group_id);
-
-  if (!members || members.length === 0) {
-    return;
-  }
-
-  const index = members.findIndex((item) => item.user_id === uid);
-  if (index >= 0) {
-    members.splice(index, 1);
-    groupStore.saveGroupMembers(group_id, members, true); //这个是全量
-
-    fire('onGroupMemberChanged', group_id);
-  }
+const groupDeleteMemberLogic = (group_id, uids) => {
+  groupStore.removeGroupMembers(group_id, uids);
+  fire('onGroupMemberChanged', group_id);
 };
 
 //// groups ////////////////////////////////////////////
@@ -679,6 +668,33 @@ bind('imGroupKicked', (meta) => {
   }
   // fire('onGroupKicked', meta);
   // fire('onGroupListUpdate');
+});
+
+bind('imGroupLeaved', (meta) => {
+  // from 是 离开群的人，也有可能是自己。
+  meta = Object.assign({}, meta);
+  const { payload } = meta;
+  const { gid, from, to = [] } = payload;
+  const fromUid = toNumber(from.uid);
+  const uid = infoStore.getUid();
+  const groupId = toNumber(gid.uid);
+  const toUids = [fromUid];
+
+  if (fromUid === uid) {
+    //自己离开
+    groupStore.removeGroup(groupId);
+    noticeStore.saveNotice(meta); // 存到notice
+    recentStore.deleteRecentById(gid);
+    messageStore.deleteGroupMessageByGid(gid);
+    fire('onGroupListUpdate');
+    // messageStore.deleteGroupMessageByGid(groupId);
+  } else {
+    //别人离开群
+    // messageStore.saveGroupMessage(meta);
+    groupDeleteMemberLogic(groupId, toUids); // 里边有fire
+  }
+  // messageStore.saveGroupMessage(meta); // 都需要加入群的消息里边。。
+  fire('onGroupLeaved', meta);
 });
 
 bind('imGroupBlocked', (meta) => {

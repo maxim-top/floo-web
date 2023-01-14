@@ -269,6 +269,7 @@ const recieveGroupNotice = (meta) => {
   type === STATIC_GROUPNOTICE_TYPE.INVITE_ACCEPTED && fire('imGroupInvitedAccepted', meta);
   type === STATIC_GROUPNOTICE_TYPE.INVITE_DECLINED && fire('imGroupInvitedDeclined', meta);
   type === STATIC_GROUPNOTICE_TYPE.KICKED && fire('imGroupKicked', meta);
+  type === STATIC_GROUPNOTICE_TYPE.LEAVED && fire('imGroupLeaved', meta);
   type === STATIC_GROUPNOTICE_TYPE.BANNED && fire('imGroupBaned', meta);
   type === STATIC_GROUPNOTICE_TYPE.UNBANNED && fire('imGroupUnbaned', meta);
   type === STATIC_GROUPNOTICE_TYPE.OWNER_ASSIGNED && fire('imGroupOwnerAssigned', meta);
