@@ -13,7 +13,7 @@ const partitionId = (key) => {
   return key % PARTITION_NUMBER;
 };
 
-const saveItem = (key, item, hasuid = true, partition_key = 0) => {
+const saveItem = (key, item, hasuid = true, partition_key = -1) => {
   if (typeof item === 'undefined' || typeof key === 'undefined') {
     log.error('localstorage save error:', key, item);
     return;
@@ -24,7 +24,7 @@ const saveItem = (key, item, hasuid = true, partition_key = 0) => {
     const uid = getUid();
     skey = uid + '_' + key;
   }
-  if (partition_key > 0) {
+  if (partition_key >= 0) {
     skey = skey + '_' + partitionId(partition_key);
   }
 
@@ -49,7 +49,7 @@ const saveItem = (key, item, hasuid = true, partition_key = 0) => {
   }
 };
 
-const getItem = (key, hasuid = true, partition_key = 0) => {
+const getItem = (key, hasuid = true, partition_key = -1) => {
   if (typeof key === 'undefined') {
     log.error('localstorage get error:', key);
     return;
@@ -60,7 +60,7 @@ const getItem = (key, hasuid = true, partition_key = 0) => {
     const uid = getUid();
     skey = uid + '_' + key;
   }
-  if (partition_key > 0) {
+  if (partition_key >= 0) {
     skey = skey + '_' + partitionId(partition_key);
   }
 
