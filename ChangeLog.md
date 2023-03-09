@@ -2,6 +2,9 @@
 
 蓝莺IM，是由[美信拓扑](https://www.lanyingim.com/)团队研发的新一代即时通讯云服务，SDK 设计简单集成方便，服务采用云原生技术和多云架构，私有云也可按月付费。
 
+### v2.9.16 20230309
+1. 修复storeBase分区对partition_key等于0的情况不一致的问题
+
 ### v2.9.15 20230118
 1. 修复noticeStore.saveNotice报错问题
 
