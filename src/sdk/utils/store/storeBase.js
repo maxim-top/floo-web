@@ -93,6 +93,7 @@ const removeAllItems = (key, hasuid = true) => {
   for (i = 0; i < PARTITION_NUMBER; i++) {
     removeItem(key, hasuid, i);
   }
+  removeItem(key, hasuid);
 };
 
 export { saveItem, getItem, removeItem, removeAllItems };

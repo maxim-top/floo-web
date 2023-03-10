@@ -1,7 +1,7 @@
 import log from '../log';
 import { metaToCustomer, numToString, toLong, toNumber } from '../tools';
 import recentStore from './recentStore';
-import { getItem, removeAllItems, saveItem } from './storeBase';
+import { getItem, removeAllItems, saveItem, removeItem } from './storeBase';
 import { STATIC_MESSAGE_STATUS, STATIC_MESSAGE_OPTYPE, STATIC_MESSAGE_TYPE } from '../../utils/static';
 import { fire } from '../cusEvent';
 import infoStore from './infoStore';
@@ -346,6 +346,8 @@ const messageStore = {
   clearAll: () => {
     removeAllItems('key_roster_message_store');
     removeAllItems('key_group_message_store');
+    removeItem('key_group_sending_message');
+    removeItem('key_roster_sending_message');
   }
 };
 

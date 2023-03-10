@@ -44,6 +44,10 @@ const deleteDeviceSN = () => {
   removeItem('key_user_device_sn');
 };
 
+const deleteDeviceGuid = () => {
+  removeItem('key_user_device_guid');
+};
+
 const infoStore = {
   saveToken: (token) => saveItem('key_user_token', token),
   getToken: () => getItem('key_user_token'),
@@ -73,6 +77,7 @@ const infoStore = {
     }
     return ret;
   },
+  deleteDeviceGuid,
   saveProfile: (profile) => saveItem('key_user_profile', profile),
   getProfile: () => getItem('key_user_profile'),
 
@@ -81,6 +86,7 @@ const infoStore = {
     deleteAesKey();
     deleteToken();
     removeUid();
+    deleteDeviceGuid();
   },
 
   saveAppid,
