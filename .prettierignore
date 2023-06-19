@@ -1,7 +1,0 @@
-# src/sdk/core/protocol
-src/im/
-build
-dist
-node_modules
-lanying-im-web
-*.md

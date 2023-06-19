@@ -7,9 +7,9 @@
         </div>
       </div>
       <input @change="fileChangeHandler" ref="fileRef" type="file" />
-      <span @click="imageUploadClickHandler" class="ico image"></span>
-      <span @click="fileUploadClickHandler" class="ico file"></span>
-      <span @click="locationClickHandler" class="ico location"></span>
+      <span v-popover:tooltip.top="'发送图片'" @click="imageUploadClickHandler" class="ico image"></span>
+      <span v-popover:tooltip.top="'发送文件'" @click="fileUploadClickHandler" class="ico file"></span>
+      <span v-popover:tooltip.top="'发送位置'" @click="locationClickHandler" class="ico location"></span>
     </div>
     <div class="input">
       <textarea @keydown="textareaKeyDown" @keyup="textKeyUp" class="input_text" placeholder="Type a message!" v-model="message" wrap="hard"></textarea>

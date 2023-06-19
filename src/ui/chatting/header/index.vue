@@ -5,13 +5,16 @@
       <div @click="headerAddChickHandler" class="addBtn"></div>
     </div>
     <div class="tab">
-      <div @click="touchRecent" class="stab"><img :src="convImage" /></div>
+      <div @click="touchRecent" class="stab">
+        <img :src="convImage" />
+        <span :class="{ none: getTotalUnread === '' }" class="unread_number">{{ getTotalUnread }}</span>
+      </div>
       <div @click="touchContact" class="stab"><img :src="contactImage" /></div>
       <div @click="touchSetting" class="stab"><img :src="settingImage" /></div>
     </div>
     <div class="profile">
       <img :src="avatar" @click="touchSetting" class="proAvater" />
-      <div @click="touchSetting" class="proname">{{ username }}</div>
+      <div @click="touchSetting" class="proname">{{ name }}</div>
     </div>
   </div>
 </template>
@@ -31,7 +34,7 @@ export default {
       convImage: '',
       contactImage: '',
       settingImage: '',
-      username: '',
+      name: '',
       avatar: ''
     };
   },
@@ -41,7 +44,10 @@ export default {
         avatar: profile.avatar,
         type: 'roster'
       });
-      this.username = profile.username;
+      this.name = this.notEmpty(profile.nick_name) ? profile.nick_name : profile.username || profile.user_id;
+      if (this.name.length > 20) {
+        this.name = this.name.substring(0, 20) + '...';
+      }
     },
     getHeaderStatus(selected) {
       this.changeStabImage(selected);
@@ -49,6 +55,7 @@ export default {
   },
   computed: {
     ...mapGetters('header', ['getHeaderStatus', 'getUserProfile']),
+    ...mapGetters('contact', ['getTotalUnread']),
 
     // avatar() {
     //   return this.$store.state.im.sysManage.getImage({
@@ -62,6 +69,10 @@ export default {
   },
 
   methods: {
+    notEmpty(str) {
+      return !(!str || /^\s*$/.test(str));
+    },
+
     changeStabImage(selected) {
       this.convImage = '/image/conv.png';
       this.contactImage = '/image/contact.png';

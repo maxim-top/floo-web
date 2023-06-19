@@ -113,7 +113,8 @@
                         CHECK_SUM_FAILURE: 16,
                         INVALID_LICENSE: 17,
                         LICENSE_LIMIT: 18,
-                        APP_FROZEN: 19
+                        APP_FROZEN: 19,
+                        RATE_LIMIT_EXCEEDED: 20
                       }
                     }
                   }
@@ -338,7 +339,8 @@
                         USER_NOTICE: 4,
                         INFO: 5,
                         CONVERSATION: 6,
-                        PUSH: 7
+                        PUSH: 7,
+                        RTC_SIGNAL: 8
                       }
                     }
                   }

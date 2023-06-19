@@ -139,12 +139,19 @@ export default {
         this.group_confirm = group_confirm;
       });
     },
+
+    notEmpty(str) {
+      return !(!str || /^\s*$/.test(str));
+    },
+
     updateInfos() {
       this.avatar = this.$store.getters.im.sysManage.getImage({
         avatar: this.getProfileInfo.avatar
       });
       this.mobile = this.getProfileInfo.mobile;
-      this.nick_name = this.getProfileInfo.nick_name;
+      if (this.notEmpty(this.getProfileInfo.nick_name)) {
+        this.nick_name = this.getProfileInfo.nick_name;
+      }
 
       this.auth_mode = this.getSettingInfo.auth_mode || 0;
       this.group_confirm = this.getSettingInfo.group_confirm;

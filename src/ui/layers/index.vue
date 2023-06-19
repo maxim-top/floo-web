@@ -12,6 +12,9 @@
     <AddPop v-if="getShowing == 'addpop'" />
     <Image2 v-if="getShowing == 'image'" />
     <Video v-if="getShowing == 'video'" />
+    <VideoCall v-if="getShowing == 'videocall'" />
+    <Audiocall v-if="getShowing == 'audiocall'" />
+    <CallInvite v-if="getShowing == 'callinvite'" />
   </div>
 </template>
 
@@ -28,6 +31,9 @@ import Searcher from './search';
 import Qrcode from './qrcode';
 import Image2 from './image2';
 import Video from './video';
+import VideoCall from './videocall';
+import Audiocall from './audiocall.vue';
+import CallInvite from './callinvite.vue';
 
 export default {
   name: 'contentIndex',
@@ -42,7 +48,10 @@ export default {
     Searcher,
     Qrcode,
     Image2,
-    Video
+    Video,
+    VideoCall,
+    Audiocall,
+    CallInvite
   },
   computed: {
     ...mapGetters('layer', ['getShowing'])

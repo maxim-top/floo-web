@@ -6,5 +6,6 @@ import syncdl from './syncdl';
 import syncul from './syncul';
 import meta from './meta';
 import conversation from './conversation';
+import rtcmessage from './rtcmessage';
 
-export { xid, message, frame, provision, syncdl, syncul, meta, conversation };
+export { xid, message, frame, provision, syncdl, syncul, meta, conversation, rtcmessage };

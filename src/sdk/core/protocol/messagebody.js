@@ -113,7 +113,8 @@
                         FILE: 4,
                         LOCATION: 5,
                         COMMAND: 6,
-                        FORWARD: 7
+                        FORWARD: 7,
+                        RTC: 8
                       }
                     },
                     QoS: {

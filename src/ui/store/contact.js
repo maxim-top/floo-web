@@ -5,7 +5,11 @@ const state = {
   groupList: [],
   conversationList: [],
   contactStatus: 'contact',
-  searchKeyword: ''
+  callInviteInfo: null,
+  callId: '',
+  pickupTime: 0,
+  searchKeyword: '',
+  totalUnread: ''
 };
 
 const contactRequestFlag = {
@@ -30,6 +34,20 @@ const getters = {
 
   getSearchKeyword(state) {
     return state.searchKeyword;
+  },
+
+  getCallInviteInfo(state) {
+    return state.callInviteInfo;
+  },
+  getCallId(state) {
+    return state.callId;
+  },
+  getCallPickupTime(state) {
+    return state.pickupTime;
+  },
+
+  getTotalUnread(state) {
+    return state.totalUnread;
   }
 };
 
@@ -52,6 +70,22 @@ const mutations = {
 
   setSearchKeyword(state, x) {
     state.searchKeyword = x;
+  },
+
+  setCallInviteInfo(state, x) {
+    state.callInviteInfo = x;
+  },
+
+  setCallId(state, x) {
+    state.callId = x;
+  },
+
+  setCallPickupTime(state, x) {
+    state.pickupTime = x;
+  },
+
+  setTotalUnread(state, x) {
+    state.totalUnread = x;
   }
 };
 
@@ -86,6 +120,7 @@ const actions = {
     const convlist = rootState.im.userManage.getConversationList();
     const allGroupMap = rootState.im.groupManage.getAllGroupDetail();
     const allRosterMap = rootState.im.rosterManage.getAllRosterDetail() || {};
+    let totalUnreadCount = 0;
     const convData = convlist.map((item, index) => {
       let name;
       const id = item.id;
@@ -95,6 +130,7 @@ const actions = {
       let avatar = ''; //(img && this.client.signatureUrl(img, { expires: 600, process: 'image/resize,w_50' })) || '/image/roster.png';
       const unreadCount = item.type == 'roster' ? rootState.im.rosterManage.getUnreadCount(id) : rootState.im.groupManage.getUnreadCount(id);
       const unread = unreadCount > 0 ? unreadCount : 0;
+      totalUnreadCount += unread;
       if (item.type === 'roster') {
         //roster
         const sroster = allRosterMap[id] || {};
@@ -126,6 +162,13 @@ const actions = {
       return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0;
     });
     context.commit('saveConversationList', sortedConvList);
+    if (totalUnreadCount > 99) {
+      context.commit('setTotalUnread', '99+');
+    } else if (totalUnreadCount > 0) {
+      context.commit('setTotalUnread', totalUnreadCount.toString());
+    } else {
+      context.commit('setTotalUnread', '');
+    }
   },
 
   actionLazyGetRosterList(context) {
@@ -187,6 +230,16 @@ const actions = {
 
   actionSetSearchkeyword(context, x) {
     context.commit('setSearchKeyword', x);
+  },
+
+  actionSetCallInviteInfo(context, x) {
+    context.commit('setCallInviteInfo', x);
+  },
+  actionSetCallPickupTime(context, x) {
+    context.commit('setCallPickupTime', x);
+  },
+  actionSetCallId(context, x) {
+    context.commit('setCallId', x);
   }
 };
 export default {

@@ -89,7 +89,20 @@ export default {
   computed: {
     ...mapGetters('content', ['getSid', 'getMessages', 'getMessageTime', 'getScroll']),
     allMessages() {
-      const msgs = this.getMessages || [];
+      let msgs = this.getMessages || [];
+      msgs = msgs.filter((item) => {
+        const { type, config, ext } = item;
+        if (type == 'rtc' && config && config.action && config.action !== 'hangup') {
+          return false;
+        }
+        if (ext) {
+          const sext = JSON.parse(ext);
+          if (sext && sext.input_status) {
+            return false;
+          }
+        }
+        return true;
+      });
       msgs.forEach((x) => {
         x.aid = numToString(x.id);
       });

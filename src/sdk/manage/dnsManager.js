@@ -21,7 +21,8 @@ const saveServers = (appID, dnsInfos) => {
     clusters: dns_list[group_index].clusters,
     clusterIndex: 0,
     ratelIndex: 0,
-    fireIndex: 0
+    fireIndex: 0,
+    rtcIndex: 0
   };
 
   saveDnsInfo(appID, ret);
@@ -31,7 +32,7 @@ const getServers = (appID) => {
   if (!appID) return {};
   const ws = getConfig('ws');
   const data = getDnsInfo(appID);
-  const { clusters, clusterIndex, ratelIndex, fireIndex } = data;
+  const { clusters, clusterIndex, ratelIndex, fireIndex, rtcIndex } = data;
   if (!clusters || !clusters.length) {
     return {};
   }
@@ -46,32 +47,46 @@ const getServers = (appID) => {
     //compatible with dns v1
     fireObj = clusterObj.ws[fireIndex];
   }
-
-  if (!ratelObj || !fireObj) {
+  let rtcObj = clusterObj.rtc[rtcIndex];
+  if (!ratelObj || !fireObj || !rtcObj) {
     return {};
   }
   const ratel = ratelObj.protocol + '://' + ratelObj.host;
 
   let fireprotocol = 'https';
+  let rtcprotocol = 'https';
   if (ws) {
     if (fireObj.protocol === 'https') {
       fireprotocol = 'wss';
     } else {
       fireprotocol = 'ws';
     }
+    if (rtcObj.protocol === 'https') {
+      rtcprotocol = 'wss';
+    } else {
+      rtcprotocol = 'ws';
+    }
   } else {
     fireprotocol = fireObj.protocol;
+    if (rtcObj.protocol === 'https') {
+      rtcprotocol = 'wss';
+    } else {
+      rtcprotocol = 'ws';
+    }
   }
   const fireplace = fireprotocol + '://' + fireObj.host;
+  const rtc = rtcprotocol + '://' + rtcObj.host;
+
   return {
     ratel,
-    fireplace
+    fireplace,
+    rtc
   };
 };
 
 const changeRatelIndex = (appID) => {
   const data = getDnsInfo(appID);
-  let { clusters, clusterIndex, ratelIndex, fireIndex } = data;
+  let { clusters, clusterIndex, ratelIndex, fireIndex, rtcIndex } = data;
   const clusterObj = clusters[clusterIndex];
   const ratels = clusterObj.ratel;
   if (ratels.length > ratelIndex + 1) {
@@ -80,7 +95,8 @@ const changeRatelIndex = (appID) => {
       clusters,
       clusterIndex,
       ratelIndex,
-      fireIndex
+      fireIndex,
+      rtcIndex
     });
   } else {
     changeClusterIndex(appID);
@@ -97,7 +113,7 @@ bind('ratelError', () => {
 
 const changeFireplaceIndex = (appID) => {
   const data = getDnsInfo(appID);
-  let { clusters, clusterIndex, ratelIndex, fireIndex } = data;
+  let { clusters, clusterIndex, ratelIndex, fireIndex, rtcIndex } = data;
   const clusterObj = clusters[clusterIndex];
 
   let fires;
@@ -115,7 +131,8 @@ const changeFireplaceIndex = (appID) => {
       clusters,
       clusterIndex,
       ratelIndex,
-      fireIndex
+      fireIndex,
+      rtcIndex
     });
   } else {
     changeClusterIndex(appID);
@@ -152,7 +169,8 @@ const changeClusterIndex = (appID) => {
         clusters,
         clusterIndex,
         ratelIndex: 0,
-        fireIndex: 0
+        fireIndex: 0,
+        rtcIndex: 0
       });
       return;
     }

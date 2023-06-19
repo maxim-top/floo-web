@@ -14,6 +14,9 @@
             {{ message.content }}
             <div v-if="message.ext">ext:{{ message.ext }}</div>
           </div>
+          <div v-if="message.type === 'rtc'">
+            {{ message.content }}
+          </div>
           <div v-if="message.type === 'image'">
             <img :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
           </div>
@@ -62,9 +65,10 @@
 import moment from 'moment';
 import { numToString, toNumber } from '../../../third/tools';
 import { mapGetters } from 'vuex';
+var JSONBigString = require('json-bigint');
 
 export default {
-  name: 'RosterChat',
+  name: 'GroupChat',
   data() {
     return {};
   },
@@ -190,7 +194,7 @@ export default {
       const attachment = this.message.attach || '{}';
       let attachObj = {};
       try {
-        attachObj = JSON.parse(attachment);
+        attachObj = JSONBigString.parse(attachment);
       } catch (ex) {
         //
       }

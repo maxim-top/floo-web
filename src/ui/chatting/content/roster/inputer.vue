@@ -2,9 +2,11 @@
   <div class="inputer_frame">
     <div class="attach">
       <input @change="fileChangeHandler" ref="fileRef" type="file" />
-      <span @click="imageUploadClickHandler" class="ico image"></span>
-      <span @click="fileUploadClickHandler" class="ico file"></span>
-      <span @click="locationClickHandler" class="ico location"></span>
+      <span v-popover:tooltip.top="'发送图片'" @click="imageUploadClickHandler" class="ico image"></span>
+      <span v-popover:tooltip.top="'发送文件'" @click="fileUploadClickHandler" class="ico file"></span>
+      <span v-popover:tooltip.top="'发送位置'" @click="locationClickHandler" class="ico location"></span>
+      <span v-popover:tooltip.top="'发起视频通话'" @click="videoCallClickHandler" class="ico videocall"></span>
+      <span v-popover:tooltip.top="'发送语音通话'" @click="audioCallClickHandler" class="ico audiocall"></span>
     </div>
     <div class="input">
       <textarea
@@ -15,6 +17,7 @@
         placeholder="Type a message!"
         v-model="message"
         wrap="hard"
+        ref="inputTextRef"
       ></textarea>
     </div>
   </div>
@@ -33,10 +36,13 @@ export default {
   },
   components: {},
   computed: {
-    ...mapGetters('content', ['getSid']),
+    ...mapGetters('content', ['getSid', 'getIntentMessage']),
     im() {
       return this.$store.state.im;
     }
+  },
+  mounted() {
+    this.initIntentMessage();
   },
   methods: {
     textareaKeyDown(evt) {
@@ -71,6 +77,20 @@ export default {
         }
       };
       this.im.sysManage.sendRosterMessage(message);
+    },
+
+    videoCallClickHandler() {
+      this.$store.dispatch('layer/actionSetShowing', 'videocall');
+      this.$store.dispatch('layer/actionSetShowmask', 'true');
+      this.$store.dispatch('setting/actionSetCallStatus', true);
+      this.$store.dispatch('contact/actionSetCallId', this.im.userManage.getUid().toString() + '_' + Date.now());
+    },
+
+    audioCallClickHandler() {
+      this.$store.dispatch('layer/actionSetShowing', 'audiocall');
+      this.$store.dispatch('layer/actionSetShowmask', 'true');
+      this.$store.dispatch('setting/actionSetCallStatus', true);
+      this.$store.dispatch('contact/actionSetCallId', this.im.userManage.getUid().toString() + '_' + Date.now());
     },
 
     handleSendMessage() {
@@ -129,6 +149,15 @@ export default {
 
     inputBlurHandler() {
       this.im.sysManage.sendInputStatusMessage(this.getSid, 'nothing');
+    },
+
+    initIntentMessage() {
+      if (this.getIntentMessage) {
+        this.message = this.getIntentMessage;
+        this.$nextTick(() => {
+          this.$refs.inputTextRef.focus();
+        });
+      }
     }
     //methods finish
   }

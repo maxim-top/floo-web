@@ -31,7 +31,7 @@ let isLogin = false;
  * ws: false, // uniapp版需要设置为true, web版需要设置为false
  * autoLogin: true
  * };
- * import flooim from 'floo-2.0.0';
+ * import flooim from 'floo-3.0.0';
  * const im = flooim(config);
  * {% lanying_code_snippet repo="lanying-im-web",class="",function="flooim" %}{% endlanying_code_snippet %}
  */
@@ -71,7 +71,8 @@ const webim = function ({ autoLogin = true, dnsServer = 'https://dns.lanyingim.c
         isLogin = true;
         const user_id = infoStore.getUid();
         const token = infoStore.getToken();
-        if (user_id && token) {
+        const tokenAppId = infoStore.getTokenAppId();
+        if (user_id && token && tokenAppId == appid) {
           const rosterRequest = rosterManage.asyncGetRosterIdList(true);
           const groupRequet = groupManage.asyncGetJoinedGroups(true);
           Promise.all([rosterRequest, groupRequet])
@@ -132,6 +133,7 @@ webim.login = function (opt) {
       const { token, user_id, public_key } = res;
       infoStore.saveUid(user_id);
       infoStore.saveToken(token);
+      infoStore.saveTokenAppId(infoStore.getAppid());
       infoStore.saveAesKey(public_key);
       const rosterRequest = rosterManage.asyncGetRosterIdList(true);
       const groupRequet = groupManage.asyncGetJoinedGroups(true);
@@ -199,6 +201,7 @@ webim.qrlogin = function (opt) {
       const { token, user_id, public_key } = res;
       infoStore.saveUid(user_id);
       infoStore.saveToken(token);
+      infoStore.saveTokenAppId(infoStore.getAppid());
       infoStore.saveAesKey(public_key);
       const rosterRequest = rosterManage.asyncGetRosterIdList(true);
       const groupRequet = groupManage.asyncGetJoinedGroups(true);
@@ -261,6 +264,7 @@ webim.tokenLogin = function (user_id, token, public_key) {
 
   infoStore.saveUid(user_id);
   infoStore.saveToken(token);
+  infoStore.saveTokenAppId(infoStore.getAppid());
   infoStore.saveAesKey(public_key);
   const rosterRequest = rosterManage.asyncGetRosterIdList(true);
   const groupRequet = groupManage.asyncGetJoinedGroups(true);
@@ -314,6 +318,7 @@ webim.idLogin = function (opt) {
       const { token, user_id, public_key } = res;
       infoStore.saveUid(user_id);
       infoStore.saveToken(token);
+      infoStore.saveTokenAppId(infoStore.getAppid());
       infoStore.saveAesKey(public_key);
       const rosterRequest = rosterManage.asyncGetRosterIdList(true);
       const groupRequet = groupManage.asyncGetJoinedGroups(true);
@@ -366,7 +371,7 @@ webim.cleanup = function () {
  * {% lanying_code_snippet repo="lanying-im-web",class="im",function="isLogin" %}{% endlanying_code_snippet %}
  */
 webim.isLogin = function () {
-  return isLogin && infoStore.getUid() && infoStore.getToken();
+  return isLogin && infoStore.getUid() && infoStore.getToken() && infoStore.getAppid() == infoStore.getTokenAppId();
 };
 
 /**

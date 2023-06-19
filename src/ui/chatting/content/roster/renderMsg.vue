@@ -7,11 +7,14 @@
         <img :src="userObj.avatar" />
       </div>
       <div class="contentFrame">
-        <p class="username" v-if="!isSelf">{{ userObj.username }}</p>
+        <!--        <p class="username" v-if="!isSelf">{{ userObj.username }}</p>-->
         <div class="c_content">
           <div v-if="message.type === 'text'">
             {{ message.content }}
             <div v-if="message.ext">ext:{{ message.ext }}</div>
+          </div>
+          <div v-if="message.type === 'rtc'">
+            {{ calculateRtcOutput }}
           </div>
           <div v-if="message.type === 'image'">
             <img :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
@@ -68,6 +71,7 @@
 import moment from 'moment';
 import { numToString, toNumber } from '../../../third/tools';
 import { mapGetters } from 'vuex';
+var JSONBigString = require('json-bigint');
 
 export default {
   name: 'RosterChat',
@@ -198,7 +202,7 @@ export default {
       const attachment = this.message.attach || '{}';
       let attachObj = {};
       try {
-        attachObj = JSON.parse(attachment);
+        attachObj = JSONBigString.parse(attachment);
       } catch (ex) {
         //
       }
@@ -206,6 +210,34 @@ export default {
         return attachObj.dName;
       }
       return '文件附件';
+    },
+
+    calculateRtcOutput() {
+      const content = this.message.content;
+      const config = this.message.config || '{}';
+      let output = '';
+      if (config && config.action === 'hangup') {
+        switch (content) {
+          case 'busy':
+            output = '对方通话中正忙';
+            break;
+          case 'timeout':
+            output = '超时取消';
+            break;
+          case 'canceled':
+            output = '已取消';
+            break;
+          case 'rejected':
+            output = '已拒绝';
+            break;
+          default:
+            output = '通话时长：' + this.calculateCallTime(content);
+            break;
+        }
+      } else {
+        output = content;
+      }
+      return output;
     },
 
     messageStatus() {
@@ -319,6 +351,22 @@ export default {
       this.$store.dispatch('layer/actionSetShowing', 'video');
       this.$store.dispatch('layer/actionSetShowmask', true);
       this.$store.dispatch('layer/actionSetVideoUrl', attachUrl);
+    },
+
+    calculateCallTime(time) {
+      let intervalMsec = parseInt(time);
+      let intervalSec = intervalMsec / 1000;
+      let day = parseInt(intervalSec / 3600 / 24);
+      let hour = parseInt((intervalSec - day * 24 * 3600) / 3600);
+      let min = parseInt((intervalSec - day * 24 * 3600 - hour * 3600) / 60);
+      let sec = parseInt(intervalSec - day * 24 * 3600 - hour * 3600 - min * 60);
+      let rs =
+        (hour > 0 ? hour.toString() : '00') +
+        ':' +
+        (min > 10 ? min.toString() : min > 0 ? '0' + min.toString() : '00') +
+        ':' +
+        (sec > 10 ? sec.toString() : sec > 0 ? '0' + sec.toString() : '00');
+      return rs;
     }
   }
 };

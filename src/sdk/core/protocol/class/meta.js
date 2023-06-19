@@ -7,6 +7,7 @@ import { decode as rosternoticeDecode, encode as rosternoticeEncode } from './ro
 import { decode as usernoticeDecode, encode as usernoticeEncode } from './usernotice';
 import { decode as infoDecode, encode as infoEncode } from './info';
 import { decode as convDecode, encode as convEncode } from './conversation';
+import { decode as rtcSignalDecode, encode as rtcSignalEncode } from './rtcsignal';
 
 var root = protobuf.Root.fromJSON(jsonDescriptor);
 const Meta = root.lookupType('im.floo.protobuf.Meta');
@@ -31,6 +32,12 @@ const decode = (bytes) => {
   }
   if (ns === STATIC_META_NAMESPACE.CONVERSATION) {
     ret.payload = convDecode(payload);
+  }
+  if (ns === STATIC_META_NAMESPACE.PUSH) {
+    ret.payload = msgBodyDecode(payload);
+  }
+  if (ns === STATIC_META_NAMESPACE.RTC_SIGNAL) {
+    ret.payload = rtcSignalDecode(payload);
   }
   return ret;
 };
@@ -57,6 +64,12 @@ const encode = (obj) => {
   if (ns === STATIC_META_NAMESPACE.CONVERSATION) {
     obj.payload = convEncode(payload);
   }
+  if (ns === STATIC_META_NAMESPACE.PUSH) {
+    obj.payload = msgBodyEncode(payload);
+  }
+  if (ns === STATIC_META_NAMESPACE.RTC_SIGNAL) {
+    obj.payload = rtcSignalEncode(payload);
+  }
   return Meta.encode(obj).finish();
 };
 
@@ -80,6 +93,12 @@ const constr = (obj) => {
   }
   if (ns === STATIC_META_NAMESPACE.CONVERSATION) {
     obj.payload = convEncode(payload);
+  }
+  if (ns === STATIC_META_NAMESPACE.PUSH) {
+    obj.payload = msgBodyEncode(payload);
+  }
+  if (ns === STATIC_META_NAMESPACE.RTC_SIGNAL) {
+    obj.payload = rtcSignalEncode(payload);
   }
   return Meta.create(obj);
 };

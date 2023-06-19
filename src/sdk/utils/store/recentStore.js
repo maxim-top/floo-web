@@ -2,12 +2,13 @@ import { toNumber } from '../tools';
 import { getItem, saveItem, removeItem } from './storeBase';
 import { fire } from '../cusEvent';
 import infoStore from './infoStore';
+var JSONBigString = require('json-bigint');
 
 const checkTyping = (message) => {
   const { ext } = message;
   let s = {};
   try {
-    s = JSON.parse(ext);
+    s = JSONBigString.parse(ext);
   } catch (ex) {
     //
   }

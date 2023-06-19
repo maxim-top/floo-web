@@ -12,6 +12,9 @@ Vue.config.productionTip = false;
 Vue.prototype.axios = axios;
 Vue.use(ElementUI);
 
+import VPopover from 'vue-js-popover';
+Vue.use(VPopover, { tooltip: true });
+
 Vue.prototype.serr = (err) => {
   let msg = '操作失败';
   if (err.message) {

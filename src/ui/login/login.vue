@@ -52,7 +52,7 @@ export default {
       return this.$parent.$parent;
     },
     submit() {
-      this.getApp().saveLoginInfo(this.user);
+      this.getApp().saveLoginInfo(this.user, this.appid);
       this.getApp().imLogin();
     },
 

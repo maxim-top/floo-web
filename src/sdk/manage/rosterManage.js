@@ -152,7 +152,7 @@ const getRosterMessageByRid = (uid) => messageStore.getRosterMessage(uid);
  * 修改消息状态为已读
  * @static
  * @param {number} roster_id 会话ID
- * @param {number} mid 消息ID
+ * @param {number} mid 消息ID： 如果不设置 表示把这个会话所有消息设为已读
  * @example
  * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="readRosterMessage" %}{% endlanying_code_snippet %}
  */

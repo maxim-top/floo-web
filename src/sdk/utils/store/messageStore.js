@@ -282,6 +282,7 @@ const messageStore = {
       saveItem('key_group_message_store', allGroupMessageMap, true, gid);
     }
   },
+
   /**
    * unread ...
    */
@@ -290,10 +291,13 @@ const messageStore = {
     let ret = 0;
     const uid = infoStore.getUid();
     messages.forEach((message) => {
-      const { from, status } = message;
+      const { from, status, type, config } = message;
       const fromUid = toNumber(from);
       if (fromUid > 0 && fromUid !== uid && status !== STATIC_MESSAGE_STATUS.READ) {
         ret++;
+        if (type === 'rtc' && config && config.action && config.action !== 'hangup') {
+          ret--;
+        }
       }
     });
     return ret;
@@ -348,6 +352,7 @@ const messageStore = {
     removeAllItems('key_group_message_store');
     removeItem('key_group_sending_message');
     removeItem('key_roster_sending_message');
+    removeAllItems('key_rtc_message_store');
   }
 };
 

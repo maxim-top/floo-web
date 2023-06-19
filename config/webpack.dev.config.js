@@ -50,7 +50,9 @@ module.exports = (env) => {
         favicon: path.join(projectDir, 'public', 'favicon.ico')
       }),
 
-      new webpack.HotModuleReplacementPlugin()
+      new webpack.HotModuleReplacementPlugin(),
+
+      new webpack.ProvidePlugin({ adapter: ['webrtc-adapter', 'default'] })
     ],
 
     devServer: {

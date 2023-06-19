@@ -48,10 +48,17 @@ const deleteDeviceGuid = () => {
   removeItem('key_user_device_guid');
 };
 
+const deleteTokenAppId = () => {
+  removeItem('key_user_token_app_id');
+};
+
 const infoStore = {
   saveToken: (token) => saveItem('key_user_token', token),
   getToken: () => getItem('key_user_token'),
   deleteToken,
+  saveTokenAppId: (appId) => saveItem('key_user_token_app_id', appId),
+  getTokenAppId: () => getItem('key_user_token_app_id'),
+  deleteTokenAppId,
   getAesKey: () => getItem('key_user_aes_key'),
   saveAesKey: (key) => saveItem('key_user_aes_key', key),
   deleteAesKey,
@@ -87,6 +94,7 @@ const infoStore = {
     deleteToken();
     removeUid();
     deleteDeviceGuid();
+    deleteTokenAppId();
   },
 
   saveAppid,

@@ -15,7 +15,8 @@ import {
   STATIC_MESSAGE_TYPE,
   STATIC_META_NAMESPACE,
   STATIC_ROSTERNONTICE_TYPE,
-  STATIC_USERNOTICE_TYPE
+  STATIC_USERNOTICE_TYPE,
+  STATIC_RTC_SIGNAL_TYPE
 } from '../../utils/static';
 import { makeSyncul, makeUnreadUl, makeUnreadULTimer } from './messageMaker';
 
@@ -29,7 +30,7 @@ const checkSuccess = (messageObj) => {
   if (typeof status.code === 'undefined') return true; // 对于没有这个的，基本就是出错了
 
   // User should re-login manually
-  if (code === STATIC_FRAME_ERROR_STATUS.INVALID_TOKEN || code === STATIC_FRAME_ERROR_STATUS.UNAUTHORIZED) {
+  if (code === STATIC_FRAME_ERROR_STATUS.INVALID_TOKEN || (code === STATIC_FRAME_ERROR_STATUS.UNAUTHORIZED && reason === 'you must login first')) {
     fire('flooNotice', { category: 'action', desc: 'relogin' });
   }
 
@@ -173,7 +174,7 @@ const receiveSyncdl = (syncMb) => {
 
   if (is_full_sync) {
     //拉取历史消息
-    metas && metas.length && receiveMsg(metas);
+    metas && metas.length && receiveMsg(metas.reverse(), is_full_sync);
     //TODO: Store history messages now, maybe refactor the message handlers on history messages and normal ones.
 
     fire('onReceiveHistoryMsg', { next: next_key });
@@ -195,21 +196,39 @@ const receiveSyncdl = (syncMb) => {
   }
 };
 // 二级 的开始 ... /////// 二级 的开始 ... /////// 二级 的开始 ... /////// 二级 的开始 ... /////
-const receiveMsg = (metas = []) => {
+const receiveMsg = (metas = [], isHistory = false) => {
   // 解析具体消息了 从meta中的
   metas.forEach((meta) => {
     const { ns } = meta;
     if (ns === STATIC_META_NAMESPACE.UNKNOWN) {
       log.log('received unknown message ...', meta);
     }
+    if (isHistory) {
+      meta.isHistory = true;
+    }
     ns === STATIC_META_NAMESPACE.MESSAGE && receiveMessageBody(meta);
     ns === STATIC_META_NAMESPACE.GROUP_NOTICE && recieveGroupNotice(meta);
     ns === STATIC_META_NAMESPACE.ROSTER_NOTICE && receiveRosterNotice(meta);
     ns === STATIC_META_NAMESPACE.USER_NOTICE && receiveUserNotice(meta);
     ns === STATIC_META_NAMESPACE.CONVERSATION && receiveConversation(meta);
+    ns === STATIC_META_NAMESPACE.PUSH && receivePush(meta);
+    ns === STATIC_META_NAMESPACE.RTC_SIGNAL && receiveRTCSignal(meta);
     // ns === STATIC_META_NAMESPACE.INFO && receiveInfo(meta);
   });
 }; //具体消息部分
+
+const receiveRTCSignal = (meta) => {
+  //rtc single service janus singles.
+  const { payload = {} } = meta;
+  const { type } = payload;
+  type === STATIC_RTC_SIGNAL_TYPE.UNKNOWN && fire('rtcSignalNormal', meta);
+  type === STATIC_RTC_SIGNAL_TYPE.VIDEO_ROOM && fire('rtcVideoRoomSignal', meta);
+};
+
+const receivePush = (meta) => {
+  // do not need in web.
+  log.log('received online push: ', meta);
+};
 
 const receiveConversation = (meta) => {
   const { payload = {} } = meta;
@@ -281,6 +300,10 @@ const recieveGroupNotice = (meta) => {
   type === STATIC_GROUPNOTICE_TYPE.UNMUTED && fire('imGroupUnmuted', meta);
   type === STATIC_GROUPNOTICE_TYPE.INFO_UPDATED && fire('imGroupInfoUpdated', meta);
   type === STATIC_GROUPNOTICE_TYPE.ANNOUNCEMENT_UPDATED && fire('imGroupAnnouncementUpdated', meta);
+  type === STATIC_GROUPNOTICE_TYPE.MESSAGE_SETTING && fire('imGroupMessageSetting', meta);
+  type === STATIC_GROUPNOTICE_TYPE.FILE_UPLOADED && fire('imGroupFileUploaded', meta);
+  type === STATIC_GROUPNOTICE_TYPE.FILE_DELETED && fire('imGroupFileDeleted', meta);
+  type === STATIC_GROUPNOTICE_TYPE.FILE_UPDATED && fire('imGroupFileUpdated', meta);
 };
 
 const receiveRosterNotice = (meta) => {
@@ -297,6 +320,8 @@ const receiveRosterNotice = (meta) => {
   type === STATIC_ROSTERNONTICE_TYPE.BANNED && fire('imRosterBaned', meta);
   type === STATIC_ROSTERNONTICE_TYPE.UNBANNED && fire('imRosterUnbaned', meta);
   type === STATIC_ROSTERNONTICE_TYPE.INFO_UPDATED && fire('imRosterInfoUpdated', meta);
+  type === STATIC_ROSTERNONTICE_TYPE.MUTED && fire('imRosterMuted', meta);
+  type === STATIC_ROSTERNONTICE_TYPE.UNMUTED && fire('imRosterUnmuted', meta);
 };
 
 const receiveUserNotice = (meta) => {
@@ -310,7 +335,8 @@ const receiveUserNotice = (meta) => {
     type === STATIC_USERNOTICE_TYPE.REMOVED ||
     type === STATIC_USERNOTICE_TYPE.KICKED_BY_OTHER_DEVICE ||
     type === STATIC_USERNOTICE_TYPE.DEVICE_REMOVED ||
-    type === STATIC_USERNOTICE_TYPE.CLUSTER_CHANGED
+    type === STATIC_USERNOTICE_TYPE.CLUSTER_CHANGED ||
+    type === STATIC_USERNOTICE_TYPE.DNS_UPDATE
   ) {
     // 这些都需要重新登录，或退出
     infoStore.deleteToken();

@@ -5,7 +5,7 @@ This software is part of MaxIM's new generation instant messaging (IM) system.
 
 You must make sure you have the right privilleges to use it.
 
-                        Copyright (C) 2018-2021 MaxIM.Top
+                        Copyright (C) 2018-2023 MaxIM.Top
 
 You may obtain a copy of the licence at http://www.maxim.top/LICENCE-MAXIM.md
 

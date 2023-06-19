@@ -59,7 +59,7 @@ Webstorm 设置可参考[这里](https://www.wenyuanblog.com/blogs/webstorm-esli
 1. 无法导入 flooim，提示
 
 ```
-export 'flooim' was not found in '../im/floo-2.0.0'
+export 'flooim' was not found in '../im/floo-3.0.0'
 ```
 
 参考修改 babel.config.js，增加 sourceType: 'unambiguous' 设置：

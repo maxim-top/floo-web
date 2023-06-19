@@ -1,5 +1,7 @@
 <template>
   <div class="content">
+    <tooltip />
+    <!--   for tooltip in input -->
     <audio id="audio_player" />
     <RosterInfo v-if="getViewType == 'rosterinfo'" />
     <GroupInfo v-if="getViewType == 'groupinfo'" />

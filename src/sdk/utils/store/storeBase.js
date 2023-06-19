@@ -1,5 +1,6 @@
 import log from '../log';
 import { transferToLong } from '../tools';
+var JSONBigString = require('json-bigint');
 
 const PARTITION_NUMBER = 31;
 
@@ -68,7 +69,7 @@ const getItem = (key, hasuid = true, partition_key = -1) => {
   if (!itemString) return undefined;
   let ret = itemString;
   try {
-    ret = JSON.parse(itemString);
+    ret = JSONBigString.parse(itemString);
   } catch (ex) {
     //
   }

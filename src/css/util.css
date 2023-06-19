@@ -13,14 +13,17 @@ body {
 }
 
 #app {
-  position: absolute;
-  align: center;
   background: #e6e6e6;
   border-radius: 10px;
   width: 95%;
   min-width: 760px;
   height: 80%;
   min-height: 400px;
+
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .ui-index {
@@ -110,6 +113,80 @@ i.switcher_off {
   display: block;
 }
 
+i.mic_on {
+  width: 40px;
+  height: 40px;
+  background-size: 40px 40px;
+  background-image: url(/image/mic_on.png);
+  display: block;
+}
+
+i.mic_off {
+  width: 40px;
+  height: 40px;
+  background-size: 40px 40px;
+  background-image: url(/image/mic_off.png);
+  display: block;
+}
+
+i.speaker_on {
+  width: 40px;
+  height: 40px;
+  background-size: 40px 40px;
+  background-image: url(/image/speaker_on.png);
+  display: block;
+}
+
+i.speaker_off {
+  width: 40px;
+  height: 40px;
+  background-size: 40px 40px;
+  background-image: url(/image/speaker_off.png);
+  display: block;
+}
+
+i.camera_on {
+  width: 40px;
+  height: 40px;
+  background-size: 40px 40px;
+  background-image: url(/image/camera_on.png);
+  display: block;
+}
+
+i.camera_off {
+  width: 40px;
+  height: 40px;
+  background-size: 40px 40px;
+  background-image: url(/image/camera_off.png);
+  display: block;
+}
+
+i.audio_call_switch {
+  width: 40px;
+  height: 40px;
+  background-size: 40px 40px;
+  background-image: url(/image/audio_call_switch.png);
+  display: block;
+}
+
+i.pickup {
+  width: 30px;
+  height: 30px;
+  background-size: 30px 30px;
+  background-image: url(/image/pickup.png);
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+i.hangup {
+  width: 40px;
+  height: 40px;
+  background-size: 40px 40px;
+  background-image: url(/image/hangup.png);
+  display: block;
+}
+
 .el-popover {
   min-width: 10px !important;
 }
@@ -119,7 +196,7 @@ i.switcher_off {
   text-align: center;
   padding: 10px 0;
   font-size: 10px;
-  color: #bbb;
+  color: #bbbbbb;
 }
 
 .r {
@@ -157,7 +234,7 @@ i.switcher_off {
 
 #roster_history_btn {
   height: 20px;
-  background: #eee;
+  color: gray;
   line-height: 20px;
   text-align: center;
 }

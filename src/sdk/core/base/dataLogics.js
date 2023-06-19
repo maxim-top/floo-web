@@ -9,9 +9,10 @@
 import { bind, fire } from '../../utils/cusEvent';
 import { groupStore, infoStore, messageStore, noticeStore, recentStore, rosterStore } from '../../utils/store';
 import * as io from './io/httpIo';
-import { metaToCustomer, numToString, toNumber } from '../../utils/tools';
+import { metaToCustomer, numToString, toNumber, metaToRtcSignalCustomer } from '../../utils/tools';
 import { makeReadAllMessage, makeReadMessageAck } from './messageMaker';
 import { STATIC_MESSAGE_OPTYPE, STATIC_MESSAGE_TYPE, STATIC_MESSAGE_STATUS } from '../../utils/static';
+var JSONBigString = require('json-bigint');
 
 bind('imRostersGroupslistReady', (lists) => {
   const { rosters } = lists;
@@ -195,42 +196,59 @@ bind('imRostersGroupslistReady', (lists) => {
   groupsInfoLogic(groups);
 });
 
+//// rtc message /////////////////////////////////////////
+bind('rtcVideoRoomSignal', (meta) => {
+  const meta_cus = metaToRtcSignalCustomer(meta);
+  fire('socketClsOnSignal', meta_cus);
+});
+
 //// messages ////////////////////////////////////////////
 bind('imRosterMessage', (meta) => {
   const meta_cus = metaToCustomer(meta);
+  if (meta.isHistory) {
+    meta_cus.isHistory = true;
+  }
   const { ext = '', from, to } = meta_cus;
 
   let jext = {};
   try {
-    jext = JSON.parse(ext);
+    jext = JSONBigString.parse(ext);
   } catch (ex) {
     //
   }
 
-  if (typeof jext.input_status !== 'undefined' && from != infoStore.getUid()) {
+  if (typeof jext.input_status !== 'undefined') {
     //typing消息
-    fire('onInputStatusMessage', {
-      ext,
-      from,
-      to
-    });
+    if (from != infoStore.getUid()) {
+      fire('onInputStatusMessage', {
+        ext,
+        from,
+        to
+      });
+    }
   } else {
     messageStore.saveRosterMessage(meta_cus);
     meta_cus.toType = 'roster';
     recentStore.saveRecent(meta_cus);
 
-    const uid = infoStore.getUid();
-    const suid = uid == from ? to : from;
-    rostersInfoLogic(suid);
+    if (meta_cus.type !== 'rtc') {
+      const uid = infoStore.getUid();
+      const suid = uid == from ? to : from;
+      rostersInfoLogic(suid);
 
-    fire('onUnreadChange', suid);
+      fire('onUnreadChange', suid);
+    }
   }
   // const smessage = makeMessageDelevery(meta);
   // fire('sendMessage', smessage); //表示消息已送达
+
+  if (meta_cus.type === 'rtc') {
+    fire('onRosterRTCMessage', meta_cus);
+  }
   fire('onRosterMessage', meta_cus);
 });
 
-bind('imSendRosterMessage', (meta) => {
+bind('imSendRosterSignal', (meta) => {
   rostersInfoLogic(meta.uid);
 });
 
@@ -416,7 +434,7 @@ bind('imRosterInfoUpdated', (meta) => {
   const fromUid = toNumber(from.uid);
   let info = {};
   try {
-    info = JSON.parse(content);
+    info = JSONBigString.parse(content);
   } catch (e) {
     //
   }
@@ -428,6 +446,8 @@ bind('imRosterInfoUpdated', (meta) => {
     fire('onRosterListUpdate');
   }
 });
+bind('imRosterMuted', () => {});
+bind('imRosterUnmuted', () => {});
 
 // group 处理 ==========================================================
 /**
@@ -813,7 +833,7 @@ bind('imGroupInfoUpdated', (meta) => {
   const groupId = toNumber(gid.uid);
   let info = {};
   try {
-    info = JSON.parse(content);
+    info = JSONBigString.parse(content);
   } catch (e) {
     //
   }
@@ -834,6 +854,10 @@ bind('imGroupAnnouncementUpdated', (meta) => {
   groupsInfoLogic(groupId, true);
   fire('onGroupAnnouncementUpdated', meta);
 });
+bind('imGroupMessageSetting', () => {});
+bind('imGroupFileUploaded', () => {});
+bind('imGroupFileDeleted', () => {});
+bind('imGroupFileUpdated', () => {});
 
 /******* 读消息....  *****/
 bind('imReadRosterMessage', (param) => {

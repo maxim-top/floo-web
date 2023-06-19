@@ -39,7 +39,9 @@
                         DEVICE_LOGOUT: 8,
                         DEVICE_ADDED: 9,
                         DEVICE_REMOVED: 10,
-                        CLUSTER_CHANGED: 11
+                        CLUSTER_CHANGED: 11,
+                        DNS_UPDATE: 12,
+                        TRAFFIC_LIMIT_EXCEEDED: 13
                       }
                     }
                   }

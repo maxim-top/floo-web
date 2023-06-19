@@ -12,7 +12,7 @@
 
 ## 前期准备
 
-下载对应 SDK 文件，桌面 Web 版地址为：[floo-2.0.0.js](https://package.lanyingim.com/floo-2.0.0.js)，并在代码中引用。
+下载对应 SDK 文件，桌面 Web 版地址为：[floo-3.0.0.js](https://package.lanyingim.com/floo-3.0.0.js)，并在代码中引用。
 
 ## 初始化
 
@@ -22,7 +22,7 @@
     const config = {
       // dnsServer: "https://dns.lanyingim.com/v2/app_dns",
       appid: "YOUR_APP_ID",
-      ws: false,
+      ws: false, // uniapp版需要设置为true, web版需要设置为false
       autoLogin: true
       };
 ```
@@ -34,7 +34,7 @@
 1.  Script 方式，你可以直接 import 后，使用 window.flooIM()
 
 ```
-    import "floo-2.0.0.js";
+    import "floo-3.0.0.js";
 
     const im = new window.flooIM(config);
 ```
@@ -44,7 +44,7 @@
 2.  module 方式，import flooim 后，使用 flooim()
 
 ```
-    import flooim from 'floo-2.0.0';
+    import flooim from 'floo-3.0.0';
 
     const im = flooim(config);
 ```
@@ -1339,4 +1339,10 @@ token 登录
 ```
 事件名称: onGroupUnbaned
 事件内容: (meta) 群通知的消息内容
+```
+
+28. 收到单聊RTC消息
+```
+事件名称: onRosterRTCMessage
+事件内容: (meta) 好友通知的消息内容
 ```

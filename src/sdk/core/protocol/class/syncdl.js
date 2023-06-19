@@ -5,6 +5,7 @@ import { decode as rosternoticeDecode } from './rosternotice';
 import { decode as usernoticeDecode } from './usernotice';
 import { decode as infoDecode } from './info';
 import { decode as convDecode } from './conversation';
+import { decode as rtcSignalDecode } from './rtcsignal';
 import { STATIC_META_NAMESPACE } from '../../../utils/static';
 import protobuf from 'protobufjs/light';
 import jsonDescriptor from '../xsync';
@@ -34,6 +35,12 @@ const decode = (bytes) => {
     }
     if (ns === STATIC_META_NAMESPACE.CONVERSATION) {
       meta.payload = convDecode(payload);
+    }
+    if (ns === STATIC_META_NAMESPACE.PUSH) {
+      meta.payload = msgBodyDecode(payload);
+    }
+    if (ns === STATIC_META_NAMESPACE.RTC_SIGNAL) {
+      meta.payload = rtcSignalDecode(payload);
     }
     metaRet.push(meta);
   });

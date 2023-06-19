@@ -19,6 +19,7 @@ const state = {
    */
   viewType: '',
   sid: -1, //selected roster/group id..
+  intentMessage: '',
   messages: [],
   time: [], // 这个是，消息的时间，几分钟显示一下，按现在的逻辑..
 
@@ -41,6 +42,10 @@ const getters = {
 
   getSid(state) {
     return state.sid;
+  },
+
+  getIntentMessage(state) {
+    return state.intentMessage;
   },
 
   getMessages(state) {
@@ -79,6 +84,10 @@ const mutations = {
   setSid(state, x) {
     state.sid = x;
     this.queryHistoryMessageId = 0;
+  },
+
+  setIntentMessage(state, x) {
+    state.intentMessage = x;
   },
 
   setMessage(state, x) {
@@ -166,6 +175,13 @@ const actions = {
     }
   },
 
+  actionSetIntentMessage(context, x) {
+    const { state } = context;
+    if (state.intentMessage !== x) {
+      context.commit('setIntentMessage', x);
+    }
+  },
+
   actionUpdateRoster(context) {
     const { rootState, state } = context;
     rootState.im.rosterManage.asyncGetRosterInfo(state.sid).then((res) => {
@@ -221,7 +237,14 @@ const actions = {
       j = 0;
     while (i < newMessages.length && j < oldMessages.length) {
       const newMeta = newMessages[i];
-      if (newMeta.ext && newMeta.ext.input_status) {
+      const { ext } = newMeta;
+      let jext = {};
+      try {
+        jext = JSON.parse(ext);
+      } catch (ex) {
+        //
+      }
+      if (jext.input_status) {
         i++;
         continue;
       }

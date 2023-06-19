@@ -14,7 +14,7 @@ export default [
     input: path.resolve(srcDir, 'index.js'),
     output: [
       {
-        file: path.resolve(buildDir, 'floo-2.0.0.u.js'),
+        file: path.resolve(buildDir, 'floo-3.0.0.u.js'),
         name: 'flooim',
         format: 'umd',
         sourcemap: false,
@@ -29,11 +29,11 @@ export default [
         }
       },
       {
-        file: path.resolve(buildDir, 'floo-2.0.0.c.js'),
+        file: path.resolve(buildDir, 'floo-3.0.0.c.js'),
         format: 'cjs'
       },
       {
-        file: path.resolve(buildDir, 'floo-2.0.0.e.js'),
+        file: path.resolve(buildDir, 'floo-3.0.0.e.js'),
         format: 'es'
       }
     ],

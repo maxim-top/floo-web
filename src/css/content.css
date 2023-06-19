@@ -21,7 +21,7 @@
   text-align: center;
   display: block;
   margin: 0 auto;
-  background-color: #319de1;
+  background-color: #47b6ff;
   border-radius: 5px;
 }
 
@@ -47,7 +47,7 @@
   line-height: 32px;
   margin-top: -32px;
   font-size: 12px;
-  color: #319de1;
+  color: #47b6ff;
 }
 
 .content .header .delete_button:hover {
@@ -76,9 +76,10 @@
   word-break: break-all;
   max-width: 300px;
   border-radius: 3px;
-  padding: 10px 15px;
+  margin-left: 6px;
+  margin-right: 6px;
+  padding: 0 14px 12px 12px;
   line-height: 16px;
-  font-size: 12px;
   position: relative;
 }
 
@@ -116,13 +117,13 @@
 }
 
 .content .list .messageFrame .rosterInfo {
-  height: 24px;
-  width: 24px;
+  height: 32px;
+  width: 32px;
 }
 
 .content .list .messageFrame .rosterInfo img {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   border-radius: 3px;
 }
 
@@ -162,7 +163,7 @@
 }
 .content .self .c_content {
   float: right;
-  background: #b3d0fd;
+  background: #47b6ff;
 }
 
 .content .roster .c_content {
@@ -245,6 +246,17 @@
   color: #4a90e2;
 }
 
+.content [data-popover='tooltip'] {
+  background: white;
+  color: gray;
+  font-size: 10px;
+  line-height: 0.8;
+  width: 50px !important;
+  text-align: center;
+  float: left;
+  top: calc(75% + 72px) !important;
+}
+
 /** input **/
 .content .inputer_frame {
   background-color: #f6f6f6;
@@ -277,6 +289,14 @@
 
 .content .inputer_frame .attach .location {
   background-image: url(/image/loc2.png);
+}
+
+.content .inputer_frame .attach .videocall {
+  background-image: url(/image/camera_on.png);
+}
+
+.content .inputer_frame .attach .audiocall {
+  background-image: url(/image/pickup.png);
 }
 
 .content .inputer_frame .attach .mentionList {
@@ -486,7 +506,7 @@
 
 .user_setting .logout {
   line-height: 32px;
-  background: #319de1;
+  background: #47b6ff;
   border-radius: 3px;
   font-size: 14px;
   text-align: center;

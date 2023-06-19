@@ -1,8 +1,9 @@
-import { conversation, frame, message, meta, provision, syncul, xid } from '../../model/index';
+import { rtcmessage, conversation, frame, message, meta, provision, syncul, xid } from '../../model/index';
 import { infoStore } from '../../utils/store';
 import { toLong, toNumber } from '../../utils/tools';
 import log from '../../utils/log';
 import {
+  STATIC_RTC_SIGNAL_TYPE,
   STATIC_CONVERSATION_TYPE,
   STATIC_CONVERSATION_OPTYPE,
   STATIC_FRAME_COMMAND,
@@ -15,9 +16,20 @@ import {
 } from '../../utils/static';
 import { bind, fire } from '../../utils/cusEvent'; // let userNoticeStatus = 'normal';  // normal, kick , logout
 // let guid = infoStore.getDeviceGuid();
+let count = 0;
 
 let deviceSN = infoStore.getDeviceSN();
 let deviceGuid = infoStore.getDeviceGuid();
+
+const makeUniqueMid = () => {
+  if (count > 1000) {
+    count = 0;
+  } else {
+    count++;
+  }
+  return parseInt(new Date().getTime() + '' + count);
+};
+
 bind('userKicked', () => {
   log.log('user is kicked ... will new devicesn and guid, old Guid', deviceGuid);
   // guid = infoStore.getUid() + '_' + Math.floor(Math.random() * 2147483648);
@@ -126,8 +138,8 @@ const makeGroupMessage = (amessage) => {
 };
 
 const makeRosterMessage = (amessage) => {
-  const { uid, content, type = 'text', ext, attachment } = amessage;
-  fire('imSendRosterMessage', amessage);
+  const { uid, content, type = 'text', ext, config, attachment } = amessage;
+  fire('imSendRosterSignal', amessage);
   let sctype = Object.keys(STATIC_MESSAGE_CONTENT_TYPE).indexOf(type.toUpperCase());
 
   const from = new xid({
@@ -147,7 +159,8 @@ const makeRosterMessage = (amessage) => {
     content,
     ctype: sctype,
     type: STATIC_MESSAGE_TYPE.CHAT,
-    ext
+    ext,
+    config
   });
 
   if (sctype > 0 && attachment) {
@@ -522,6 +535,53 @@ const makeConversationOperation = (id, other_devices = true) => {
   return sframe;
 };
 
+const makeRtcSignal = (amessage) => {
+  const { content, media_server } = amessage;
+  fire('imSendRosterSignal', amessage);
+
+  const from = new xid({
+    uid: infoStore.getUid() - 0,
+    deviceSN
+  });
+
+  const rmessage = new rtcmessage({
+    type: STATIC_RTC_SIGNAL_TYPE.VIDEO_ROOM,
+    content,
+    media_server
+  });
+
+  const smeta = new meta({
+    id: makeUniqueMid(),
+    from,
+    to: 0,
+    payload: rmessage,
+    ns: STATIC_META_NAMESPACE.RTC_SIGNAL
+  });
+
+  const ssyncul = new syncul();
+  ssyncul.setMeta(smeta);
+
+  const sframe = new frame();
+  sframe.setCommond(STATIC_FRAME_COMMAND.SYNC);
+  sframe.setPayload(ssyncul);
+
+  return sframe;
+};
+
+const makeRosterRTCMessage = (amessage) => {
+  amessage.type = 'rtc';
+  let msg = makeRosterMessage(amessage);
+  msg.payload.meta.ns = STATIC_META_NAMESPACE.MESSAGE;
+  return msg;
+};
+
+const makeGroupRTCMessage = (amessage) => {
+  amessage.type = 'rtc';
+  let msg = makeGroupMessage(amessage);
+  msg.payload.meta.ns = STATIC_META_NAMESPACE.MESSAGE;
+  return msg;
+};
+
 export {
   makeUnreadUl,
   makeProvision,
@@ -539,5 +599,8 @@ export {
   makeDeleteMessage,
   makeReadAllMessage,
   makeTypingMessage,
-  makeConversationOperation
+  makeConversationOperation,
+  makeRtcSignal,
+  makeRosterRTCMessage,
+  makeGroupRTCMessage
 };

@@ -10,7 +10,7 @@ module.exports = (env) => {
     entry: './src/sdk/index.js',
     output: {
       path: path.resolve(projectDir, './build/sdk'),
-      filename: 'floo-2.0.0.js',
+      filename: 'floo-3.0.0.js',
       libraryTarget: 'umd',
       globalObject: 'this'
     },

@@ -311,7 +311,7 @@
 /**
  * 监听事件回调
  * @callback EventCallback
- * @param {(event:flooNotice|event:flooError|event:loginFail|event:loginSuccess|event:onGroupListUpdate|event:onGroupMemberChanged|event:onGroupMessage|event:onInputStatusMessage|event:onMentionMessage|event:onMessageCanceled|event:onMessageDeleted|event:onMessageRecalled|event:onMessageStatusChanged|event:onReceiveHistoryMsg|event:onRosterInfoUpdate|event:onRosterListUpdate|event:onRosterMessage|event:onSendingMessageStatusChanged|event:onUnreadChange|event:recentlistUpdate|event:onGroupCreated|event:onGroupDestoryed|event:onGroupJoined|event:onGroupApplyAccepted|event:onGroupApplyDeclined|event:onGroupBaned|event:onGroupUnbaned)} res - 事件结果
+ * @param {(event:flooNotice|event:flooError|event:loginFail|event:loginSuccess|event:onGroupListUpdate|event:onGroupMemberChanged|event:onGroupMessage|event:onInputStatusMessage|event:onMentionMessage|event:onMessageCanceled|event:onMessageDeleted|event:onMessageRecalled|event:onMessageStatusChanged|event:onReceiveHistoryMsg|event:onRosterInfoUpdate|event:onRosterListUpdate|event:onRosterMessage|event:onRosterRTCMessage|event:onSendingMessageStatusChanged|event:onUnreadChange|event:recentlistUpdate|event:onGroupCreated|event:onGroupDestoryed|event:onGroupJoined|event:onGroupApplyAccepted|event:onGroupApplyDeclined|event:onGroupBaned|event:onGroupUnbaned)} res - 事件结果
  */
 
 /**
@@ -467,6 +467,12 @@
 /**
  * 收到单聊消息
  * @event onRosterMessage
+ * @param {module:types~Meta} meta 消息内容
+ */
+
+/**
+ * 收到单聊RTC消息
+ * @event onRosterRTCMessage
  * @param {module:types~Meta} meta 消息内容
  */
 

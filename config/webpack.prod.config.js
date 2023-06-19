@@ -56,7 +56,9 @@ module.exports = (env) => {
 
       new EncodingPlugin({
         encoding: 'utf8'
-      })
+      }),
+
+      new webpack.ProvidePlugin({ adapter: ['webrtc-adapter', 'default'] })
     ],
     optimization: {
       splitChunks: {

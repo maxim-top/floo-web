@@ -33,7 +33,8 @@ const STATIC_FRAME_ERROR_STATUS = {
   CHECK_SUM_FAILURE: 16,
   INVALID_LICENSE: 17,
   LICENSE_LIMIT: 18,
-  APP_FROZEN: 19
+  APP_FROZEN: 19,
+  RATE_LIMIT_EXCEEDED: 20
 };
 const STATIC_FRAME_OSTYPE = {
   UNKNOWN: 0,
@@ -57,7 +58,9 @@ const STATIC_META_NAMESPACE = {
   ROSTER_NOTICE: 3,
   USER_NOTICE: 4,
   INFO: 5,
-  CONVERSATION: 6
+  CONVERSATION: 6,
+  PUSH: 7,
+  RTC_SIGNAL: 8
 };
 
 /**************** messagebody 部分 **************/
@@ -75,7 +78,8 @@ const STATIC_MESSAGE_OPTYPE = {
   READ_CANCEL: 3,
   DELIVER_ACK: 4,
   RECALL: 5,
-  DELETE: 6
+  DELETE: 6,
+  PLAY_ACK: 7
 };
 const STATIC_MESSAGE_CONTENT_TYPE = {
   TEXT: 0,
@@ -85,7 +89,8 @@ const STATIC_MESSAGE_CONTENT_TYPE = {
   FILE: 4,
   LOCATION: 5,
   COMMAND: 6,
-  FORWARD: 7
+  FORWARD: 7,
+  RTC: 8
 };
 
 const STATIC_MESSAGE_QOS = {
@@ -170,7 +175,9 @@ const STATIC_USERNOTICE_TYPE = {
 
   DEVICE_ADDED: 9, // a new device is added
   DEVICE_REMOVED: 10, // a device is removed
-  CLUSTER_CHANGED: 11 //cluster changed need relogin
+  CLUSTER_CHANGED: 11, //cluster changed need relogin
+  DNS_UPDATE: 12, //update dns config
+  TRAFFIC_LIMIT_EXCEEDED: 13 // user traffic limit exceeded
 };
 
 /**************** conversation 部分 **************/
@@ -182,6 +189,12 @@ const STATIC_CONVERSATION_OPTYPE = {
   UNKNOWN: 0,
   DELETE: 1,
   DELETE_EVERYWHERE: 2
+};
+
+/**************** rtc message 部分 **************/
+const STATIC_RTC_SIGNAL_TYPE = {
+  UNKNOWN: 0,
+  VIDEO_ROOM: 1
 };
 
 /**************** MESSAGE unread related, no STATIC prefix means not from protobuf **************/
@@ -209,5 +222,6 @@ export {
   STATIC_ROSTERNONTICE_TYPE,
   STATIC_CONVERSATION_TYPE,
   STATIC_CONVERSATION_OPTYPE,
+  STATIC_RTC_SIGNAL_TYPE,
   STATIC_MESSAGE_STATUS
 };

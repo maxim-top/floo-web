@@ -28,7 +28,7 @@ rm -rf $pdir/src/sdk
 mkdir -p $pdir/config
 mkdir -p $im_dir
 cp ./build/sdk/floo-*.js $im_dir
-gsed -i'' -E "s/(.*)\/sdk\/index(.*)/\1\/im\/floo-2.0.0\2/g" $pdir/src/ui/index.vue
+gsed -i'' -E "s/(.*)\/sdk\/index(.*)/\1\/im\/floo-3.0.0\2/g" $pdir/src/ui/index.vue
 
 cp ./config/webpack.prod.config.js $pdir/config/
 cp ./config/webpack.dev.config.js $pdir/config/
