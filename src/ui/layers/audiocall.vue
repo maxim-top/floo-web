@@ -1,5 +1,8 @@
 <template>
   <div class="call_panel">
+    <div>
+      <p v-if="isGetThrough" class="call_time">{{ callTime }}</p>
+    </div>
     <div class="info">
       <div class="avatar">
         <img :src="userInfo.avatar" class="av" />
@@ -51,7 +54,8 @@ export default {
       hangup: false,
       caller: true,
       isGetThrough: false,
-      doHangup: false
+      doHangup: false,
+      callTime: ''
     };
   },
   mounted() {
@@ -92,6 +96,7 @@ export default {
       });
       this.startPhoneRing();
     }
+    document.getElementById('roster_remote_only_audio').muted = false;
   },
   watch: {
     getSid(newSid) {
@@ -129,13 +134,21 @@ export default {
       if (active) {
         let pickupTime = this.getCallPickupTime;
         let content = '';
+        let pushlocKey = 'call_duration';
+        let callTime = [0, 0];
         if (pickupTime) {
           content = (Date.now() - this.getCallPickupTime).toString();
+          let intervalMsec = parseInt(content);
+          let intervalSec = intervalMsec / 1000;
+          callTime[0] = parseInt(intervalSec / 60);
+          callTime[1] = parseInt(intervalSec - callTime[0] * 60);
         } else {
           if (timeout) {
             content = 'timeout';
+            pushlocKey = 'callee_not_responding';
           } else {
             content = 'canceled';
+            pushlocKey = 'call_canceled_by_caller';
           }
         }
         this.$store.getters.im.rtcManage.sendRTCMessage({
@@ -144,7 +157,9 @@ export default {
           config: JSON.stringify({
             action: 'hangup',
             callId: this.getCallId,
-            initiator: toNumber(this.getCallId.split('_')[0])
+            initiator: toNumber(this.getCallId.split('_')[0]),
+            pushMessageLocKey: pushlocKey,
+            pushMessageLocArgs: callTime
           })
         });
       }
@@ -161,17 +176,33 @@ export default {
     getHangUpStatus() {
       return this.doHangup;
     },
+    calculateDisplayTime() {
+      let intervalMsec = Date.now() - this.getCallPickupTime;
+      let intervalSec = intervalMsec / 1000;
+      let day = parseInt(intervalSec / 3600 / 24);
+      let hour = parseInt((intervalSec - day * 24 * 3600) / 3600);
+      let min = parseInt((intervalSec - day * 24 * 3600 - hour * 3600) / 60);
+      let sec = parseInt(intervalSec - day * 24 * 3600 - hour * 3600 - min * 60);
+      this.callTime =
+        (hour > 0 ? hour.toString() : '00') +
+        ':' +
+        (min >= 10 ? min.toString() : min > 0 ? '0' + min.toString() : '00') +
+        ':' +
+        (sec >= 10 ? sec.toString() : sec > 0 ? '0' + sec.toString() : '00');
+    },
     getThrough() {
       this.isGetThrough = true;
       this.$store.getters.im.rtcManage.sendRTCMessage({
         uid: this.userInfo.user_id,
-        content: '设备' + this.$store.getters.im.userManage.getDeviceSN() + '接通呼叫',
+        content: '',
         config: JSON.stringify({
           action: 'pickup',
           callId: this.getCallId
         })
       });
       this.$store.dispatch('contact/actionSetCallPickupTime', Date.now());
+      this.stopPhoneRing();
+      setInterval(this.calculateDisplayTime, 1000);
     },
     randomString(len) {
       let charSet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -186,11 +217,17 @@ export default {
       const au = document.querySelector('#phone_ring_player');
       au.loop = true;
       au.play();
+      if (navigator.userAgent.indexOf('Safari') > -1 && navigator.userAgent.indexOf('Chrome') == -1) {
+        this.$store.dispatch('header/actionChangeSupportSafariAudio', true);
+      }
     },
     stopPhoneRing() {
       const au = document.querySelector('#phone_ring_player');
       au.loop = false;
       au.pause();
+      if (navigator.userAgent.indexOf('Safari') > -1 && navigator.userAgent.indexOf('Chrome') == -1) {
+        this.$store.dispatch('header/actionChangeSupportSafariAudio', true);
+      }
     }
   },
   beforeDestroy() {

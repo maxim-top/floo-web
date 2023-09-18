@@ -5,8 +5,8 @@
       <span v-popover:tooltip.top="'发送图片'" @click="imageUploadClickHandler" class="ico image"></span>
       <span v-popover:tooltip.top="'发送文件'" @click="fileUploadClickHandler" class="ico file"></span>
       <span v-popover:tooltip.top="'发送位置'" @click="locationClickHandler" class="ico location"></span>
-      <span v-popover:tooltip.top="'发起视频通话'" @click="videoCallClickHandler" class="ico videocall"></span>
-      <span v-popover:tooltip.top="'发送语音通话'" @click="audioCallClickHandler" class="ico audiocall"></span>
+      <span v-popover:tooltip.top="'视频通话'" @click="videoCallClickHandler" class="ico videocall"></span>
+      <span v-popover:tooltip.top="'语音通话'" @click="audioCallClickHandler" class="ico audiocall"></span>
     </div>
     <div class="input">
       <textarea

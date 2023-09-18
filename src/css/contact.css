@@ -53,6 +53,9 @@
   font-size: 14px;
   margin-left: 15px;
   color: #333;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 66.6%;
 }
 
 .contact .l_conversation {
@@ -101,6 +104,9 @@
   line-height: 20px;
   padding-top: 12px;
   color: #000;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 40%;
 }
 
 .contact .l_conversation .item .last_msg_time {
@@ -120,4 +126,5 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
+  max-width: 66.6%;
 }

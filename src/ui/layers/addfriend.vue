@@ -14,13 +14,15 @@
           <input placeHolder="输入userid" type="text" v-model="user_id" />
           <a @click="searchIdClickHandler" class="button">搜索id</a>
         </p>
-        <div class="add_roster_searchList" v-if="searchResult.user_id > 0">
-          <span v-if="isFriend">{{ searchResult.username }} (已是好友)</span>
-          <span v-if="!isFriend">
-            {{ searchResult.username }}
-            <input placeHolder="别名" type="text" v-model="alias" />
-            <span @click="clickUserHandler">添加好友</span>
-          </span>
+        <div class="search_item" v-if="searchResult.user_id > 0">
+          <span class="name" v-if="isFriend">{{ searchResult.username }} (已是好友)</span>
+          <div v-if="!isFriend">
+            <span class="name">{{ searchResult.username }}</span>
+            <div class="action_item">
+              <input placeHolder="别名" type="text" v-model="alias" />
+              <span @click="clickUserHandler">添加好友</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

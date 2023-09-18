@@ -10,11 +10,14 @@
           <input placeHolder="输入group id" type="text" v-model="group_id" />
           <a @click="search" class="button">搜索</a>
         </p>
-        <div class="add_roster_searchList" v-if="searchObj.group_id > 0">
-          <div class="item">
-            {{ searchObj.name }}
-            <span @click="clickJoinHandler" class="r" v-if="!isJoined">申请</span>
-            <span class="r" v-if="isJoined">已加入</span>
+        <div class="search_item" v-if="searchObj.group_id > 0">
+          <div class="item" v-if="isJoined">
+            <span class="name">{{ searchObj.name }}</span>
+            <span class="rname">已加入</span>
+          </div>
+          <div class="item" v-if="!isJoined">
+            <span class="name">{{ searchObj.name }}</span>
+            <span @click="clickJoinHandler" class="rname">申请</span>
           </div>
         </div>
       </div>

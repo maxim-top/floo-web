@@ -8,44 +8,51 @@
       </div>
       <div class="contentFrame">
         <p class="username" v-if="!isSelf">{{ userObj.username }}</p>
-        <div class="c_content" v-html="message.mentionStr" v-if="message.mentionStr"></div>
-        <div class="c_content" v-if="!message.mentionStr">
-          <div v-if="message.type === 'text'">
-            {{ message.content }}
-            <div v-if="message.ext">ext:{{ message.ext }}</div>
+        <div :class="{ user_content: true, self: isSelf, roster: !isSelf }">
+          <div class="c_content" v-html="message.mentionStr" v-if="message.mentionStr"></div>
+          <div class="c_markdown_title" v-if="message.type === 'text' && isMarkdown && !message.mentionStr">
+            <span @click="changeShowFormat">&ensp;{{ showTitle }}&ensp;</span>
           </div>
-          <div v-if="message.type === 'rtc'">
-            {{ message.content }}
-          </div>
-          <div v-if="message.type === 'image'">
-            <img :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
-          </div>
-          <div @click="playAudio" class="audio_frame" v-if="message.type === 'audio'">
-            <img class="audio" src="/image/audio.png" />
-          </div>
-          <div @click="playVideo" class="video_frame" v-if="message.type === 'video'">
-            <img :src="videoImage" class="preview" />
-            <img class="play" src="/image/play.png" />
-          </div>
-          <div class="loc_frame" v-if="message.type === 'file'">
-            <img class="loc" src="/image/file2.png" />
-            <span @click="downloadFile" class="loc_txt">{{ attachName }}</span>
-          </div>
-          <div @click="openLocation" class="loc_frame" v-if="message.type === 'location'">
-            <img class="loc" src="/image/loc.png" />
-            <span class="loc_txt">{{ attachLocation.addr }}</span>
-          </div>
+          <div class="c_content" v-if="!message.mentionStr">
+            <div v-if="message.type === 'text'">
+              <div v-if="showMarkdown" v-html="markContent" class="c_markdown" />
+              <div v-else>
+                {{ message.content }}
+              </div>
+            </div>
+            <div v-if="message.type === 'rtc'">
+              {{ message.content }}
+            </div>
+            <div v-if="message.type === 'image'">
+              <img class="c_image" :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
+            </div>
+            <div @click="playAudio" class="audio_frame" v-if="message.type === 'audio'">
+              <img class="audio" src="/image/audio.png" />
+            </div>
+            <div @click="playVideo" class="video_frame" v-if="message.type === 'video'">
+              <img :src="videoImage" class="preview c_image" />
+              <img class="play" src="/image/play.png" />
+            </div>
+            <div class="loc_frame" v-if="message.type === 'file'">
+              <img class="loc" src="/image/file2.png" />
+              <span @click="downloadFile" class="loc_txt">{{ attachName }}</span>
+            </div>
+            <div @click="openLocation" class="loc_frame" v-if="message.type === 'location'">
+              <img class="loc" src="/image/loc.png" />
+              <span class="loc_txt">{{ attachLocation.addr }}</span>
+            </div>
 
-          <el-popover :placement="isSelf ? 'left' : 'right'" trigger="hover" width="70">
-            <div class="messageExt">
-              <div @click="deleteMessage" class="delete item" v-if="!message.h">删除</div>
-              <div @click="forwardMessage" class="recall item">转发</div>
-              <div @click="recallMessage" class="recall item" v-if="isSelf && !message.h">撤回</div>
-            </div>
-            <div class="h_image" slot="reference">
-              <img src="/image/more.png" />
-            </div>
-          </el-popover>
+            <el-popover :placement="isSelf ? 'left' : 'right'" trigger="hover" width="70">
+              <div class="messageExt">
+                <div @click="deleteMessage" class="delete item" v-if="!message.h">删除</div>
+                <div @click="forwardMessage" class="recall item">转发</div>
+                <div @click="recallMessage" class="recall item" v-if="isSelf && !message.h">撤回</div>
+              </div>
+              <div class="h_image" slot="reference">
+                <img src="/image/more.png" />
+              </div>
+            </el-popover>
+          </div>
         </div>
       </div>
     </div>
@@ -65,12 +72,21 @@
 import moment from 'moment';
 import { numToString, toNumber } from '../../../third/tools';
 import { mapGetters } from 'vuex';
+import { Marked } from '../../../third/marked.min.js';
+import { markedHighlight } from 'marked-highlight';
+import hljs from 'highlight.js';
+import 'highlight.js/styles/atom-one-light.css';
 var JSONBigString = require('json-bigint');
 
 export default {
   name: 'GroupChat',
   data() {
-    return {};
+    return {
+      isMarkdown: false,
+      showMarkdown: false,
+      markContent: '',
+      showTitle: '显示原文'
+    };
   },
   mounted() {
     let { timestamp } = this.message;
@@ -87,6 +103,38 @@ export default {
     if (fromUid !== uid) {
       const im = this.$store.getters.im;
       if (im) im.groupManage.readGroupMessage(this.getSid, this.message.id);
+    }
+
+    let { type } = this.message;
+    if (type === 'text') {
+      this.isMarkdown = this.isMarkdownFormat(this.message.content);
+      if (this.isMarkdown) {
+        let hasCode = this.hasCodeBlock(this.message.content);
+        let marked = null;
+        let addHlgs = false;
+        if (hasCode) {
+          marked = new Marked(
+            markedHighlight({
+              langPrefix: 'hljs language-',
+              highlight(code, lang) {
+                let language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                if (language === 'plaintext') {
+                  addHlgs = true;
+                  return hljs.highlightAuto(code).value;
+                }
+                return hljs.highlight(code, { language }).value;
+              }
+            })
+          );
+        } else {
+          marked = new Marked();
+        }
+        this.markContent = marked.parse(this.message.content);
+        if (addHlgs) {
+          this.markContent = this.markContent.replaceAll('<code', '<code class="hljs"');
+        }
+        this.showMarkdown = true;
+      }
     }
   },
   components: {
@@ -279,6 +327,42 @@ export default {
       this.$store.dispatch('layer/actionSetShowing', 'video');
       this.$store.dispatch('layer/actionSetShowmask', true);
       this.$store.dispatch('layer/actionSetVideoUrl', attachUrl);
+    },
+
+    /* eslint-disable no-useless-escape */
+    isMarkdownFormat(str) {
+      const regex = /^\s*(\#+|\*|\-|\d+\.)\s+.+|\!\[.*\]\(.*\)|\`{3}[\w\W]*?\`{3}/gm;
+      if (!regex.test(str)) {
+        const hasTitle = /^\s*\#+\s+.+$/gm.test(str);
+        const hasLink = /\[.*\]\(.*\)/gm.test(str);
+        const hasItalic = /(\*|_).*?(\*|_)/gm.test(str);
+        const hasImage = /\!\[.*\]\(.*\)/gm.test(str);
+        const hasbold = /(\*\*|__)(.*?)(\*\*|__)/gm.test(str);
+        const hasStrikethrough = /~~.*?~~/gm.test(str);
+        const hasBlockquote = /^\s*>+.*/gm.test(str);
+        const hasInlineCodeBlock = /`.*?`/gm.test(str);
+        const hasPartingLine = /^(\*\*\*|---|___)$/gm.test(str);
+        const hasUnorderedList = /^(\s*[-+*]\s+.+\n?)+/gm.test(str);
+        const hasOrderedList = /^(\s*\d+\.\s+.+\n?)+/gm.test(str);
+        return (
+          hasLink || hasTitle || hasItalic || hasImage || hasbold || hasStrikethrough || hasBlockquote || hasInlineCodeBlock || hasPartingLine || hasUnorderedList || hasOrderedList
+        );
+      } else {
+        return true;
+      }
+    },
+
+    hasCodeBlock(str) {
+      return /`.*?`/gm.test(str);
+    },
+
+    changeShowFormat() {
+      this.showMarkdown = !this.showMarkdown;
+      if (this.showMarkdown) {
+        this.showTitle = '显示原文';
+      } else {
+        this.showTitle = '解析格式';
+      }
     }
   }
 };

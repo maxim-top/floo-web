@@ -1,5 +1,8 @@
 <template>
   <div class="call_panel">
+    <div>
+      <p v-if="isGetThrough" class="call_time">{{ callTime }}</p>
+    </div>
     <div class="info" :style="{ 'z-index': isGetThrough ? '4' : '6' }">
       <div class="avatar">
         <img :src="userInfo.avatar" class="av" />
@@ -18,19 +21,18 @@
         <span v-if="!mic" class="display_info">麦克风关闭</span>
       </div>
       <div class="item">
-        <button v-if="!audioCall" class="button" @click="cameraChangeStatus">
-          <i :class="[!audioCall && camera ? 'camera_on' : 'camera_off']"></i>
+        <button class="button" @click="speakerChangeStatus">
+          <i :class="[speaker ? 'speaker_on' : 'speaker_off']"></i>
         </button>
-        <span v-if="!audioCall && camera" class="display_info">摄像头已开</span>
-        <span v-if="!audioCall && !camera" class="display_info">摄像头关闭</span>
+        <span v-if="speaker" class="display_info">扬声器已开</span>
+        <span v-if="!speaker" class="display_info">扬声器关闭</span>
       </div>
       <div class="item">
-        <button class="button" @click="audioSpeakerChangeStatus">
-          <i :class="[!audioCall ? (isGetThrough ? 'audio_call_switch' : speaker ? 'speaker_on' : 'speaker_off') : speaker ? 'speaker_on' : 'speaker_off']"></i>
+        <button class="button" @click="cameraChangeStatus">
+          <i :class="[camera ? 'camera_on' : 'camera_off']"></i>
         </button>
-        <span v-if="((!isGetThrough && !audioCall) || audioCall) && speaker" class="display_info">扬声器已开</span>
-        <span v-if="((!isGetThrough && !audioCall) || audioCall) && !speaker" class="display_info">扬声器关闭</span>
-        <span v-if="isGetThrough && !audioCall" class="display_info">转语音电话</span>
+        <span v-if="camera" class="display_info">摄像头已开</span>
+        <span v-if="!camera" class="display_info">摄像头关闭</span>
       </div>
     </div>
     <div>
@@ -41,11 +43,11 @@
       </span>
     </div>
     <div>
-      <video v-if="!audioCall" class="panel_remote" id="roster_remote_video" width="100%" height="100%" autoplay playsinline muted />
+      <video class="panel_remote" id="roster_remote_video" width="100%" height="100%" autoplay playsinline muted />
       <audio class="hide" id="roster_remote_audio" autoplay playsinline muted />
     </div>
     <div>
-      <video v-if="!audioCall" class="panel_local" id="roster_local_video" width="100%" autoplay playsinline muted />
+      <video class="panel_local" id="roster_local_video" width="100%" autoplay playsinline muted />
     </div>
   </div>
 </template>
@@ -60,13 +62,13 @@ export default {
     return {
       userInfo: {},
       mic: true,
-      audioCall: false,
       speaker: true,
       camera: true,
       hangup: false,
       caller: true,
       isGetThrough: false,
-      doHangup: false
+      doHangup: false,
+      callTime: ''
     };
   },
   mounted() {
@@ -115,24 +117,7 @@ export default {
       });
       this.startPhoneRing();
     }
-
-    this.$store.getters.im.on('onRosterRTCMessage', (message) => {
-      const { config, ext, isHistory } = message;
-      const callStatus = this.getCallStatus;
-      const callId = this.getCallId;
-      if (!isHistory && callStatus && config && ext) {
-        if (config.action && config.action === 'custom' && config.callId === callId) {
-          const sext = JSON.parse(ext);
-          if (sext && sext.rtc_cmd === 'switch_audio') {
-            if (!this.audioCall) {
-              this.audioCall = true;
-              this.$store.getters.im.rtcManage.muteLocalVideo(true);
-              this.$store.getters.im.rtcManage.muteRemoteVideo(true);
-            }
-          }
-        }
-      }
-    });
+    document.getElementById('roster_remote_audio').muted = false;
   },
   watch: {
     getSid(newSid) {
@@ -144,7 +129,6 @@ export default {
     ...mapGetters('contact', ['getCallInviteInfo']),
     ...mapGetters('contact', ['getCallPickupTime']),
     ...mapGetters('contact', ['getCallId']),
-    ...mapGetters('setting', ['getCallStatus']),
     rosterName() {
       return this.userInfo.nick_name || this.userInfo.username;
     }
@@ -161,49 +145,34 @@ export default {
     },
     micChangeStatus() {
       this.mic = !this.mic;
-      console.log('micChangeStatus ' + this.mic);
       this.$store.getters.im.rtcManage.muteLocalAudio(!this.mic);
     },
-    audioSpeakerChangeStatus() {
-      if (this.isGetThrough) {
-        if (!this.audioCall) {
-          this.audioCall = true;
-          this.$store.getters.im.rtcManage.muteLocalVideo(true);
-          this.$store.getters.im.rtcManage.muteRemoteVideo(true);
-          this.$store.getters.im.rtcManage.sendRTCMessage({
-            uid: this.userInfo.user_id,
-            content: '',
-            config: JSON.stringify({
-              action: 'custom',
-              callId: this.getCallId
-            }),
-            ext: JSON.stringify({
-              rtc_cmd: 'switch_audio'
-            })
-          });
-        } else {
-          this.speaker = !this.speaker;
-        }
-      } else {
-        this.speaker = !this.speaker;
-      }
+    speakerChangeStatus() {
+      this.speaker = !this.speaker;
     },
     cameraChangeStatus() {
       this.camera = !this.camera;
       this.$store.getters.im.rtcManage.muteLocalVideo(!this.camera);
-      console.log('cameraChangeStatus ' + this.camera);
     },
     hangupCall(active, timeout) {
       if (active) {
         let pickupTime = this.getCallPickupTime;
         let content = '';
+        let pushlocKey = 'call_duration';
+        let callTime = [0, 0];
         if (pickupTime) {
           content = (Date.now() - this.getCallPickupTime).toString();
+          let intervalMsec = parseInt(content);
+          let intervalSec = intervalMsec / 1000;
+          callTime[0] = parseInt(intervalSec / 60);
+          callTime[1] = parseInt(intervalSec - callTime[0] * 60);
         } else {
           if (timeout) {
             content = 'timeout';
+            pushlocKey = 'callee_not_responding';
           } else {
             content = 'canceled';
+            pushlocKey = 'call_canceled_by_caller';
           }
         }
         this.$store.getters.im.rtcManage.sendRTCMessage({
@@ -212,7 +181,9 @@ export default {
           config: JSON.stringify({
             action: 'hangup',
             callId: this.getCallId,
-            initiator: toNumber(this.getCallId.split('_')[0])
+            initiator: toNumber(this.getCallId.split('_')[0]),
+            pushMessageLocKey: pushlocKey,
+            pushMessageLocArgs: callTime
           })
         });
       }
@@ -229,17 +200,33 @@ export default {
     getHangUpStatus() {
       return this.doHangup;
     },
+    calculateDisplayTime() {
+      let intervalMsec = Date.now() - this.getCallPickupTime;
+      let intervalSec = intervalMsec / 1000;
+      let day = parseInt(intervalSec / 3600 / 24);
+      let hour = parseInt((intervalSec - day * 24 * 3600) / 3600);
+      let min = parseInt((intervalSec - day * 24 * 3600 - hour * 3600) / 60);
+      let sec = parseInt(intervalSec - day * 24 * 3600 - hour * 3600 - min * 60);
+      this.callTime =
+        (hour > 0 ? hour.toString() : '00') +
+        ':' +
+        (min >= 10 ? min.toString() : min > 0 ? '0' + min.toString() : '00') +
+        ':' +
+        (sec >= 10 ? sec.toString() : sec > 0 ? '0' + sec.toString() : '00');
+    },
     getThrough() {
       this.isGetThrough = true;
       this.$store.getters.im.rtcManage.sendRTCMessage({
         uid: this.userInfo.user_id,
-        content: '设备' + this.$store.getters.im.userManage.getDeviceSN() + '接通呼叫',
+        content: '',
         config: JSON.stringify({
           action: 'pickup',
           callId: this.getCallId
         })
       });
       this.$store.dispatch('contact/actionSetCallPickupTime', Date.now());
+      this.stopPhoneRing();
+      setInterval(this.calculateDisplayTime, 1000);
     },
     randomString(len) {
       let charSet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -254,11 +241,17 @@ export default {
       const au = document.querySelector('#phone_ring_player');
       au.loop = true;
       au.play();
+      if (navigator.userAgent.indexOf('Safari') > -1 && navigator.userAgent.indexOf('Chrome') == -1) {
+        this.$store.dispatch('header/actionChangeSupportSafariAudio', true);
+      }
     },
     stopPhoneRing() {
       const au = document.querySelector('#phone_ring_player');
       au.loop = false;
       au.pause();
+      if (navigator.userAgent.indexOf('Safari') > -1 && navigator.userAgent.indexOf('Chrome') == -1) {
+        this.$store.dispatch('header/actionChangeSupportSafariAudio', true);
+      }
     }
   },
   beforeDestroy() {

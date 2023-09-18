@@ -1,9 +1,9 @@
 <template>
   <div class="chat-index">
+    <audio id="phone_ring_player" src="/audio/phone_ring.mp3" class="hide" autoplay playsinline muted />
     <Header />
     <Contact />
     <Content />
-    <audio id="phone_ring_player" src="/audio/phone_ring.mp3" class="hide" muted="“muted”" />
   </div>
 </template>
 
@@ -30,6 +30,13 @@ export default {
     };
   },
   mounted() {
+    {
+      const au = document.getElementById('phone_ring_player');
+      au.muted = false;
+      au.loop = false;
+      au.pause();
+    }
+
     this.$store.getters.im.on('onRosterListUpdate', () => {
       this.$store.dispatch('contact/actionClearRosterList');
       this.$store.dispatch('contact/actionLazyGetRosterList');
@@ -51,6 +58,7 @@ export default {
     this.$store.getters.im.on('onRosterInfoUpdate', () => {
       this.$store.dispatch('contact/actionGetConversationList');
     });
+
     this.$store.getters.im.on('onRosterRTCMessage', (message) => {
       const { config, isHistory } = message;
       const fromUid = toNumber(message.from);
@@ -80,7 +88,8 @@ export default {
                 config: JSON.stringify({
                   action: 'hangup',
                   callId: config.callId,
-                  initiator: toNumber(this.getCallId.split('_')[0])
+                  initiator: config.initiator,
+                  pushMessageLocKey: 'callee_busy'
                 })
               });
             } else {

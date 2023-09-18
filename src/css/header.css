@@ -94,3 +94,12 @@
   font-size: 16px;
   color: white;
 }
+
+.header .supportname {
+  float: right;
+  margin-right: 20px;
+  line-height: 20px;
+  margin-left: 6px;
+  font-size: 16px;
+  color: white;
+}

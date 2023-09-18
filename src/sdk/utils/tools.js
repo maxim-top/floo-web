@@ -2,7 +2,7 @@ import Long from 'long';
 import { STATIC_MESSAGE_CONTENT_TYPE, STATIC_MESSAGE_STATUS } from './static';
 var JSONBigString = require('json-bigint');
 
-const formatJson = (obj) => {
+const formatJson = (obj = 0) => {
   const isLong = obj instanceof Long;
   if (isLong) {
     return obj.toString();
@@ -36,7 +36,7 @@ const formatJson = (obj) => {
   return hashRet;
 };
 
-const transferToLong = (obj) => {
+const transferToLong = (obj = 0) => {
   const { low, high, unsigned } = obj;
   if (typeof low !== 'undefined' && typeof high !== 'undefined') {
     const srret = new Long(low, high, unsigned);
@@ -74,7 +74,7 @@ const toNumber = (obj = 0) => {
   }
 };
 
-const toLong = (obj) => {
+const toLong = (obj = 0) => {
   if (typeof obj === 'string') return Long.fromString(obj);
   const { low, high, unsigned = true } = obj;
   if (typeof low !== 'undefined' && high !== 'undefined') {
@@ -86,7 +86,7 @@ const toLong = (obj) => {
   return new Long();
 };
 
-const numToString = (obj) => {
+const numToString = (obj = 0) => {
   if (typeof obj === 'undefined') {
     return '';
   }

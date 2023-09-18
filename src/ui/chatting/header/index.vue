@@ -11,6 +11,10 @@
       </div>
       <div @click="touchContact" class="stab"><img :src="contactImage" /></div>
       <div @click="touchSetting" class="stab"><img :src="settingImage" /></div>
+      <div @click="touchSafariAudioSupport" class="stab" v-if="checkSafari">
+        <img :src="audioImage" />
+        <span class="supportname">点击获取振铃权限</span>
+      </div>
     </div>
     <div class="profile">
       <img :src="avatar" @click="touchSetting" class="proAvater" />
@@ -26,6 +30,9 @@ export default {
   mounted() {
     this.$store.dispatch('header/actionLazyGetHeaderProfile');
     this.changeStabImage(this.getHeaderStatus);
+    if (navigator.userAgent.indexOf('Safari') > -1 && navigator.userAgent.indexOf('Chrome') == -1) {
+      this.checkSafari = true;
+    }
   },
 
   data() {
@@ -34,8 +41,10 @@ export default {
       convImage: '',
       contactImage: '',
       settingImage: '',
+      audioImage: '',
       name: '',
-      avatar: ''
+      avatar: '',
+      checkSafari: false
     };
   },
   watch: {
@@ -51,10 +60,13 @@ export default {
     },
     getHeaderStatus(selected) {
       this.changeStabImage(selected);
+    },
+    getSupportSafariAudio(state) {
+      this.checkSafari = !state;
     }
   },
   computed: {
-    ...mapGetters('header', ['getHeaderStatus', 'getUserProfile']),
+    ...mapGetters('header', ['getHeaderStatus', 'getUserProfile', 'getSupportSafariAudio']),
     ...mapGetters('contact', ['getTotalUnread']),
 
     // avatar() {
@@ -77,6 +89,7 @@ export default {
       this.convImage = '/image/conv.png';
       this.contactImage = '/image/contact.png';
       this.settingImage = '/image/setting.png';
+      this.audioImage = '/image/speaker_off.png';
 
       if (selected === 'contact') {
         this.contactImage = '/image/contact-s.png';
@@ -84,6 +97,8 @@ export default {
         this.convImage = '/image/conv-s.png';
       } else if (selected === 'setting') {
         this.settingImage = '/image/setting-s.png';
+      } else if (selected === 'audio') {
+        this.audioImage = '/image/speaker_on.png';
       } else {
         //what are you doing??
         this.touchContact();
@@ -103,6 +118,14 @@ export default {
       this.$store.dispatch('header/actionChangeHeaderStatus', 'setting');
       this.$store.dispatch('chat/actionSetType', { type: 'setting' });
       this.closeOtherLayers();
+    },
+    touchSafariAudioSupport() {
+      const au = document.querySelector('#phone_ring_player');
+      au.muted = false;
+      au.loop = false;
+      au.pause();
+      this.checkSafari = false;
+      alert('Safari 浏览器开启语音视频通话振铃');
     },
 
     closeOtherLayers() {

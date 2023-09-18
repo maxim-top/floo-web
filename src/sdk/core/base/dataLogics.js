@@ -640,6 +640,7 @@ bind('imGroupInvitedAccepted', (meta) => {
   // messageStore.saveGroupMessage(meta);
   fire('onGroupInvitedAccepted', meta);
 });
+
 bind('imGroupInvitedDeclined', (meta) => {
   // 邀请被拒绝，from 是 点 拒绝的人
   const { payload } = meta;

@@ -7,6 +7,7 @@ const getServers = (url, params) => request(url, 'get', params, ['app_id'], true
 const tokenUser = (params) => request('/token/user', 'post', params, [['mobile', 'name'], 'password']);
 const tokenId = (params) => request('/token/id', 'post', params, ['user_id', 'password']);
 const userRegister = (params) => request('/user/register/v2', 'post', params, ['username', 'password']);
+const userRegisterAnonymous = (params) => request('/user/register/anonymous', 'post', params, ['username', 'password']);
 const userBindMobile = (params) => request('/app/user/mobile_bind', 'post', params, ['captcha', 'mobile']);
 const userUpdateMobile = (params) => request('/app/user/mobile_update', 'post', params, ['mobile']);
 
@@ -107,6 +108,7 @@ const userVibratory = (params) => request('/user/vibratory', 'post', params, ['v
 
 const bindDeviceToken = (params) => request('/user/token/bind', 'post', params, ['device_sn', 'device_token', 'notifier_name']);
 const unbindDeviceToken = (params) => request('/user/token/unbind', 'post', params, [], true);
+const userDelete = (params) => request('/user/delete', 'post', params, ['password']);
 
 // file upload
 const fileForward = (params) => request('/file/upload/forward', 'get', params, ['file_sign', 'access-token', 'to_id', 'to_type'], true);
@@ -140,6 +142,7 @@ export {
   tokenUser,
   tokenId,
   userRegister,
+  userRegisterAnonymous,
   userBindMobile,
   userSendSms,
   userNameCheck,
@@ -226,6 +229,7 @@ export {
   userVibratory,
   bindDeviceToken,
   unbindDeviceToken,
+  userDelete,
   fileForward,
   asyncFileUpload,
   fileUploadAvatarUrl,

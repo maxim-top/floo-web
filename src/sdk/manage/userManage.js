@@ -74,6 +74,7 @@ export default {
    * {% lanying_code_snippet repo="lanying-im-web",class="userManage",function="asyncUnbindDeviceToken" %}{% endlanying_code_snippet %}
    */
   asyncUnbindDeviceToken: http.unbindDeviceToken,
+  asyncDeleteUser: http.userDelete,
 
   asyncTokenUser: http.tokenUser,
   asyncTokenId: http.tokenId,
@@ -88,6 +89,7 @@ export default {
    * {% lanying_code_snippet repo="lanying-im-web",class="userManage",function="asyncRegister" %}{% endlanying_code_snippet %}
    */
   asyncRegister: http.userRegister,
+  asyncRegisterAnonymous: http.userRegisterAnonymous,
   asyncUserBindMobile: http.userBindMobile,
   asyncUserUpdateMobile: http.userUpdateMobile,
   asyncUserSendSms: http.userSendSms,

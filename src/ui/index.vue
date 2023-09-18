@@ -1,5 +1,6 @@
 <template>
   <div class="ui-index">
+    <base target="_blank" />
     <div class="layer_mask" v-if="getShowmask"></div>
     <div id="lanying-snackbar"></div>
     <Chatting v-if="getAppStatus == 'chatting'" />
@@ -302,9 +303,10 @@ export default {
     },
     autoRegisterAndLogin() {
       const im = this.getIM();
-      let username = 'anonymous' + new Date().getTime() + Math.floor(Math.random() * 1000000000);
+      var username = 'anon_';
       let password = '' + new Date().getTime() + Math.floor(Math.random() * 1000000000) + Math.floor(Math.random() * 1000000000);
-      im.userManage.asyncRegister({ username, password }).then(() => {
+      im.userManage.asyncRegisterAnonymous({ username, password }).then((res) => {
+        username = res.username;
         this.saveLoginInfo({ username, password }, this.appid);
         im.login({
           name: username,

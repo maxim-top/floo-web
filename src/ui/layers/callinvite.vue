@@ -6,7 +6,8 @@
       </div>
       <div class="title">
         <p>{{ rosterName }}</p>
-        <p>邀请你视频通话</p>
+        <span v-if="this.getCallInviteInfo.type">您收到一个视频通话请求</span>
+        <span v-if="!this.getCallInviteInfo.type">您收到一个语音通话请求</span>
       </div>
     </div>
     <div class="layer">
@@ -69,6 +70,9 @@ export default {
       const au = document.querySelector('#phone_ring_player');
       au.loop = false;
       au.pause();
+      if (navigator.userAgent.indexOf('Safari') > -1 && navigator.userAgent.indexOf('Chrome') == -1) {
+        this.$store.dispatch('header/actionChangeSupportSafariAudio', true);
+      }
     },
     pickupCall() {
       this.stopPhoneRing();
@@ -86,7 +90,8 @@ export default {
         config: JSON.stringify({
           action: 'hangup',
           callId: this.getCallId,
-          initiator: toNumber(this.getCallId.split('_')[0])
+          initiator: toNumber(this.getCallId.split('_')[0]),
+          pushMessageLocKey: 'call_rejected_by_callee'
         })
       });
       this.stopPhoneRing();

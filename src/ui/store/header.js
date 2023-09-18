@@ -2,7 +2,8 @@
 
 const state = {
   headerStatus: 'contact',
-  userProfile: {}
+  userProfile: {},
+  supportSafariAudio: false
 };
 
 const headerRequestFlag = {
@@ -15,6 +16,9 @@ const getters = {
   },
   getUserProfile(state) {
     return state.userProfile;
+  },
+  getSupportSafariAudio(state) {
+    return state.supportSafariAudio;
   }
 };
 
@@ -25,6 +29,10 @@ const mutations = {
 
   changeHeaderUserProfile(state, profile) {
     state.userProfile = profile;
+  },
+
+  changeSupportSafariAudio(state, status) {
+    state.supportSafariAudio = status;
   }
 };
 
@@ -44,6 +52,9 @@ const actions = {
         headerRequestFlag.profile = false;
       });
     }
+  },
+  actionChangeSupportSafariAudio(context, status) {
+    context.commit('changeSupportSafariAudio', status);
   }
 };
 export default {

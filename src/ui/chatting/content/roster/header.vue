@@ -1,8 +1,10 @@
 <template>
   <div class="header">
-    <span @click="touchUserNameHandler">{{ rosterName }}</span>
-    <span class="typing" style="padding-left: 10px; color: #111; font-size: 12px" v-if="status">正在输入...</span>
-    <div class="delete_button" @click="deleteConversation(getSid)">删除会话</div>
+    <div class="header_items">
+      <span class="name" @click="touchUserNameHandler">{{ rosterName }}</span>
+      <span class="typing" style="padding-left: 10px; color: #111; font-size: 12px" v-if="status">正在输入...</span>
+      <div class="delete_button" @click="deleteConversation(getSid)">删除会话</div>
+    </div>
   </div>
 </template>
 

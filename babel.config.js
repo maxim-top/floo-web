@@ -15,7 +15,7 @@ module.exports = {
       'module-resolver',
       {
         alias: {
-          vue: path.join('vue', 'dist', 'vue.js'),
+          // vue: path.join('vue', 'dist', 'vue.js'),
           '/': path.resolve(__dirname, '/'),
           '@src': path.resolve(__dirname, 'src'),
           '@proj': path.resolve(__dirname),

@@ -6,6 +6,7 @@
   overflow: hidden;
   margin-left: 0px;
   border-radius: 0px 0px 10px 10px;
+  min-width: 320px;
 }
 
 /** roster info ***/
@@ -37,15 +38,25 @@
   background-color: #f0f0f0;
 }
 
+.support-content .header .header_items {
+  position: absolute;
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+}
+
+.support-content .header .header_items .name {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 33.3%;
+}
+
 .support-content .header .delete_button {
   position: absolute;
-  right: 24px;
-  width: 64px;
-  height: 18px;
-  line-height: 32px;
-  margin-top: -32px;
+  right: 0;
   font-size: 12px;
   color: #47b6ff;
+  padding-right: 20px;
 }
 
 .support-content .header .delete_button:hover {
@@ -70,14 +81,29 @@
   background-color: #f6f6f6;
 }
 
+.support-content .list .messageFrame .support-contentFrame .c_markdown_title {
+  color: rgb(180, 180, 180);
+  border-radius: 20px 20px 20px 20px;
+  background-color: rgb(230, 230, 230);
+  font-size: 12px;
+  min-width: 60px;
+  max-width: 60px;
+}
+
 .support-content .list .messageFrame .support-contentFrame .c_content {
   word-break: break-all;
-  max-width: 300px;
   border-radius: 3px;
   padding: 10px 15px;
   line-height: 16px;
-  font-size: 12px;
   position: relative;
+  max-width: 100%;
+}
+
+.support-content .list .messageFrame .support-contentFrame .c_content .c_markdown {
+  line-height: normal;
+  word-wrap: break-word;
+  word-break: break-all;
+  white-space: normal;
 }
 
 .support-content .list .messageFrame .support-contentFrame .c_content .h_image {
@@ -133,17 +159,47 @@
 }
 
 .self .support-contentFrame {
-  margin-right: 32px;
+  float: right;
+  text-align: right;
+  display: inline-flex;
+  align-items: flex-end;
+  max-width: 66.6%;
+  min-width: 220px;
 }
 
 .roster .support-contentFrame {
-  margin-left: 32px;
+  float: left;
+  text-align: left;
+  display: block;
+  max-width: 66.6%;
+  min-width: 220px;
 }
 
 .support-contentFrame .username {
   font-size: 12px;
   color: #000;
+  padding: 0 0 5px 10px;
   margin: 0;
+}
+
+.self .support-contentFrame .user_content {
+  float: left;
+  text-align: left;
+  display: inline-flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.roster .support-contentFrame .user_content {
+  float: left;
+  text-align: left;
+  display: inline-flex;
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  align-items: flex-end;
+  width: 100%;
 }
 
 .history .messageExt {
@@ -160,10 +216,31 @@
   border-radius: 3px;
   margin-left: 6px;
 }
+
+.support-content .c_content table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  background-color: #fafafa;
+}
+
+.support-content .c_content table,
+th,
+td {
+  border: 1px solid gray;
+}
+
+.support-content .c_content th,
+td {
+  padding-left: 5px;
+  padding-right: 5px;
+  min-width: 50px;
+}
+
 .support-content .self .c_content {
   float: right;
-  background: #47b6ff;
-  margin-right: 6px;
+  background: #b2d2fb;
+  text-align: left;
 }
 
 .support-content .roster .c_content {

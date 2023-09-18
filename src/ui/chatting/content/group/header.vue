@@ -1,12 +1,14 @@
 <template>
   <div class="header">
-    <span @click="touchUserNameHandler">{{ groupName }}</span>
+    <div class="header_items">
+      <span class="name" @click="touchUserNameHandler">{{ groupName }}</span>
+      <span class="typing" style="padding-left: 20px; color: #ddd"></span>
+      <div class="delete_button" @click="deleteConversation(getSid)">删除会话</div>
+    </div>
     <div class="mention_title" v-if="this.mentionMessage !== ''">
       <span @click="closeMention" class="closer">x</span>
       <span class="text">{{ mentionMessage }}</span>
     </div>
-    <span class="typing" style="padding-left: 20px; color: #ddd"></span>
-    <div class="delete_button" @click="deleteConversation(getSid)">删除会话</div>
   </div>
 </template>
 

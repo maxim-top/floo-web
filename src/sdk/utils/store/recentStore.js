@@ -47,21 +47,32 @@ const recentStore = {
       savedUid = toNumber(from);
     }
 
+    let updateRecent = false;
     const allRecents = getItem('key_recent_store') || [];
     const index = allRecents.findIndex((item) => item.type === toType && item.id === savedUid);
     if (index > -1) {
-      allRecents.splice(index, 1);
+      let item = allRecents[index];
+      if (timestamp > item.timestamp) {
+        updateRecent = true;
+        allRecents.splice(index, 1);
+      } else {
+        // history message don't need update recent message.
+      }
+    } else {
+      updateRecent = true;
     }
 
-    allRecents.unshift({
-      type: toType,
-      id: savedUid,
-      content,
-      ext,
-      timestamp
-    });
-    saveItem('key_recent_store', allRecents);
-    fire('recentlistUpdate');
+    if (updateRecent) {
+      allRecents.unshift({
+        type: toType,
+        id: savedUid,
+        content,
+        ext,
+        timestamp
+      });
+      saveItem('key_recent_store', allRecents);
+      fire('recentlistUpdate');
+    }
   },
 
   saveUnreadRecent: (xids, stype) => {

@@ -141,10 +141,9 @@ const initRTCEngine = (params) => {
               log.log('Janus says our WebRTC PeerConnection is ' + (on ? 'up' : 'down') + ' now');
               if (on) {
                 if (initParams.caller) {
-                  let content = '用户发起' + (initParams.hasVideo ? '视频' : '音频') + '呼叫';
                   sendRTCMessage({
                     uid: initParams.receiver,
-                    content: content,
+                    content: '',
                     config: JSONBigString.stringify({
                       action: 'call',
                       ios: { mutable_content: true },
@@ -153,7 +152,8 @@ const initRTCEngine = (params) => {
                       initiator: initParams.id,
                       callId: initParams.callId,
                       roomType: 0,
-                      pin: initParams.pin
+                      pin: initParams.pin,
+                      pushMessageLocKey: 'call_in'
                     }),
                     ext: JSON.stringify({
                       rtc: 'call'
@@ -162,7 +162,7 @@ const initRTCEngine = (params) => {
                   hangupTimeoputId = setTimeout(function () {
                     clearTimeout(hangupTimeoputId);
                     hangupTimeoputId = null;
-                    initParams.hangupCall(true);
+                    initParams.hangupCall(true, true);
                   }, hangupTimeout);
                 }
               } else {
@@ -206,7 +206,9 @@ const initRTCEngine = (params) => {
                   } else {
                     if (!initParams.caller) {
                       // callee join in time. caller should already in room. if not. caller has left room. need quit.
-                      initParams.hangupCall();
+                      if (!initParams.getHangUpStatus()) {
+                        initParams.hangupCall();
+                      }
                     }
                   }
                 } else if (event === 'event') {
