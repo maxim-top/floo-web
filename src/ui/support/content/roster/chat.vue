@@ -13,6 +13,7 @@ import Message from './renderMsg.vue';
 import { numToString, toNumber } from '../../../third/tools';
 
 import { mapGetters } from 'vuex';
+var JSONBigString = require('json-bigint');
 
 export default {
   name: 'RosterChat',
@@ -25,6 +26,14 @@ export default {
 
     im.on('onRosterMessage', (message) => {
       this.reloadMessage(message);
+    });
+
+    im.on('onRosterMessageContentAppend', (message) => {
+      this.calculateScroll(message);
+    });
+
+    im.on('onRosterMessageReplace', (message) => {
+      this.calculateScroll(message);
     });
 
     im.on('onReceiveHistoryMsg', ({ next }) => {
@@ -78,7 +87,8 @@ export default {
 
   data() {
     return {
-      queryingHistory: false
+      queryingHistory: false,
+      scrollTimer: null
     };
   },
 
@@ -153,6 +163,24 @@ export default {
       setTimeout(() => {
         this.$refs.rlist && (this.$refs.rlist.scrollTop = this.$refs.rlist.scrollHeight);
       }, 200);
+    },
+
+    calculateScroll(message) {
+      if (message.ext) {
+        let ext = JSONBigString.parse(message.ext);
+        if (ext && ext.ai && ext.ai.stream) {
+          this.scrollTimer && clearInterval(this.scrollTimer);
+          let count = ext.ai.stream_interval * 5;
+          if (count) {
+            this.scrollTimer = setInterval(() => {
+              this.$refs.rlist && (this.$refs.rlist.scrollTop = this.$refs.rlist.scrollHeight);
+              if (count-- <= 0) {
+                clearInterval(this.scrollTimer);
+              }
+            }, 200);
+          }
+        }
+      }
     }
     //methods finish ...
   }

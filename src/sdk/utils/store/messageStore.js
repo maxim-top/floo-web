@@ -318,21 +318,23 @@ const messageStore = {
   },
 
   getRosterMessageById: (roster_id, mid) => {
+    const messageId = numToString(mid);
     const allRosterMessageMap = getItem('key_roster_message_store', true, roster_id) || {};
     for (var x1 in allRosterMessageMap) {
       const sx = allRosterMessageMap[x1];
       if (sx && sx.length) {
-        const ret = sx.find((a) => a.id == mid);
+        const ret = sx.find((a) => a.id == messageId);
         if (ret) return ret;
       }
     }
   },
   getGroupMessageById: (group_id, mid) => {
+    const messageId = numToString(mid);
     const allGroupMessageMap = getItem('key_group_message_store', true, group_id) || {};
     for (var x in allGroupMessageMap) {
       const sx = allGroupMessageMap[x];
       if (sx && sx.length) {
-        const ret = sx.find((a) => a.id == mid);
+        const ret = sx.find((a) => a.id == messageId);
         if (ret) return ret;
       }
     }

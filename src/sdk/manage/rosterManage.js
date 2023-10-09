@@ -2,7 +2,7 @@ import http from '../core/base/io/index';
 import { fire } from '../utils/cusEvent';
 import { infoStore, messageStore, recentStore, rosterStore } from '../utils/store';
 import { formatJson } from '../utils/tools';
-import { makeDeleteMessage, makeRecallMessage, makeUnreadMessage } from '../core/base/messageMaker';
+import { makeDeleteMessage, makeRecallMessage, makeUnreadMessage, makeContentAppendMessage, makeReplaceMessage } from '../core/base/messageMaker';
 
 /**
  * 好友管理
@@ -206,6 +206,42 @@ const deleteMessage = (uid, mid) => {
 };
 
 /**
+ * 追加消息内容
+ * @static
+ * @param {number} uid 会话ID
+ * @param {number} mid 消息ID
+ * @param {string} content 消息追加内容
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="appendMessageContent" %}{% endlanying_code_snippet %}
+ */
+const appendMessageContent = (uid, mid, content) => {
+  const smessage = makeContentAppendMessage(uid, mid, content);
+  fire('swapSendMessage', formatJson(smessage));
+  fire('sendMessage', smessage);
+};
+
+/**
+ * 更新消息内容
+ * @static
+ * @param {number} uid 会话ID
+ * @param {number} mid 消息ID
+ * @param {string} content 消息更新内容
+ * @param {(string|object)} config 消息更新配置
+ * @param {(string|object)} ext 消息更新扩展信息
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="replaceMessage" %}{% endlanying_code_snippet %}
+ */
+const replaceMessage = (uid, mid, content = '', config = null, ext = null) => {
+  if (!content && !config && !ext) {
+    // do nothing.
+  } else {
+    const smessage = makeReplaceMessage(uid, mid, content, config, ext);
+    fire('swapSendMessage', formatJson(smessage));
+    fire('sendMessage', smessage);
+  }
+};
+
+/**
  * 获取好友信息
  * @static
  * @param {number} rid 好友ID
@@ -237,6 +273,8 @@ export default {
   getAllRosterDetail,
   recallMessage,
   deleteMessage,
+  appendMessageContent,
+  replaceMessage,
   getUnreadCount,
   unreadMessage,
   getRosterInfo,

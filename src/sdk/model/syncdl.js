@@ -9,6 +9,7 @@
  bool   is_full_sync  = 8;
  uint64 prev_mid      = 9;
  bool   is_eager_sync = 10;
+ uint64 edit_timestamp = 11;
  */
 function syncdl(params) {
   params = Object.assign({}, params);
@@ -22,6 +23,7 @@ function syncdl(params) {
   typeof params.is_full_sync !== 'undefined' && (this.is_full_sync = params.is_full_sync);
   typeof params.prev_mid !== 'undefined' && (this.prev_mid = params.prev_mid);
   typeof params.is_eager_sync !== 'undefined' && (this.is_eager_sync = params.is_eager_sync);
+  typeof params.edit_timestamp !== 'undefined' && (this.edit_timestamp = params.edit_timestamp);
 }
 
 syncdl.prototype = {
@@ -54,6 +56,9 @@ syncdl.prototype = {
   },
   setIseagersync: function (is_eager_sync) {
     this.is_eager_sync = is_eager_sync;
+  },
+  setEditTimestamp: function (edit_timestamp) {
+    this.edit_timestamp = edit_timestamp;
   }
 };
 

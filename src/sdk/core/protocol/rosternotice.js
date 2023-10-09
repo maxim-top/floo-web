@@ -46,9 +46,9 @@
                         REMOVED: 2,
                         ACCEPTED: 3,
                         DECLINED: 4,
-                        APPLIED: 7,
                         BLOCKED: 5,
                         UNBLOCKED: 6,
+                        APPLIED: 7,
                         INFO_UPDATED: 8,
                         MUTED: 9,
                         UNMUTED: 10

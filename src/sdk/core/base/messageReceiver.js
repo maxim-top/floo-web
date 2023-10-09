@@ -154,10 +154,10 @@ const receiveSyncdl = (syncMb) => {
     //userNotice 没有这些 status
     return;
   }
-  const { metas = [], xid, is_full_sync, client_mid } = syncMb;
+  const { metas = [], xid, is_full_sync, client_mid, edit_timestamp } = syncMb;
 
   if (!is_full_sync && client_mid && toLong(client_mid).gt(0)) {
-    fire('receivedSendMessage', client_mid);
+    fire('receivedSendMessage', client_mid, edit_timestamp);
     setTimeout(() => {
       messageStore.dealSendedRosterMessage(syncMb);
       messageStore.dealSendedGroupMessage(syncMb);

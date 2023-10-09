@@ -14,9 +14,9 @@
           </div>
           <div class="c_content">
             <div v-if="message.type === 'text'">
-              <div v-if="showMarkdown" v-html="markContent" class="c_markdown" />
+              <div v-if="showMarkdown" v-html="showMarkdownContent" class="c_markdown" />
               <div v-else>
-                {{ message.content }}
+                {{ showContent }}
               </div>
             </div>
             <div v-if="message.type === 'rtc'">
@@ -92,13 +92,35 @@ export default {
         name: '系统通知',
         avatar: '/image/setting.png'
       },
+      showTitle: '显示原文',
       isMarkdown: false,
       showMarkdown: false,
+      marked: null,
+      addHlgs: false,
+      content: '',
       markContent: '',
-      showTitle: '显示原文'
+
+      showContent: '',
+      appendContent: '',
+      appendTimer: null,
+
+      showMarkdownContent: '',
+      appendMarkdownContent: '',
+      appendMarkdownTimer: null
     };
   },
   mounted() {
+    const im = this.$store.getters.im;
+    if (!im) return;
+
+    im.on('onRosterMessageContentAppend', (message) => {
+      this.messageContentAppend(message);
+    });
+
+    im.on('onRosterMessageReplace', (message) => {
+      this.messageReplace(message);
+    });
+
     let { timestamp } = this.message;
     timestamp = toNumber(timestamp);
     const savedMessageTime = this.getMessageTime;
@@ -117,34 +139,19 @@ export default {
     }
     let { type } = this.message;
     if (type === 'text') {
-      this.isMarkdown = this.isMarkdownFormat(this.message.content);
-      if (this.isMarkdown) {
-        let hasCode = this.hasCodeBlock(this.message.content);
-        let marked = null;
-        let addHlgs = false;
-        if (hasCode) {
-          marked = new Marked(
-            markedHighlight({
-              langPrefix: 'hljs language-',
-              highlight(code, lang) {
-                let language = hljs.getLanguage(lang) ? lang : 'plaintext';
-                if (language === 'plaintext') {
-                  addHlgs = true;
-                  return hljs.highlightAuto(code).value;
-                }
-                return hljs.highlight(code, { language }).value;
-              }
-            })
-          );
-        } else {
-          marked = new Marked();
-        }
-        this.markContent = marked.parse(this.message.content);
-        if (addHlgs) {
-          this.markContent = this.markContent.replaceAll('<code', '<code class="hljs"');
-        }
-        this.showMarkdown = true;
+      this.calculateContent(this.message.content);
+    }
+
+    if (this.message.ext && this.message.ext.length && this.isAIStream(this.message.ext)) {
+      if (this.showMarkdown) {
+        this.appendMarkdownContent = this.markContent;
+        this.calculateMarkdownAppend(this.markContent, this.message.ext, true);
       }
+      this.appendContent = this.content;
+      this.calculateAppend(this.content, this.message.ext, true);
+    } else {
+      this.showMarkdownContent = this.markContent;
+      this.showContent = this.message.content;
     }
   },
   components: {
@@ -464,6 +471,135 @@ export default {
         this.showTitle = '显示原文';
       } else {
         this.showTitle = '解析格式';
+      }
+    },
+
+    calculateContent(content) {
+      this.isMarkdown = this.isMarkdownFormat(content);
+      if (this.isMarkdown) {
+        if (this.marked) {
+          // already generate markded object. do nothing.
+          let newContent = this.marked.parse(content);
+          if (this.addHlgs) {
+            newContent = newContent.replaceAll('<code', '<code class="hljs"');
+          }
+          this.appendMarkdownContent = newContent.slice(this.markContent.length);
+          this.markContent = newContent;
+        } else {
+          let hasCode = this.hasCodeBlock(content);
+          if (hasCode) {
+            this.marked = new Marked(
+              markedHighlight({
+                langPrefix: 'hljs language-',
+                highlight(code, lang) {
+                  let language = hljs.getLanguage(lang) ? lang : 'plaintext';
+                  if (language === 'plaintext') {
+                    this.addHlgs = true;
+                    return hljs.highlightAuto(code).value;
+                  }
+                  return hljs.highlight(code, { language }).value;
+                }
+              })
+            );
+          } else {
+            this.marked = new Marked();
+          }
+          this.markContent = this.marked.parse(content);
+          if (this.addHlgs) {
+            this.markContent = this.markContent.replaceAll('<code', '<code class="hljs"');
+          }
+          this.showMarkdown = true;
+        }
+      }
+      this.content = content;
+    },
+
+    isAIStream(extension) {
+      let ext = JSONBigString.parse(extension);
+      if (ext && ext.ai && ext.ai.stream) {
+        return true;
+      } else {
+        return false;
+      }
+    },
+
+    calculateAppend(content, extension, showAll = false) {
+      let ext = JSONBigString.parse(extension);
+      if (ext && ext.ai && ext.ai.stream && ext.ai.stream_interval) {
+        this.appendTimer && clearInterval(this.appendTimer);
+        //每一次计时周期增加两个字符展示。
+        let period = (ext.ai.stream_interval * 1000) / (this.appendContent.length / 2);
+        this.appendTimer = setInterval(() => {
+          if (this.appendContent.length <= 0) {
+            clearInterval(this.appendTimer);
+            this.appendTimer = null;
+            this.showContent = content;
+            if (showAll) {
+              this.showMarkdownContent = this.markContent;
+            }
+          } else {
+            this.showContent += this.appendContent.slice(0, 2);
+            this.appendContent = this.appendContent.slice(2);
+          }
+        }, period);
+      } else {
+        this.showContent = content;
+      }
+    },
+
+    calculateMarkdownAppend(markContent, extension, showAll = false) {
+      let ext = JSONBigString.parse(extension);
+      if (ext && ext.ai && ext.ai.stream && ext.ai.stream_interval) {
+        this.appendMarkdownTimer && clearInterval(this.appendMarkdownTimer);
+        //每一次计时周期增加两个字符展示。
+        let period = (ext.ai.stream_interval * 1000) / (this.appendMarkdownContent.length / 2);
+        this.appendMarkdownTimer = setInterval(() => {
+          if (this.appendMarkdownContent.length <= 0) {
+            clearInterval(this.appendMarkdownTimer);
+            this.appendMarkdownTimer = null;
+            this.showMarkdownContent = markContent;
+            if (showAll) {
+              this.showContent = this.content;
+            }
+          } else {
+            this.showMarkdownContent += this.appendMarkdownContent.slice(0, 2);
+            this.appendMarkdownContent = this.appendMarkdownContent.slice(2);
+          }
+        }, period);
+      } else {
+        this.showMarkdownContent = markContent;
+      }
+    },
+
+    messageContentAppend(message) {
+      this.calculateContent(message.content);
+      if (message.ext && message.ext.length && this.isAIStream(message.ext)) {
+        if (this.isMarkdown) {
+          this.calculateMarkdownAppend(this.markContent, message.ext);
+        }
+        this.appendContent += message.appendedContent;
+        this.calculateAppend(message.content, message.ext);
+      } else {
+        if (this.isMarkdown) {
+          this.showMarkdownContent = this.markContent;
+        }
+        this.showContent = this.content;
+      }
+    },
+
+    messageReplace(message) {
+      this.calculateContent(message.content);
+      if (message.ext && message.ext.length && this.isAIStream(message.ext)) {
+        if (this.isMarkdown) {
+          this.calculateMarkdownAppend(this.markContent, message.ext, true);
+        }
+        this.appendContent = message.content.slice(this.showContent.length);
+        this.calculateAppend(message.content, message.ext, true);
+      } else {
+        if (this.isMarkdown) {
+          this.showMarkdownContent = this.markContent;
+        }
+        this.showContent = this.content;
       }
     }
   }

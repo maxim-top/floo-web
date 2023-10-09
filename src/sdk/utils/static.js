@@ -1,4 +1,5 @@
-/**************** frame 部分 **************/
+/**************** frame 部分 *************
+ */
 const STATIC_FRAME_VSN = {
   XSYNC_V1: 0,
   XSYNC_V2: 1
@@ -63,7 +64,8 @@ const STATIC_META_NAMESPACE = {
   RTC_SIGNAL: 8
 };
 
-/**************** messagebody 部分 **************/
+/**************** messagebody 部分 *************
+ */
 
 const STATIC_MESSAGE_TYPE = {
   NORMAL: 0,
@@ -79,7 +81,9 @@ const STATIC_MESSAGE_OPTYPE = {
   DELIVER_ACK: 4,
   RECALL: 5,
   DELETE: 6,
-  PLAY_ACK: 7
+  PLAY_ACK: 7,
+  APPEND: 8,
+  REPLACE: 9
 };
 const STATIC_MESSAGE_CONTENT_TYPE = {
   TEXT: 0,
@@ -99,7 +103,8 @@ const STATIC_MESSAGE_QOS = {
   EXACTLY_ONCE: 2
 };
 
-/**************** groupnotice 部分 **************/
+/**************** groupnotice 部分 *************
+ */
 
 const STATIC_GROUPNOTICE_TYPE = {
   UNKNOWN: 0,
@@ -133,7 +138,8 @@ const STATIC_GROUPNOTICE_TYPE = {
   FILE_UPDATED: 28
 };
 
-/**************** info 部分 **************/
+/**************** info 部分 *************
+ */
 
 const STATIC_INFO_NETWORK = {
   WIRE: 0,
@@ -145,7 +151,8 @@ const STATIC_INFO_NETWORK = {
   UNKNOWN: 6
 };
 
-/**************** rosternotice 部分 **************/
+/**************** rosternotice 部分 *************
+ */
 
 const STATIC_ROSTERNONTICE_TYPE = {
   UNKNOWN: 0,
@@ -161,7 +168,8 @@ const STATIC_ROSTERNONTICE_TYPE = {
   UNMUTED: 10
 };
 
-/**************** usernotice 部分 **************/
+/**************** usernotice 部分 *************
+ */
 const STATIC_USERNOTICE_TYPE = {
   UNKNOWN: 0,
   PASSWORD_CHANGED: 1,
@@ -180,7 +188,8 @@ const STATIC_USERNOTICE_TYPE = {
   TRAFFIC_LIMIT_EXCEEDED: 13 // user traffic limit exceeded
 };
 
-/**************** conversation 部分 **************/
+/**************** conversation 部分 *************
+ */
 const STATIC_CONVERSATION_TYPE = {
   UNKNOWN: 0,
   OPER: 1
@@ -191,13 +200,15 @@ const STATIC_CONVERSATION_OPTYPE = {
   DELETE_EVERYWHERE: 2
 };
 
-/**************** rtc message 部分 **************/
+/**************** rtc message 部分 *************
+ */
 const STATIC_RTC_SIGNAL_TYPE = {
   UNKNOWN: 0,
   VIDEO_ROOM: 1
 };
 
-/**************** MESSAGE unread related, no STATIC prefix means not from protobuf **************/
+/**************** MESSAGE unread related, no STATIC prefix means not from protobuf *************
+ */
 const STATIC_MESSAGE_STATUS = {
   UNREAD: 0,
   DELIVERED: 1,

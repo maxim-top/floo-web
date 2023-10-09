@@ -387,7 +387,8 @@ export default {
         this.selIdList.push(uid);
       }
     },
-    /********************************** 成员管理 ************************************/
+    /********************************** 成员管理 ***********************************
+     */
     requireInfo() {
       this.im.groupManage.asyncGetInfo({ group_id: this.getSid }).then((res) => {
         this.groupInfo = res;
@@ -461,7 +462,8 @@ export default {
         this.requireMember();
       });
     },
-    /**** 禁言 */
+    /**** 禁言
+     */
     addMute() {
       let user_list = this.selIdList;
       if (!user_list.length) {
@@ -504,7 +506,8 @@ export default {
         this.bans = res;
       });
     },
-    /******黑名单 */
+    /******黑名单
+     */
     requireBlockList() {
       const group_id = this.getSid;
       this.im.groupManage.asyncGroupBockedlist({ group_id }).then((res) => {
@@ -523,7 +526,8 @@ export default {
         this.requireBlockList();
       });
     },
-    /******   公告 */
+    /******   公告
+     */
     requirePublicList() {
       const group_id = this.getSid;
       this.im.groupManage.asyncGetAnnouncementList({ group_id }).then((res = []) => {
@@ -550,7 +554,8 @@ export default {
         this.requirePublicList();
       });
     },
-    /********** files .... */
+    /********** files ....
+     */
     requireFileList() {
       const group_id = this.getSid;
       this.im.groupManage.asyncGetFileList({ group_id }).then((res = []) => {
@@ -608,7 +613,8 @@ export default {
       const url = d + '&access-token=' + this.im.userManage.getToken() + '&app_id=' + this.im.userManage.getAppid();
       window.open(url);
     },
-    /********** add roster */
+    /********** add roster
+     */
     requireRosterList() {
       this.im.rosterManage.asyncGetRosterIdList().then((res) => {
         this.rosters = res;

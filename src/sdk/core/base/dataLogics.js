@@ -860,7 +860,9 @@ bind('imGroupFileUploaded', () => {});
 bind('imGroupFileDeleted', () => {});
 bind('imGroupFileUpdated', () => {});
 
-/******* 读消息....  *****/
+/******* 读消息....  ****
+ */
+
 bind('imReadRosterMessage', (param) => {
   // 读取的是，对方的消息，并且，没有存ack的。。
   // 这里只是表示读取对方消息，显示不用做任何处理.....
@@ -903,6 +905,87 @@ bind('imReadRosterMessage', (param) => {
     fire('onUnreadChange', roster_id);
   }
 });
+
+const appendRosterMessageContent = (meta, appendedContent, editTimestamp) => {
+  let changed = false;
+  if (meta && appendedContent && editTimestamp) {
+    let custom = metaToCustomer(meta);
+    if (editTimestamp >= custom.editTimestamp && editTimestamp >= custom.timestamp) {
+      custom.content += appendedContent;
+      custom.appendedContent = appendedContent;
+      custom.editTimestamp = editTimestamp;
+      messageStore.saveRosterMessage(custom);
+      changed = true;
+    }
+  }
+  return changed;
+};
+
+const mergeJson = (obj1, obj2) => {
+  let merged = { ...obj1 };
+  for (let key in obj2) {
+    if (Object.prototype.hasOwnProperty.call(obj2, key)) {
+      if (typeof obj2[key] === 'object' && obj2[key] !== null && !Array.isArray(obj2[key])) {
+        if (typeof merged[key] === 'object' && merged[key] !== null && !Array.isArray(merged[key])) {
+          merged[key] = mergeJson(merged[key], obj2[key]);
+        } else {
+          merged[key] = mergeJson({}, obj2[key]);
+        }
+      } else {
+        merged[key] = obj2[key];
+      }
+    }
+  }
+  return merged;
+};
+
+const replaceMessage = (meta, content, config, ext, editTimestamp) => {
+  let custom = metaToCustomer(meta);
+  if (editTimestamp) {
+    if (editTimestamp < custom.timestamp || editTimestamp < custom.editTimestamp) {
+      return null;
+    }
+  }
+  custom.editTimestamp = editTimestamp;
+  if (content) {
+    custom.content = content;
+  }
+  if (config) {
+    let rConfig = JSONBigString.parse(config);
+    custom.config = mergeJson(custom.config, rConfig);
+    custom.replaceConfig = rConfig;
+  }
+  if (ext) {
+    let extension = JSONBigString.parse(custom.ext);
+    let rExtension = JSONBigString.parse(ext);
+    custom.ext = JSONBigString.stringify(mergeJson(extension, rExtension));
+    custom.replaceExt = ext;
+  }
+  return custom;
+};
+
+const replaceRosterMessage = (meta, content, config, ext, editTimestamp) => {
+  let changed = false;
+  if (meta && (content || config || ext)) {
+    let custom = replaceMessage(meta, content, config, ext, editTimestamp);
+    if (custom) {
+      messageStore.saveRosterMessage(custom);
+      changed = true;
+    }
+  }
+  return changed;
+};
+
+const changeRosterMessageStatusPlayed = (meta) => {
+  let changed = false;
+  if (meta) {
+    let custom = metaToCustomer(meta);
+    custom.isPlayed = true;
+    messageStore.saveRosterMessage(custom);
+    changed = true;
+  }
+  return changed;
+};
 
 const changeRosterMessageStatusRead = (meta) => {
   let needAck = false;
@@ -972,6 +1055,43 @@ bind('imReadGroupMessage', (param) => {
   }
 }); //read ack,, delivery ack ...
 
+const appendGroupMessageContent = (meta, appendedContent, editTimestamp) => {
+  let changed = false;
+  if (meta && appendedContent && editTimestamp) {
+    let custom = metaToCustomer(meta);
+    if (custom.editTimestamp <= editTimestamp) {
+      custom.content += appendedContent;
+      custom.appendedContent = appendedContent;
+      custom.editTimestamp = editTimestamp;
+      messageStore.saveGroupMessage(custom);
+      changed = true;
+    }
+  }
+  return changed;
+};
+
+const replaceGroupMessage = (meta, content, config, ext, editTimestamp) => {
+  let changed = false;
+  if (meta && (content || config || ext) && editTimestamp) {
+    let custom = replaceMessage(meta, content, config, ext, editTimestamp);
+    if (custom) {
+      messageStore.saveGroupMessage(custom);
+      changed = true;
+    }
+  }
+  return changed;
+};
+
+const changeGroupMessageStatusPlayed = (meta) => {
+  let changed = false;
+  if (meta) {
+    let custom = metaToCustomer(meta);
+    custom.isPlayed = true;
+    messageStore.saveGroupMessage(custom);
+  }
+  return changed;
+};
+
 const changeGroupMessageStatusRead = (meta) => {
   let needAck = false;
   const changed = changeGroupMessageStatus(meta, STATIC_MESSAGE_STATUS.READ);
@@ -1015,13 +1135,14 @@ const resetLastMessage = (uid, isGroup) => {
 
 bind('onActionMessage', (meta) => {
   const { payload, from, to, isReceived } = meta;
-  const { type, operation = {} } = payload;
+  const { type, operation = {}, content = '', config = '', ext = '', edit_timestamp } = payload;
   const cuid = infoStore.getUid() + '';
   const toUid = to ? numToString(to.uid) : 0;
   const fromUid = numToString(from.uid);
   const messageUid = cuid + '' === fromUid + '' ? toUid : fromUid;
   const allGids = groupStore.getJoinedGroups();
   const isGroup = allGids.indexOf(toUid - 0) != -1;
+  const editTimestamp = numToString(edit_timestamp || 0);
 
   if (type !== STATIC_MESSAGE_TYPE.OPER) return;
 
@@ -1082,6 +1203,25 @@ bind('onActionMessage', (meta) => {
         isReceived
       });
     }
+  } else if (opType === STATIC_MESSAGE_OPTYPE.PLAY_ACK) {
+    !isGroup && changeRosterMessageStatusPlayed(meta_changed);
+    isGroup && changeGroupMessageStatusPlayed(meta_changed);
+  } else if (opType === STATIC_MESSAGE_OPTYPE.APPEND) {
+    if (isGroup) {
+      appendGroupMessageContent(meta_changed, content, editTimestamp);
+      fire('onGroupMessageContentAppend', meta_changed);
+    } else {
+      appendRosterMessageContent(meta_changed, content, editTimestamp);
+      fire('onRosterMessageContentAppend', meta_changed);
+    }
+  } else if (opType === STATIC_MESSAGE_OPTYPE.REPLACE) {
+    if (isGroup) {
+      replaceGroupMessage(meta_changed, content, config, ext, editTimestamp);
+      fire('onGroupMessageReplace', meta_changed);
+    } else {
+      replaceRosterMessage(meta_changed, content, config, ext, editTimestamp);
+      fire('onRosterMessageReplace', meta_changed);
+    }
   }
 
   const suid = numToString(xid && xid.uid ? xid.uid : messageUid);
@@ -1097,13 +1237,14 @@ bind('swapSendMessage', (message) => {
   swapedSendMessage[numToString(id)] = message;
 });
 
-bind('receivedSendMessage', (client_mid) => {
+bind('receivedSendMessage', (client_mid, edit_timestamp) => {
   client_mid = numToString(client_mid);
   const message = swapedSendMessage[client_mid];
   if (message) {
     const metaPayload = message.payload;
     const { meta } = metaPayload;
     const { payload } = meta;
+    payload.edit_timestamp = edit_timestamp;
     const { type } = payload;
     if (type === STATIC_MESSAGE_TYPE.OPER) {
       fire('onActionMessage', meta);

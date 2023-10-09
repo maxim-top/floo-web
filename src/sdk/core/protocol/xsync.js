@@ -226,6 +226,10 @@
                     is_eager_sync: {
                       type: 'bool',
                       id: 10
+                    },
+                    edit_timestamp: {
+                      type: 'uint64',
+                      id: 11
                     }
                   }
                 },

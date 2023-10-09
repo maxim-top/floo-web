@@ -252,6 +252,41 @@ const makeReadMessageAck = (rid, mid) => {
   return sframe;
 };
 
+const makeMessagePlayedAck = (rid, mid) => {
+  mid = toLong(mid);
+  const sframe = new frame();
+  sframe.setCommond(STATIC_FRAME_COMMAND.SYNC);
+  const from = new xid({
+    uid: infoStore.getUid(),
+    deviceSN
+  });
+  const to = new xid({
+    uid: toNumber(rid),
+    deviceSN: 0
+  });
+  const ssyncul = new syncul();
+  const smessage = new message({
+    from,
+    to,
+    ctype: STATIC_MESSAGE_CONTENT_TYPE.COMMAND,
+    type: STATIC_MESSAGE_TYPE.OPER,
+    operation: {
+      type: STATIC_MESSAGE_OPTYPE.PLAY_ACK,
+      mid: mid
+    }
+  });
+  const smeta = new meta({
+    id: new Date().getTime() + Math.floor(Math.random() * 256),
+    from,
+    to,
+    payload: smessage,
+    ns: STATIC_META_NAMESPACE.MESSAGE
+  });
+  ssyncul.setMeta(smeta);
+  sframe.setPayload(ssyncul);
+  return sframe;
+};
+
 const makeHistorySyncul = (uid, sid, amount) => {
   sid = toLong(sid);
   const sframe = new frame();
@@ -393,6 +428,76 @@ const makeReadAllMessage = (uid, mid) => {
     id: parseInt(new Date().getTime() + '' + Math.floor(Math.random() * 256)),
     from,
     to: from,
+    payload: smessage,
+    ns: STATIC_META_NAMESPACE.MESSAGE
+  });
+  ssyncul.setMeta(smeta);
+  sframe.setPayload(ssyncul);
+  return sframe;
+};
+
+const makeContentAppendMessage = (uid, mid, content) => {
+  const from = new xid({
+    uid: infoStore.getUid() - 0,
+    deviceSN
+  });
+  const to = new xid({
+    uid: toNumber(uid),
+    deviceSN: 0
+  });
+  const sframe = new frame();
+  sframe.setCommond(STATIC_FRAME_COMMAND.SYNC);
+  const ssyncul = new syncul();
+  const smessage = new message({
+    from,
+    to,
+    content,
+    type: STATIC_MESSAGE_TYPE.OPER,
+    operation: {
+      type: STATIC_MESSAGE_OPTYPE.APPEND,
+      mid: toLong(mid)
+    }
+  });
+  const smeta = new meta({
+    id: parseInt(new Date().getTime() + '' + Math.floor(Math.random() * 256)),
+    from,
+    to,
+    payload: smessage,
+    ns: STATIC_META_NAMESPACE.MESSAGE
+  });
+  ssyncul.setMeta(smeta);
+  sframe.setPayload(ssyncul);
+  return sframe;
+};
+
+const makeReplaceMessage = (uid, mid, content, config, ext) => {
+  const from = new xid({
+    uid: infoStore.getUid() - 0,
+    deviceSN
+  });
+  const to = new xid({
+    uid: toNumber(uid),
+    deviceSN: 0
+  });
+  const sframe = new frame();
+  sframe.setCommond(STATIC_FRAME_COMMAND.SYNC);
+  const ssyncul = new syncul();
+  const smessage = new message({
+    from,
+    to,
+    content,
+    config: JSON.stringify(config),
+    ext: JSON.stringify(ext),
+    type: STATIC_MESSAGE_TYPE.OPER,
+    operation: {
+      type: STATIC_MESSAGE_OPTYPE.REPLACE,
+      mid: toLong(mid)
+    }
+  });
+  const smeta = new meta({
+    id: parseInt(new Date().getTime() + '' + Math.floor(Math.random() * 256)),
+    from,
+    to,
     payload: smessage,
     ns: STATIC_META_NAMESPACE.MESSAGE
   });
@@ -590,9 +695,12 @@ export {
   makeUnreadULTimer,
   makeRosterMessage,
   makeGroupMessage,
+  makeContentAppendMessage,
+  makeReplaceMessage,
   makeMentionMessage,
   makeMessageDelevery,
   makeReadMessageAck,
+  makeMessagePlayedAck,
   makeUnreadMessage,
   makeForwardMessage,
   makeRecallMessage,

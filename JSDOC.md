@@ -378,6 +378,18 @@ token 登录
 
 ```
 
+设置消息增量更新
+```
+        im.rosterManage.appendMessageContent(user_id, message_id, content);
+
+```
+
+设置消息变更
+```
+        im.rosterManage.replaceMessage(user_id, message_id, content, config, ext);
+
+```
+
 获取用户的未读数
 
 ```
@@ -576,6 +588,18 @@ token 登录
 
 ```
         im.groupManage.recallMessage(group_id, message_id)
+
+```
+
+设置消息增量更新
+```
+        im.groupManage.appendMessageContent(group_id, message_id, content);
+
+```
+
+设置消息变更
+```
+        im.groupManage.replaceMessage(group_id, message_id, content, config, ext);
 
 ```
 
@@ -1344,5 +1368,29 @@ token 登录
 28. 收到单聊RTC消息
 ```
 事件名称: onRosterRTCMessage
-事件内容: (meta) 好友通知的消息内容
+事件内容: (meta) 好友RTC消息通知的消息内容
+```
+
+29. 收到单聊消息内容追加
+```
+事件名称: onRosterMessageContentAppend
+事件内容: (meta) 好友消息内容追加的消息
+```
+
+30. 收到群聊消息内容追加
+```
+事件名称: onGroupMessageContentAppend
+事件内容: (meta) 群组消息内容替换的消息
+```
+
+31. 收到单聊消息替换
+```
+事件名称: onRosterMessageReplace
+事件内容: (meta) 好友消息内容替换的消息
+```
+
+32. 收到群聊消息替换
+```
+事件名称: onGroupMessageReplace
+事件内容: (meta) 群组消息内容替换的消息
 ```

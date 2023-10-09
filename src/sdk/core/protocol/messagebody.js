@@ -39,7 +39,9 @@
                         DELIVER_ACK: 4,
                         RECALL: 5,
                         DELETE: 6,
-                        PLAY_ACK: 7
+                        PLAY_ACK: 7,
+                        APPEND: 8,
+                        REPLACE: 9
                       }
                     }
                   }
@@ -93,6 +95,10 @@
                     status: {
                       type: 'Status',
                       id: 14
+                    },
+                    edit_timestamp: {
+                      type: 'uint64',
+                      id: 15
                     }
                   },
                   nested: {

@@ -311,7 +311,7 @@
 /**
  * 监听事件回调
  * @callback EventCallback
- * @param {(event:flooNotice|event:flooError|event:loginFail|event:loginSuccess|event:onGroupListUpdate|event:onGroupMemberChanged|event:onGroupMessage|event:onInputStatusMessage|event:onMentionMessage|event:onMessageCanceled|event:onMessageDeleted|event:onMessageRecalled|event:onMessageStatusChanged|event:onReceiveHistoryMsg|event:onRosterInfoUpdate|event:onRosterListUpdate|event:onRosterMessage|event:onRosterRTCMessage|event:onSendingMessageStatusChanged|event:onUnreadChange|event:recentlistUpdate|event:onGroupCreated|event:onGroupDestoryed|event:onGroupJoined|event:onGroupApplyAccepted|event:onGroupApplyDeclined|event:onGroupBaned|event:onGroupUnbaned)} res - 事件结果
+ * @param {(event:flooNotice|event:flooError|event:loginFail|event:loginSuccess|event:onGroupListUpdate|event:onGroupMemberChanged|event:onGroupMessage|event:onInputStatusMessage|event:onMentionMessage|event:onMessageCanceled|event:onMessageDeleted|event:onMessageRecalled|event:onMessageStatusChanged|event:onReceiveHistoryMsg|event:onRosterInfoUpdate|event:onRosterListUpdate|event:onRosterMessage|event:onRosterRTCMessage|event:onSendingMessageStatusChanged|event:onUnreadChange|event:recentlistUpdate|event:onGroupCreated|event:onGroupDestoryed|event:onGroupJoined|event:onGroupApplyAccepted|event:onGroupApplyDeclined|event:onGroupBaned|event:onGroupUnbaned|event:onRosterMessageContentAppend|event:onGroupMessageContentAppend|event:onRosterMessageReplace|event:onGroupMessageReplace)} res - 事件结果
  */
 
 /**
@@ -530,8 +530,30 @@
  * @event onGroupBaned
  * @param {module:types~Meta} meta 群通知的消息内容
  */
+
 /**
  * 被群取消禁言
  * @event onGroupUnbaned
  * @param {module:types~Meta} meta 群通知的消息内容
+ */
+
+/**
+ * 收到单聊消息内容追加
+ * @event onRosterMessageContentAppend
+ * @param {module:types~Meta} meta 好友消息内容追加的消息
+ */
+
+/**
+ * @event onGroupMessageContentAppend
+ * @param {module:types~Meta} meta 群组消息内容替换的消息
+ */
+
+/**
+ * @event onRosterMessageReplace
+ * @param {module:types~Meta} meta 好友消息内容替换的消息
+ */
+
+/**
+ * @event onGroupMessageReplace
+ * @param {module:types~Meta} meta 群组消息内容替换的消息
  */

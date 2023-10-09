@@ -2,7 +2,8 @@ import http from '../core/base/io/index';
 import { fire } from '../utils/cusEvent';
 import dataLogics from '../core/base/dataLogics';
 import { groupStore, messageStore } from '../utils/store';
-import { makeRecallMessage } from '../core/base/messageMaker';
+import { formatJson } from '../utils/tools';
+import { makeRecallMessage, makeContentAppendMessage, makeReplaceMessage } from '../core/base/messageMaker';
 /**
  * 群管理
  * @module groupManage
@@ -213,6 +214,42 @@ const recallMessage = (uid, mid) => {
 };
 
 /**
+ * 追加消息内容
+ * @static
+ * @param {number} uid 会话ID
+ * @param {number} mid 消息ID
+ * @param {string} content 消息追加内容
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="groupManage",function="appendMessageContent" %}{% endlanying_code_snippet %}
+ */
+const appendMessageContent = (uid, mid, content) => {
+  const smessage = makeContentAppendMessage(uid, mid, content);
+  fire('swapSendMessage', formatJson(smessage));
+  fire('sendMessage', smessage);
+};
+
+/**
+ * 更新消息内容
+ * @static
+ * @param {number} uid 会话ID
+ * @param {number} mid 消息ID
+ * @param {string} content 消息更新内容
+ * @param {(string|object)} config 消息更新配置
+ * @param {(string|object)} ext 消息更新扩展信息
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="groupManage",function="replaceMessage" %}{% endlanying_code_snippet %}
+ */
+const replaceMessage = (uid, mid, content = '', config = null, ext = null) => {
+  if (!content && !config && !ext) {
+    // do nothing.
+  } else {
+    const smessage = makeReplaceMessage(uid, mid, content, config, ext);
+    fire('swapSendMessage', formatJson(smessage));
+    fire('sendMessage', smessage);
+  }
+};
+
+/**
  * 获取群未读消息数
  * @static
  * @param {number} gid 群组ID
@@ -233,6 +270,8 @@ export default {
   getGruopMessage,
   readGroupMessage,
   recallMessage,
+  appendMessageContent,
+  replaceMessage,
   getUnreadCount,
 
   /**

@@ -119,7 +119,7 @@ const stringToUint8Array = (str) => {
 const metaToCustomer = (meta) => {
   if (!meta.payload) return meta;
   const { payload, from = {}, to = {}, id = {}, status, timestamp } = meta;
-  const { content = '', attachment = '', ctype = 0, ext, config, type } = payload;
+  const { content = '', attachment = '', ctype = 0, ext, config, type, edit_timestamp } = payload;
   let attach = null;
   let sconfig = null;
   try {
@@ -147,7 +147,9 @@ const metaToCustomer = (meta) => {
     status: local_status ? local_status : STATIC_MESSAGE_STATUS.UNREAD,
     timestamp: numToString(timestamp || 0),
     toType: type == 2 ? 'roster' : 'group',
-    isHistory: false
+    isHistory: false,
+    isPlayed: false,
+    editTimestamp: numToString(edit_timestamp || 0)
   };
   if (attach) ret.attach = attach;
   if (sconfig) ret.config = sconfig;

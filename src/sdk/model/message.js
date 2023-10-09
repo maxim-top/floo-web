@@ -12,6 +12,8 @@
  string              sender_name         = 11;
  bool                is_system           = 12; // system message
  uint32              priority            = 13;
+ Status              status              = 14;
+ uint64              edit_timestamp      = 15;
  */
 // import xid from './xid';
 import { STATIC_MESSAGE_CONTENT_TYPE, STATIC_MESSAGE_OPTYPE, STATIC_MESSAGE_TYPE } from '../utils/static';
@@ -46,6 +48,8 @@ function message(params) {
   typeof params.sender_name !== 'undefined' && (this.sender_name = params.sender_name);
   typeof params.is_system != 'undefined' && (this.is_system = params.is_system);
   typeof params.priority != 'undefined' && (this.priority = params.priority);
+  typeof params.status != 'undefined' && (this.status = params.status);
+  typeof params.edit_timestamp != 'undefined' && (this.edit_timestamp = params.edit_timestamp);
 }
 
 message.prototype = {
@@ -87,6 +91,12 @@ message.prototype = {
   },
   setPriority: function (priority) {
     this.priority = priority;
+  },
+  setStatus: function (status) {
+    this.status = status;
+  },
+  setEditTimestamp: function (edit_timestamp) {
+    this.edit_timestamp = edit_timestamp;
   }
 };
 
