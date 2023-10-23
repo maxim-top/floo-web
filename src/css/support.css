@@ -81,13 +81,25 @@
   background-color: #f6f6f6;
 }
 
-.support-content .list .messageFrame .support-contentFrame .c_markdown_title {
+.support-content .list .messageFrame .support-contentFrame .c_content_ext {
+  color: gray;
+}
+
+.support-content .list .messageFrame .support-contentFrame .c_content_more {
+  display: flex;
+  flex-direction: column;
+}
+
+.support-content .list .messageFrame .support-contentFrame .c_ext_title {
   color: rgb(180, 180, 180);
   border-radius: 20px 20px 20px 20px;
   background-color: rgb(230, 230, 230);
   font-size: 12px;
   min-width: 60px;
   max-width: 60px;
+  text-align: center;
+  margin-left: 5px;
+  margin-bottom: 5px;
 }
 
 .support-content .list .messageFrame .support-contentFrame .c_content {
@@ -104,31 +116,6 @@
   word-wrap: break-word;
   word-break: break-all;
   white-space: normal;
-}
-
-.support-content .list .messageFrame .support-contentFrame .c_content .h_image {
-  position: absolute;
-  top: 40%;
-  width: 21px;
-  height: 10px;
-  border: 1px solid #d1d1d1;
-  line-height: 10px;
-  vertical-align: middle;
-  border-radius: 2px;
-  text-align: center;
-}
-
-.self .h_image {
-  left: -30px;
-}
-
-.roster .h_image {
-  right: -30px;
-}
-
-.support-content .list .messageFrame .support-contentFrame .c_content .h_image img {
-  width: 15px;
-  vertical-align: middle;
 }
 
 .support-contentFrame .messageExt {
@@ -163,16 +150,16 @@
   text-align: right;
   display: inline-flex;
   align-items: flex-end;
-  max-width: 66.6%;
-  min-width: 220px;
+  max-width: 75%;
+  min-width: max(66.6%, 252px);
 }
 
 .roster .support-contentFrame {
   float: left;
   text-align: left;
   display: block;
-  max-width: 66.6%;
-  min-width: 220px;
+  max-width: 75%;
+  min-width: max(66.6%, 252px);
 }
 
 .support-contentFrame .username {

@@ -143,7 +143,16 @@ export default {
           this.$store.getters.im.rosterManage.readRosterMessage(this.getSid, message.id);
         }
         this.requireMessage();
-        this.scroll();
+        if (message.ext && !message.isHistory) {
+          let ext = JSONBigString.parse(message.ext);
+          if (ext && ext.ai && ext.ai.stream && !ext.ai.finish) {
+            this.calculateScroll(message);
+          } else {
+            this.scroll();
+          }
+        } else {
+          this.scroll();
+        }
       }
     },
 

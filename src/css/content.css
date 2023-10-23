@@ -82,7 +82,21 @@
   background-color: #f6f6f6;
 }
 
-.content .list .messageFrame .contentFrame .c_markdown_title {
+.content .list .messageFrame .contentFrame .c_content_ext {
+  color: gray;
+}
+
+.content .list .messageFrame .contentFrame .c_content_more {
+  display: flex;
+  flex-direction: column;
+}
+
+.content .list .messageFrame .contentFrame .c_content_more .c_content_text_more {
+  display: flex;
+  flex-direction: column;
+}
+
+.content .list .messageFrame .contentFrame .c_content_text_more .c_ext_title {
   color: rgb(180, 180, 180);
   border-radius: 20px 20px 20px 20px;
   background-color: rgb(230, 230, 230);
@@ -90,6 +104,8 @@
   min-width: 60px;
   max-width: 60px;
   text-align: center;
+  margin-left: 2px;
+  margin-bottom: 2px;
 }
 
 .content .list .messageFrame .contentFrame .c_content {
@@ -110,9 +126,8 @@
   white-space: normal;
 }
 
-.content .list .messageFrame .contentFrame .c_content .h_image {
-  position: absolute;
-  top: 40%;
+.content .list .messageFrame .contentFrame .c_content_more .h_image {
+  position: relative;
   width: 21px;
   height: 10px;
   border: 1px solid #d1d1d1;
@@ -123,14 +138,14 @@
 }
 
 .self .h_image {
-  left: -30px;
+  margin-left: 40px;
 }
 
 .roster .h_image {
-  right: -30px;
+  margin-left: 3px;
 }
 
-.content .list .messageFrame .contentFrame .c_content .h_image img {
+.content .list .messageFrame .contentFrame .c_content_more .h_image img {
   width: 15px;
   vertical-align: middle;
 }
@@ -168,7 +183,7 @@
   display: inline-flex;
   align-items: flex-end;
   max-width: 66.6%;
-  min-width: 260px;
+  min-width: max(66.6%, 252px);
 }
 
 .roster .contentFrame {
@@ -176,7 +191,7 @@
   text-align: left;
   display: block;
   max-width: 66.6%;
-  min-width: 260px;
+  min-width: max(66.6%, 252px);
 }
 
 .contentFrame .username {

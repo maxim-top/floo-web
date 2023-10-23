@@ -258,6 +258,11 @@ export default {
             user_id: loginInfo.user_id,
             password: loginInfo.password
           });
+        } else if (loginInfo && loginInfo.user_id && loginInfo.token && loginInfo.app_id == this.appid) {
+          im.tokenLogin({
+            user_id: loginInfo.user_id,
+            token: loginInfo.token
+          });
         } else if (this.intent.action) {
           this.autoRegisterAndLogin();
         } else {

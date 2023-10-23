@@ -9,15 +9,36 @@
       <div class="contentFrame">
         <!--        <p class="username" v-if="!isSelf">{{ userObj.username }}</p>-->
         <div :class="{ user_content: true, self: isSelf, roster: !isSelf }">
-          <div class="c_markdown_title" v-if="message.type === 'text' && isMarkdown">
-            <span @click="changeShowFormat">&ensp;{{ showTitle }}&ensp;</span>
+          <div class="c_content_more">
+            <div class="c_content_text_more" v-if="message.type === 'text'">
+              <span class="c_ext_title" v-if="isMarkdown" @click="changeShowMarkdownFormat">{{ showMarkdownTitle }}</span>
+              <span class="c_ext_title" v-if="message.ext" @click="changeShowExt">{{ showExtTitle }}</span>
+            </div>
+            <el-popover :placement="isSelf ? 'left' : 'right'" trigger="hover" width="70">
+              <div class="messageExt">
+                <div @click="deleteMessage" class="item delete" v-if="!message.h">删除</div>
+                <div @click="forwardMessage" class="recall item">转发</div>
+                <div @click="recallMessage" class="recall item" v-if="isSelf && !message.h">撤回</div>
+
+                <div class="msgStatus item item" v-if="isSelf && messageStatus === 'unread' && !message.h">未读</div>
+                <div class="msgStatus item" v-if="isSelf && messageStatus === 'delivered' && !message.h">送达</div>
+                <div class="msgStatus item" v-if="isSelf && messageStatus === 'read' && !message.h">已读</div>
+
+                <div class="unread item" v-if="messageStatus === 'unread' && !isSelf && !message.h">未读</div>
+                <div @click="unreadMessage" class="set_unread item" v-if="messageStatus !== 'unread' && !isSelf && !message.h">设置未读</div>
+              </div>
+              <div class="h_image" slot="reference">
+                <img src="/image/more.png" />
+              </div>
+            </el-popover>
           </div>
-          <div class="c_content">
+          <div class="c_content" :style="{ 'padding-bottom': showMarkdown ? '0px' : '' }">
             <div v-if="message.type === 'text'">
               <div v-if="showMarkdown" v-html="showMarkdownContent" class="c_markdown" />
               <div v-else>
                 {{ showContent }}
               </div>
+              <div class="c_content_ext" v-if="showExt">ext: {{ message.ext }}</div>
             </div>
             <div v-if="message.type === 'rtc'">
               {{ calculateRtcOutput }}
@@ -40,24 +61,6 @@
               <img class="loc" src="/image/loc.png" />
               <span class="loc_txt">{{ attachLocation.addr }}</span>
             </div>
-
-            <el-popover :placement="isSelf ? 'left' : 'right'" trigger="hover" width="70">
-              <div class="messageExt">
-                <div @click="deleteMessage" class="item delete" v-if="!message.h">删除</div>
-                <div @click="forwardMessage" class="recall item">转发</div>
-                <div @click="recallMessage" class="recall item" v-if="isSelf && !message.h">撤回</div>
-
-                <div class="msgStatus item item" v-if="isSelf && messageStatus === 'unread' && !message.h">未读</div>
-                <div class="msgStatus item" v-if="isSelf && messageStatus === 'delivered' && !message.h">送达</div>
-                <div class="msgStatus item" v-if="isSelf && messageStatus === 'read' && !message.h">已读</div>
-
-                <div class="unread item" v-if="messageStatus === 'unread' && !isSelf && !message.h">未读</div>
-                <div @click="unreadMessage" class="set_unread item" v-if="messageStatus !== 'unread' && !isSelf && !message.h">设置未读</div>
-              </div>
-              <div class="h_image" slot="reference">
-                <img src="/image/more.png" />
-              </div>
-            </el-popover>
           </div>
         </div>
       </div>
@@ -92,7 +95,9 @@ export default {
         name: '系统通知',
         avatar: '/image/setting.png'
       },
-      showTitle: '显示原文',
+      showExt: false,
+      showExtTitle: ' 显示扩展 ',
+      showMarkdownTitle: ' 显示原文 ',
       isMarkdown: false,
       showMarkdown: false,
       marked: null,
@@ -112,14 +117,6 @@ export default {
   mounted() {
     const im = this.$store.getters.im;
     if (!im) return;
-
-    im.on('onRosterMessageContentAppend', (message) => {
-      this.messageContentAppend(message);
-    });
-
-    im.on('onRosterMessageReplace', (message) => {
-      this.messageReplace(message);
-    });
 
     let { timestamp } = this.message;
     timestamp = toNumber(timestamp);
@@ -142,7 +139,7 @@ export default {
       this.calculateContent(this.message.content);
     }
 
-    if (this.message.ext && this.message.ext.length && this.isAIStream(this.message.ext)) {
+    if (this.message.ext && this.message.ext.length && this.isAIStreamFinish(this.message.ext)) {
       if (this.showMarkdown) {
         this.appendMarkdownContent = this.markContent;
         this.calculateMarkdownAppend(this.markContent, this.message.ext, true);
@@ -465,12 +462,21 @@ export default {
       return /`.*?`/gm.test(str);
     },
 
-    changeShowFormat() {
+    changeShowMarkdownFormat() {
       this.showMarkdown = !this.showMarkdown;
       if (this.showMarkdown) {
-        this.showTitle = '显示原文';
+        this.showMarkdownTitle = ' 显示原文 ';
       } else {
-        this.showTitle = '解析格式';
+        this.showMarkdownTitle = ' 解析格式 ';
+      }
+    },
+
+    changeShowExt() {
+      this.showExt = !this.showExt;
+      if (this.showExt) {
+        this.showExtTitle = ' 隐藏扩展 ';
+      } else {
+        this.showExtTitle = ' 扩展信息 ';
       }
     },
 
@@ -507,6 +513,8 @@ export default {
           this.markContent = this.marked.parse(content);
           if (this.addHlgs) {
             this.markContent = this.markContent.replaceAll('<code', '<code class="hljs"');
+          } else {
+            this.markContent = this.markContent.replaceAll('<pre><code', '<pre><code class="hljs"');
           }
           this.showMarkdown = true;
         }
@@ -517,6 +525,15 @@ export default {
     isAIStream(extension) {
       let ext = JSONBigString.parse(extension);
       if (ext && ext.ai && ext.ai.stream) {
+        return true;
+      } else {
+        return false;
+      }
+    },
+
+    isAIStreamFinish(extension) {
+      let ext = JSONBigString.parse(extension);
+      if (ext && ext.ai && ext.ai.stream && !ext.ai.finish) {
         return true;
       } else {
         return false;

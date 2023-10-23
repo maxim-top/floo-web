@@ -1,7 +1,9 @@
 <template>
   <div class="header">
     <div class="header_title">{{ rosterName }}</div>
-    <div @click="openMax" class="im_max" />
+    <div @click="openMax" class="im_max">
+      <span v-bind:class="{ unread_number: getTotalUnread }">{{ getTotalUnread }}</span>
+    </div>
     <div @click="clickClose" class="im_closer" />
   </div>
 </template>
@@ -31,6 +33,7 @@ export default {
   computed: {
     ...mapGetters('content', ['getRosterInfo', 'getSid']),
     ...mapGetters('header', ['getHeaderStatus', 'getUserProfile']),
+    ...mapGetters('contact', ['getTotalUnread']),
 
     rosterName() {
       let name = this.getRosterInfo.alias || this.getRosterInfo.nick_name;
@@ -101,6 +104,7 @@ export default {
     openMax() {
       var url = window.location + '';
       url = url.replaceAll('action=support', 'action=chat');
+      url.concat('&token=' + this.token);
       window.open(url);
     }
   }
@@ -132,6 +136,20 @@ export default {
   background-size: 25px 25px;
   filter: brightness(0.9);
   margin-top: 10px;
+}
+
+.unread_number {
+  position: absolute;
+  left: -10px;
+  color: white;
+  background: red;
+  font-size: 10px;
+  font-weight: bold;
+  padding: 0 5px;
+  border-radius: 10px;
+  line-height: 14px;
+  min-width: 6px;
+  text-align: center;
 }
 
 .header {

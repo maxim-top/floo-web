@@ -9,8 +9,9 @@
       <div class="support-contentFrame">
         <!--        <p class="username" v-if="!isSelf">{{ userObj.username }}</p>-->
         <div :class="{ user_content: true, self: isSelf, roster: !isSelf }">
-          <div class="c_markdown_title" v-if="message.type === 'text' && isMarkdown">
-            <span @click="changeShowFormat">&ensp;{{ showTitle }}&ensp;</span>
+          <div class="c_content_more" v-if="message.type === 'text'">
+            <span class="c_ext_title" v-if="isMarkdown" @click="changeShowMarkdownFormat">{{ showMarkdownTitle }}</span>
+            <span class="c_ext_title" v-if="message.ext" @click="changeShowExt">{{ showExtTitle }}</span>
           </div>
           <div class="c_content">
             <div v-if="message.type === 'text'">
@@ -18,6 +19,7 @@
               <div v-else>
                 {{ showContent }}
               </div>
+              <div class="c_content_ext" v-if="showExt">ext: {{ message.ext }}</div>
             </div>
             <div v-if="message.type === 'image'">
               <img :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
@@ -71,7 +73,9 @@ export default {
         name: '系统通知',
         avatar: '/image/setting.png'
       },
-      showTitle: '显示原文',
+      showExt: false,
+      showExtTitle: ' 显示扩展 ',
+      showMarkdownTitle: ' 显示原文 ',
       isMarkdown: false,
       showMarkdown: false,
       marked: null,
@@ -121,7 +125,7 @@ export default {
       this.calculateContent(this.message.content);
     }
 
-    if (this.message.ext && this.message.ext.length && this.isAIStream(this.message.ext)) {
+    if (this.message.ext && this.message.ext.length && this.isAIStreamFinish(this.message.ext)) {
       if (this.showMarkdown) {
         this.appendMarkdownContent = this.markContent;
         this.calculateMarkdownAppend(this.markContent, this.message.ext, true);
@@ -388,12 +392,21 @@ export default {
       return /`.*?`/gm.test(str);
     },
 
-    changeShowFormat() {
+    changeShowMarkdownFormat() {
       this.showMarkdown = !this.showMarkdown;
       if (this.showMarkdown) {
-        this.showTitle = '显示原文';
+        this.showMarkdownTitle = ' 显示原文 ';
       } else {
-        this.showTitle = '解析格式';
+        this.showMarkdownTitle = ' 解析格式 ';
+      }
+    },
+
+    changeShowExt() {
+      this.showExt = !this.showExt;
+      if (this.showExt) {
+        this.showExtTitle = ' 隐藏扩展 ';
+      } else {
+        this.showExtTitle = ' 扩展信息 ';
       }
     },
 
@@ -430,6 +443,8 @@ export default {
           this.markContent = this.marked.parse(content);
           if (this.addHlgs) {
             this.markContent = this.markContent.replaceAll('<code', '<code class="hljs"');
+          } else {
+            this.markContent = this.markContent.replaceAll('<pre><code', '<pre><code class="hljs"');
           }
           this.showMarkdown = true;
         }
@@ -440,6 +455,15 @@ export default {
     isAIStream(extension) {
       let ext = JSONBigString.parse(extension);
       if (ext && ext.ai && ext.ai.stream) {
+        return true;
+      } else {
+        return false;
+      }
+    },
+
+    isAIStreamFinish(extension) {
+      let ext = JSONBigString.parse(extension);
+      if (ext && ext.ai && ext.ai.stream && !ext.ai.finish) {
         return true;
       } else {
         return false;
