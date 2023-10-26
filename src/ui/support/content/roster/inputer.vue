@@ -1,26 +1,28 @@
 <template>
   <div class="inputer_frame">
     <div class="input">
-      <textarea
-        @blur="inputBlurHandler"
-        @focus="inputFocusHandler"
-        @keydown="textareaKeyDown"
-        class="input_text"
-        :placeholder="[[placeholder]]"
-        v-model="message"
-        wrap="hard"
-        ref="inputTextRef"
-        focus
-      ></textarea>
-      <div class="button">
-        <div @click="handleSendMessage" class="im_send" />
+      <div class="attach">
+        <input @change="fileChangeHandler" ref="fileRef" type="file" />
+        <span v-popover:tooltip.top="'发送图片'" @click="imageUploadClickHandler" class="ico image"></span>
+        <span v-popover:tooltip.top="'发送文件'" @click="fileUploadClickHandler" class="ico file"></span>
+      </div>
+      <div>
+        <textarea
+          @blur="inputBlurHandler"
+          @focus="inputFocusHandler"
+          @keydown="textareaKeyDown"
+          class="input_text"
+          :placeholder="[[placeholder]]"
+          v-model="message"
+          wrap="hard"
+          ref="inputTextRef"
+          focus
+        ></textarea>
+        <div class="button">
+          <div @click="handleSendMessage" class="im_send" />
+        </div>
       </div>
     </div>
-    <span class="attach">
-      <input @change="fileChangeHandler" ref="fileRef" type="file" />
-      <span v-popover:tooltip.top="'发送图片'" @click="imageUploadClickHandler" class="ico image"></span>
-      <span v-popover:tooltip.top="'发送文件'" @click="fileUploadClickHandler" class="ico file"></span>
-    </span>
     <div class="support_link"><a href="https://www.lanyingim.com" target="_blank">打造你的智能聊天APP，使用蓝莺IM SDK</a></div>
   </div>
 </template>

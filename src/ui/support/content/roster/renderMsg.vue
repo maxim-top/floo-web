@@ -9,11 +9,7 @@
       <div class="support-contentFrame">
         <!--        <p class="username" v-if="!isSelf">{{ userObj.username }}</p>-->
         <div :class="{ user_content: true, self: isSelf, roster: !isSelf }">
-          <div class="c_content_more" v-if="message.type === 'text'">
-            <span class="c_ext_title" v-if="isMarkdown" @click="changeShowMarkdownFormat">{{ showMarkdownTitle }}</span>
-            <span class="c_ext_title" v-if="message.ext" @click="changeShowExt">{{ showExtTitle }}</span>
-          </div>
-          <div class="c_content">
+          <div class="c_content" :style="{ 'padding-bottom': showMarkdown ? '0px' : '' }">
             <div v-if="message.type === 'text'">
               <div v-if="showMarkdown" v-html="showMarkdownContent" class="c_markdown" />
               <div v-else>
@@ -39,6 +35,10 @@
               <img class="loc" src="/image/loc.png" />
               <span class="loc_txt">{{ attachLocation.addr }}</span>
             </div>
+          </div>
+          <div class="c_content_more" v-if="message.type === 'text'">
+            <span class="c_ext_title" v-if="isMarkdown" @click="changeShowMarkdownFormat">{{ showMarkdownTitle }}</span>
+            <span class="c_ext_title" v-if="message.ext" @click="changeShowExt">{{ showExtTitle }}</span>
           </div>
         </div>
       </div>

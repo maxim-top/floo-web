@@ -184,7 +184,7 @@ const actions = {
 
   actionUpdateRoster(context) {
     const { rootState, state } = context;
-    rootState.im.rosterManage.asyncGetRosterInfo(state.sid).then((res) => {
+    rootState.im.rosterManage.asyncGetRosterInfo(state.sid, true).then((res) => {
       context.commit('setRosterInfo', res);
     });
   },

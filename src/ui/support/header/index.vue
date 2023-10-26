@@ -1,6 +1,13 @@
 <template>
   <div class="header">
-    <div class="header_title">{{ rosterName }}</div>
+    <!-- <div class="header_title">{{ rosterName }}</div> -->
+    <div class="profile-container">
+      <img :src="getRosterAvatar" class="profile-picture" />
+      <div class="profile-info">
+        <div class="name">{{ rosterName }}</div>
+        <div class="bio">{{ rosterDescription }}</div>
+      </div>
+    </div>
     <div @click="openMax" class="im_max">
       <span v-bind:class="{ unread_number: getTotalUnread }">{{ getTotalUnread }}</span>
     </div>
@@ -22,12 +29,20 @@ export default {
       kw: '',
       convImage: '',
       contactImage: '',
-      settingImage: ''
+      settingImage: '',
+      rosterAvatar: ''
     };
   },
   watch: {
     getHeaderStatus(selected) {
       this.changeStabImage(selected);
+    },
+    getRosterInfo(rosterInfo) {
+      this.rosterAvatar =
+        this.$store.state.im.sysManage.getImage({
+          avatar: rosterInfo.avatar,
+          type: 'roster'
+        }) || '/image/roster.png';
     }
   },
   computed: {
@@ -43,6 +58,14 @@ export default {
       }
 
       return name || this.getRosterInfo.user_id;
+    },
+
+    rosterDescription() {
+      return this.getRosterInfo.description || '7*24小时在线';
+    },
+
+    getRosterAvatar() {
+      return this.rosterAvatar || '/image/roster.png';
     },
 
     token() {
@@ -161,6 +184,40 @@ export default {
   margin-left: 20px;
   top: 0px;
   font-size: 18px;
+  color: white;
+}
+
+.profile-container {
+  display: flex;
+  align-items: center;
+  padding: 2px 10px;
+  width: 300px;
+}
+
+.profile-picture {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #3498db; /* 蓝色背景，你可以替换为实际图片 */
+  margin-right: 10px;
+}
+
+.profile-info {
+  flex: 1;
+}
+
+.name {
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 24px;
+  top: 0px;
+  color: white;
+}
+
+.bio {
+  font-size: 12px;
+  line-height: 20px;
+  top: 0px;
   color: white;
 }
 </style>

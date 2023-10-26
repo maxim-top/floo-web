@@ -6,7 +6,7 @@
   overflow: hidden;
   margin-left: 0px;
   border-radius: 0px 0px 10px 10px;
-  min-width: 320px;
+  min-width: 360px;
 }
 
 /** roster info ***/
@@ -65,7 +65,7 @@
 
 .support-content .list {
   width: auto;
-  height: calc(100% - 70px);
+  height: calc(100% - 99px);
   overflow-y: auto;
   background-color: #f6f6f6;
 }
@@ -87,7 +87,9 @@
 
 .support-content .list .messageFrame .support-contentFrame .c_content_more {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  padding-top: 5px;
+  margin-right: 5px;
 }
 
 .support-content .list .messageFrame .support-contentFrame .c_ext_title {
@@ -98,17 +100,18 @@
   min-width: 60px;
   max-width: 60px;
   text-align: center;
-  margin-left: 5px;
+  margin-left: 2px;
+  margin-right: 2px;
   margin-bottom: 5px;
 }
 
 .support-content .list .messageFrame .support-contentFrame .c_content {
   word-break: break-all;
   border-radius: 3px;
-  padding: 10px 15px;
-  line-height: 16px;
+  padding: 0px 10px 15px;
+  line-height: 18px;
   position: relative;
-  max-width: 100%;
+  max-width: calc(100% - 60px);
 }
 
 .support-content .list .messageFrame .support-contentFrame .c_content .c_markdown {
@@ -150,16 +153,16 @@
   text-align: right;
   display: inline-flex;
   align-items: flex-end;
-  max-width: 75%;
-  min-width: max(66.6%, 252px);
+  max-width: 72%;
+  min-width: max(66.6%, 290px);
 }
 
 .roster .support-contentFrame {
   float: left;
   text-align: left;
   display: block;
-  max-width: 75%;
-  min-width: max(66.6%, 252px);
+  max-width: 72%;
+  min-width: max(66.6%, 290px);
 }
 
 .support-contentFrame .username {
@@ -172,9 +175,8 @@
 .self .support-contentFrame .user_content {
   float: left;
   text-align: left;
-  display: inline-flex;
-  flex-direction: row;
-  justify-content: flex-end;
+  display: flex;
+  flex-direction: column;
   align-items: flex-end;
   width: 100%;
 }
@@ -182,10 +184,9 @@
 .roster .support-contentFrame .user_content {
   float: left;
   text-align: left;
-  display: inline-flex;
-  flex-direction: row-reverse;
-  justify-content: flex-end;
-  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  align-items: baseline;
   width: 100%;
 }
 
@@ -202,6 +203,7 @@
   padding: 0 14px 12px 12px;
   border-radius: 3px;
   margin-left: 6px;
+  margin-right: 6px;
 }
 
 .support-content .c_content table {
@@ -317,7 +319,7 @@ td {
 }
 
 .support-content .inputer_frame .attach {
-  height: 20px;
+  height: 28px;
   overflow: hidden;
   /*background-color: #f6f6f6;*/
 }
@@ -341,11 +343,11 @@ td {
 .support-content .inputer_frame .attach .ico {
   float: left;
   cursor: pointer;
-  width: 16px;
-  height: 16px;
+  width: 24px;
+  height: 24px;
   margin-top: 2px;
   margin-left: 10px;
-  background-size: 16px 16px;
+  background-size: 24px 24px;
 }
 
 .support-content .inputer_frame .attach .image {
@@ -391,7 +393,7 @@ td {
   box-sizing: border-box;
   outline: none;
   padding-left: 10px;
-  padding-top: 12px;
+  padding-top: 10px;
   /*padding-bottom: 0px;*/
   font-size: 14px;
   border: none;
@@ -514,12 +516,13 @@ td {
 }
 
 .support-content .chat-index .inputer_frame .button {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   margin-top: 6px;
   margin-right: 10px;
   float: right;
   border-radius: 2px;
+  transform: translate(0, -18px); /* 逆时针旋转45度 */
 }
 
 .support-content .chat-index .inputer_frame .button:hover {
@@ -527,10 +530,12 @@ td {
 }
 
 .im_send {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   cursor: pointer;
   background-image: url(/image/im_send.png);
-  background-size: 32px 32px;
+  background-size: 40px 40px;
+  transform: rotate(-45deg); /* 逆时针旋转45度 */
+  transform-origin: center; /* 旋转中心点为容器中心 */
   /*filter: brightness(0) invert(0.9);*/
 }
