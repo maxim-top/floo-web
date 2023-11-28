@@ -10,6 +10,8 @@ const userRegister = (params) => request('/user/register/v2', 'post', params, ['
 const userRegisterAnonymous = (params) => request('/user/register/anonymous', 'post', params, ['username', 'password']);
 const userBindMobile = (params) => request('/app/user/mobile_bind', 'post', params, ['captcha', 'mobile']);
 const userUpdateMobile = (params) => request('/app/user/mobile_update', 'post', params, ['mobile']);
+const userGenerateSecretInfo = (params) => request('/app/secret_info', 'post', params, ['expire_seconds', 'secret_text']);
+const userSendSecretInfo = (params) => request('/app/secret_info', 'get', params, [], true);
 
 const userSendSms = (params) => request('/app/captcha/sms', 'get', params, ['mobile'], true);
 const userNameCheck = (params) => request('/app/user/name_check', 'get', params, ['username'], true);
@@ -144,6 +146,8 @@ export {
   userRegister,
   userRegisterAnonymous,
   userBindMobile,
+  userGenerateSecretInfo,
+  userSendSecretInfo,
   userSendSms,
   userNameCheck,
   userMobileBind,

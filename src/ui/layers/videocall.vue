@@ -3,12 +3,12 @@
     <div>
       <p v-if="isGetThrough" class="call_time">{{ callTime }}</p>
     </div>
-    <div class="info" :style="{ 'z-index': isGetThrough ? '4' : '6' }">
+    <div class="info" :style="{ 'z-index': isGetThrough ? (peerCameraClose ? '7' : '4') : '6' }">
       <div class="avatar">
         <img :src="userInfo.avatar" class="av" />
       </div>
       <div>
-        <p>{{ rosterName }}</p>
+        <p :style="{ color: peerCameraClose ? 'white' : 'black' }">{{ rosterName }}</p>
         <p :style="{ display: isGetThrough ? 'none' : 'block' }">正在等待对方接受邀请...</p>
       </div>
     </div>
@@ -36,7 +36,7 @@
       </div>
     </div>
     <div>
-      <span v-if="caller" class="caller_layer">
+      <span class="caller_layer">
         <button class="button" @click="hangupCall(true)">
           <i :class="['hangup']"></i>
         </button>
@@ -64,6 +64,7 @@ export default {
       mic: true,
       speaker: true,
       camera: true,
+      peerCameraClose: false,
       hangup: false,
       caller: true,
       isGetThrough: false,
@@ -73,51 +74,49 @@ export default {
   },
   mounted() {
     const app_id = this.$store.state.im.userManage.getAppid();
-    const uid = this.$store.getters.im.userManage.getUid();
-    const rInfo = this.$store.getters.im.rosterManage.getRosterInfo(uid);
     const info = this.getCallInviteInfo;
     if (info) {
+      this.caller = false;
       this.refreshUserInfo(info.initiator);
-      this.$store.getters.im.rtcManage.joinRoom({
-        server: this.$store.state.im.sysManage.getServers(app_id).rtc,
-        id: this.$store.state.im.userManage.getUid(),
-        roomId: info.roomId,
-        caller: false,
-        pin: info.pin,
-        hasVideo: true,
-        hasAudio: true,
-        width: 360,
-        height: 640,
-        localVideo: document.getElementById('roster_local_video'),
-        remoteVideo: document.getElementById('roster_remote_video'),
-        remoteAudio: document.getElementById('roster_remote_audio'),
-        getThrough: this.getThrough,
-        hangupCall: this.hangupCall
-      });
     } else {
+      this.caller = true;
       this.refreshUserInfo(this.getSid);
-      this.$store.getters.im.rtcManage.initRTCEngine({
-        server: this.$store.state.im.sysManage.getServers(app_id).rtc,
-        id: this.$store.state.im.userManage.getUid(),
-        name: rInfo.nick_name || rInfo.username,
-        receiver: this.getSid,
-        caller: true,
-        callId: this.getCallId,
-        secret: this.randomString(8),
-        pin: this.randomString(8),
-        hasVideo: true,
-        hasAudio: true,
-        width: 360,
-        height: 640,
-        localVideo: document.getElementById('roster_local_video'),
-        remoteVideo: document.getElementById('roster_remote_video'),
-        remoteAudio: document.getElementById('roster_remote_audio'),
-        getThrough: this.getThrough,
-        hangupCall: this.hangupCall
-      });
       this.startPhoneRing();
     }
     document.getElementById('roster_remote_audio').muted = false;
+    this.$store.getters.im.rtcManage.initRTCEngine({
+      server: this.$store.state.im.sysManage.getServers(app_id).rtc,
+      id: this.$store.state.im.userManage.getUid(),
+      caller: this.caller,
+      receiver: this.caller ? this.getSid : info.initiator,
+      roomId: this.caller ? 0 : info.roomId,
+      secret: this.caller ? this.randomString(8) : '',
+      callId: this.caller ? this.getCallId : '',
+      pin: this.caller ? this.randomString(8) : info.pin,
+      hasVideo: true,
+      hasAudio: true,
+      width: 360,
+      height: 640,
+      getThrough: this.getThrough,
+      hangupCall: this.hangupCall,
+      getHangUpStatus: this.getHangUpStatus,
+      attachStream: this.attachStream
+    });
+
+    this.$store.getters.im.on('onRosterRTCMessage', (message) => {
+      const { ext, isHistory } = message;
+      const callStatus = this.$store.state.im.rtcManage.getInCallStatus();
+      if (!isHistory && callStatus && ext && message.from != this.$store.state.im.userManage.getUid()) {
+        const sext = JSON.parse(ext);
+        if (sext && sext.callId === this.getCallId) {
+          if (Object.prototype.hasOwnProperty.call(sext, 'mute_video')) {
+            this.peerCameraClose = sext.mute_video;
+          }
+        }
+      }
+    });
+
+    this.startLocalRender();
   },
   watch: {
     getSid(newSid) {
@@ -144,17 +143,43 @@ export default {
       });
     },
     micChangeStatus() {
-      this.mic = !this.mic;
-      this.$store.getters.im.rtcManage.muteLocalAudio(!this.mic);
+      if (this.isGetThrough) {
+        this.mic = !this.mic;
+        this.$store.getters.im.rtcManage.muteLocalAudio(!this.mic);
+      }
     },
     speakerChangeStatus() {
-      this.speaker = !this.speaker;
+      if (this.isGetThrough) {
+        this.speaker = !this.speaker;
+      }
     },
     cameraChangeStatus() {
-      this.camera = !this.camera;
-      this.$store.getters.im.rtcManage.muteLocalVideo(!this.camera);
+      if (this.isGetThrough) {
+        this.camera = !this.camera;
+        this.$store.getters.im.rtcManage.muteLocalVideo(!this.camera);
+        this.$store.getters.im.rtcManage.sendRTCMessage({
+          uid: this.userInfo.user_id,
+          content: '',
+          ext: JSON.stringify({
+            callId: this.getCallId,
+            mute_video: !this.camera
+          })
+        });
+      }
     },
-    hangupCall(active, timeout) {
+    startLocalRender() {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        navigator.mediaDevices
+          .getUserMedia({ audio: false, video: { width: 360, height: 640 } })
+          .then((stream) => {
+            let lVideo = document.getElementById('roster_local_video');
+            lVideo.srcObject = stream;
+            lVideo.play();
+          })
+          .catch(() => {});
+      }
+    },
+    hangupCall(active, timeout = false, peerDrop = false) {
       if (active) {
         let pickupTime = this.getCallPickupTime;
         let content = '';
@@ -182,6 +207,7 @@ export default {
             action: 'hangup',
             callId: this.getCallId,
             initiator: toNumber(this.getCallId.split('_')[0]),
+            peerDrop: peerDrop,
             pushMessageLocKey: pushlocKey,
             pushMessageLocArgs: callTime
           })
@@ -192,7 +218,6 @@ export default {
       this.$store.dispatch('contact/actionSetCallInviteInfo', null);
       this.$store.dispatch('contact/actionSetCallId', '');
       this.$store.dispatch('contact/actionSetCallPickupTime', 0);
-      this.$store.dispatch('setting/actionSetCallStatus', false);
       this.$store.getters.im.rtcManage.leaveRoom();
       this.doHangup = true;
       this.stopPhoneRing();
@@ -215,18 +240,40 @@ export default {
         (sec >= 10 ? sec.toString() : sec > 0 ? '0' + sec.toString() : '00');
     },
     getThrough() {
-      this.isGetThrough = true;
-      this.$store.getters.im.rtcManage.sendRTCMessage({
-        uid: this.userInfo.user_id,
-        content: '',
-        config: JSON.stringify({
-          action: 'pickup',
-          callId: this.getCallId
-        })
-      });
-      this.$store.dispatch('contact/actionSetCallPickupTime', Date.now());
-      this.stopPhoneRing();
-      setInterval(this.calculateDisplayTime, 1000);
+      if (!this.isGetThrough) {
+        this.isGetThrough = true;
+        this.$store.dispatch('contact/actionSetCallPickupTime', Date.now());
+        this.stopPhoneRing();
+        setInterval(this.calculateDisplayTime, 1000);
+      }
+    },
+    stopTracks(stream) {
+      if (stream) {
+        let tracks = stream.getTracks();
+        for (let mst of tracks) {
+          if (mst && mst.dontStop !== true) {
+            mst.stop();
+          }
+        }
+      }
+    },
+    attachStream(stream, type, isLocal = false) {
+      if (type === 'audio') {
+        let rAudio = document.getElementById('roster_remote_audio');
+        rAudio.srcObject = stream;
+        rAudio.play();
+      } else if (type === 'video') {
+        if (isLocal) {
+          let lVideo = document.getElementById('roster_local_video');
+          this.stopTracks(lVideo.srcObject);
+          lVideo.srcObject = stream;
+          lVideo.play();
+        } else {
+          let rVideo = document.getElementById('roster_remote_video');
+          rVideo.srcObject = stream;
+          rVideo.play();
+        }
+      }
     },
     randomString(len) {
       let charSet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';

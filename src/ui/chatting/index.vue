@@ -25,8 +25,7 @@ export default {
   },
   data() {
     return {
-      weakUpId: null,
-      callId: ''
+      callMap: new Map()
     };
   },
   mounted() {
@@ -60,26 +59,32 @@ export default {
     });
 
     this.$store.getters.im.on('onRosterRTCMessage', (message) => {
-      const { config, isHistory } = message;
+      let that = this;
+      const { config, isHistory, isNative } = message;
       const fromUid = toNumber(message.from);
       const toUid = toNumber(message.to);
       const uid = this.$store.state.im.userManage.getUid();
       const au = document.querySelector('#phone_ring_player');
-      const callStatus = this.getCallStatus;
+      const callStatus = this.$store.state.im.rtcManage.getInCallStatus();
 
-      if (!isHistory && config) {
+      if (!isHistory && config && !isNative) {
         if (config.action && config.action === 'call' && config.initiator) {
           if (callStatus == false) {
-            if (config.initiator !== uid && toUid === uid) {
-              this.$store.dispatch('contact/actionSetCallInviteInfo', config);
-              this.$store.dispatch('contact/actionSetCallId', config.callId);
-              this.$store.dispatch('layer/actionSetShowmask', 'true');
-              this.$store.dispatch('layer/actionSetShowing', 'callinvite');
-              au.loop = true;
-              au.play();
-            } else {
-              // current user other device launch call，just display message and do nothing.
-            }
+            this.callMap.set(
+              config.callId,
+              setTimeout(function () {
+                if (config.initiator !== uid && toUid === uid) {
+                  that.$store.dispatch('contact/actionSetCallInviteInfo', config);
+                  that.$store.dispatch('contact/actionSetCallId', config.callId);
+                  that.$store.dispatch('layer/actionSetShowmask', 'true');
+                  that.$store.dispatch('layer/actionSetShowing', 'callinvite');
+                  au.loop = true;
+                  au.play();
+                } else {
+                  // current user other device launch call，just display message and do nothing.
+                }
+              }, 1000)
+            );
           } else {
             if (config.initiator !== uid && toUid === uid) {
               this.$store.getters.im.rtcManage.sendRTCMessage({
@@ -97,6 +102,7 @@ export default {
             }
           }
         } else if (config.action && config.action == 'pickup') {
+          this.removeDelayCall(config.callId);
           this.stopPhoneRing();
           if (fromUid === uid) {
             // current use other device pickup call.
@@ -106,10 +112,18 @@ export default {
             this.$store.dispatch('contact/actionSetCallId', '');
             this.$store.dispatch('contact/actionSetCallPickupTime', 0);
           } else {
-            this.$store.dispatch('contact/actionSetCallPickupTime', Date.now());
+            this.$store.getters.im.rtcManage.joinRoom();
           }
-          this.$store.dispatch('setting/actionSetCallStatus', true);
         } else if (config.action && config.action == 'hangup') {
+          this.removeDelayCall(config.callId);
+          this.stopPhoneRing();
+          this.$store.dispatch('layer/actionSetShowing', '');
+          this.$store.dispatch('layer/actionSetShowmask', false);
+          this.$store.dispatch('contact/actionSetCallInviteInfo', null);
+          this.$store.dispatch('contact/actionSetCallId', '');
+          this.$store.dispatch('contact/actionSetCallPickupTime', 0);
+        } else if (config.action && config.action == 'record') {
+          this.removeDelayCall(config.callId);
           this.stopPhoneRing();
           if (fromUid === uid) {
             // current user other device hangup call. just display message and do nothing.
@@ -118,20 +132,18 @@ export default {
               this.$store.state.im.rosterManage.readRosterMessage(fromUid, message.id);
             }
           }
-          this.$store.dispatch('layer/actionSetShowing', '');
-          this.$store.dispatch('layer/actionSetShowmask', false);
-          this.$store.dispatch('contact/actionSetCallInviteInfo', null);
-          this.$store.dispatch('contact/actionSetCallId', '');
-          this.$store.dispatch('contact/actionSetCallPickupTime', 0);
-          this.$store.dispatch('setting/actionSetCallStatus', false);
         }
       }
     });
   },
-  computed: {
-    ...mapGetters('setting', ['getCallStatus'])
-  },
   methods: {
+    removeDelayCall(callId) {
+      if (this.callMap.has(callId)) {
+        clearTimeout(this.callMap.get(callId));
+        this.callMap.delete(callId);
+      }
+    },
+
     stopPhoneRing() {
       const au = document.querySelector('#phone_ring_player');
       au.loop = false;

@@ -5,6 +5,7 @@ import { getItem, removeAllItems, saveItem, removeItem } from './storeBase';
 import { STATIC_MESSAGE_STATUS, STATIC_MESSAGE_OPTYPE, STATIC_MESSAGE_TYPE } from '../../utils/static';
 import { fire } from '../cusEvent';
 import infoStore from './infoStore';
+import { makeRosterRTCMessage } from '../../core/base/messageMaker';
 
 const max_message_count = 100;
 
@@ -48,7 +49,80 @@ const insertMeta = (allMessages, meta) => {
   return allMessages;
 };
 
+const calculateCallTime = (time) => {
+  let intervalMsec = parseInt(time);
+  let intervalSec = intervalMsec / 1000;
+  let day = parseInt(intervalSec / 3600 / 24);
+  let hour = parseInt((intervalSec - day * 24 * 3600) / 3600);
+  let min = parseInt((intervalSec - day * 24 * 3600 - hour * 3600) / 60);
+  let sec = parseInt(intervalSec - day * 24 * 3600 - hour * 3600 - min * 60);
+  let rs =
+    (hour > 0 ? hour.toString() : '00') +
+    ':' +
+    (min >= 10 ? min.toString() : min > 0 ? '0' + min.toString() : '00') +
+    ':' +
+    (sec >= 10 ? sec.toString() : sec > 0 ? '0' + sec.toString() : '00');
+  return rs;
+};
+
+const calculateRtcOutput = (from, content, config) => {
+  let output = '';
+  let isSelf = false;
+  if (infoStore.getUid() == toNumber(from)) {
+    isSelf = true;
+  }
+  if (config && config.action === 'record') {
+    switch (content) {
+      case 'busy':
+        if (isSelf) {
+          output = '对方忙';
+        } else {
+          output = '忙线未接听';
+        }
+        break;
+      case 'timeout':
+        if (isSelf) {
+          output = '对方未应答';
+        } else {
+          output = '未应答';
+        }
+        break;
+      case 'canceled':
+        if (isSelf) {
+          output = '通话已取消';
+        } else {
+          output = '通话已被对方取消';
+        }
+        break;
+      case 'rejected':
+        if (isSelf) {
+          output = '通话已被对方拒绝';
+        } else {
+          output = '通话已拒绝';
+        }
+        break;
+      default:
+        if (config.peerDrop) {
+          output = '通话中断 ' + calculateCallTime(content);
+        } else {
+          output = '通话时长 ' + calculateCallTime(content);
+        }
+        break;
+    }
+  } else {
+    output = content;
+  }
+  return output;
+};
+
 const messageStore = {
+  saveRosterRTCContentHandleMessage: (meta) => {
+    const { config } = meta;
+    if (config && config.action && config.action === 'record') {
+      meta.content = calculateRtcOutput(toNumber(meta.from), meta.content, config);
+    }
+  },
+
   saveSendingRosterMessage: (meta) => {
     const allMsg = getItem('key_roster_sending_message') || [];
     allMsg.push(meta);
@@ -64,6 +138,42 @@ const messageStore = {
       uid: to.uid,
       mid: id
     });
+  },
+
+  dealSendedRosterRTCMessage: (message) => {
+    const { config } = message;
+    const uid = infoStore.getUid();
+    if (config && config.action) {
+      if (config.action === 'call' && config.initiator == uid) {
+        saveItem('key_rtc_in_call', true);
+      } else if (config.action === 'pickup' && config.initiator != uid) {
+        saveItem('key_rtc_in_call', true);
+      } else if (config.action === 'hangup') {
+        if (config.callId && (config.initiator == uid || config.peerDrop)) {
+          const record = makeRosterRTCMessage({
+            uid: message.to,
+            content: message.content,
+            config: JSON.stringify({
+              action: 'record',
+              callId: config.callId,
+              initiator: config.initiator,
+              peerDrop: config.peerDrop,
+              pushMessageLocKey: config.pushMessageLocKey,
+              pushMessageLocArgs: config.pushMessageLocArgs
+            })
+          });
+          const meta = record.payload.meta;
+          messageStore.saveSendingRosterMessage(meta);
+          fire('sendMessage', record);
+          saveItem('key_rtc_in_call', false);
+        }
+      } else if (config.action === 'record') {
+        if (config.initiator != uid) {
+          message.to = message.from;
+          message.from = config.initiator;
+        }
+      }
+    }
   },
 
   dealSendedRosterMessage: (syncMb) => {
@@ -88,13 +198,24 @@ const messageStore = {
       meta.id = server_mid;
       const meta_cus = metaToCustomer(meta);
       meta_cus.status = STATIC_MESSAGE_STATUS.UNREAD;
+      if (meta_cus.type === 'rtc') {
+        messageStore.saveRosterRTCContentHandleMessage(meta_cus);
+      }
       messageStore.saveRosterMessage(meta_cus);
-
       meta_cus.toType = 'roster';
       recentStore.saveRecent(meta_cus);
 
       allMsg.splice(index, 1);
       saveItem('key_roster_sending_message', allMsg);
+
+      if (meta_cus.type === 'rtc') {
+        messageStore.dealSendedRosterRTCMessage(meta_cus);
+        meta_cus.isNative = true;
+        messageStore.saveRosterMessage(meta_cus);
+        recentStore.saveRecent(meta_cus);
+        fire('onRosterRTCMessage', meta_cus);
+      }
+
       fire('onRosterMessage', meta_cus);
 
       if (!isAutoSent(meta_cus)) {
@@ -127,6 +248,14 @@ const messageStore = {
       allRosterMessageMap[saveUid] = allMessages;
     }
     saveItem('key_roster_message_store', allRosterMessageMap, true, saveUid);
+  },
+
+  saveInCallStatus: (status) => {
+    saveItem('key_rtc_in_call', status);
+  },
+
+  getInCallStatus: () => {
+    return getItem('key_rtc_in_call') || false;
   },
 
   getRosterMessage: (roster_id) => {
@@ -291,12 +420,18 @@ const messageStore = {
     let ret = 0;
     const uid = infoStore.getUid();
     messages.forEach((message) => {
-      const { from, status, type, config } = message;
+      const { from, status, type, config, ext } = message;
       const fromUid = toNumber(from);
       if (fromUid > 0 && fromUid !== uid && status !== STATIC_MESSAGE_STATUS.READ) {
         ret++;
-        if (type === 'rtc' && config && config.action && config.action !== 'hangup') {
+        if (type === 'rtc' && config && config.action && config.action !== 'record') {
           ret--;
+        }
+        if (ext) {
+          const sext = JSON.parse(ext);
+          if (type == 'rtc' && sext && sext.callId) {
+            ret--;
+          }
         }
       }
     });
@@ -354,7 +489,7 @@ const messageStore = {
     removeAllItems('key_group_message_store');
     removeItem('key_group_sending_message');
     removeItem('key_roster_sending_message');
-    removeAllItems('key_rtc_message_store');
+    removeItem('key_rtc_in_call');
   }
 };
 

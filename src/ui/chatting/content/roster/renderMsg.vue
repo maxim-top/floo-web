@@ -41,7 +41,7 @@
               <div class="c_content_ext" v-if="showExt">ext: {{ message.ext }}</div>
             </div>
             <div v-if="message.type === 'rtc'">
-              {{ calculateRtcOutput }}
+              {{ message.content }}
             </div>
             <div v-if="message.type === 'image'">
               <img class="c_image" :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
@@ -262,50 +262,6 @@ export default {
       return '文件附件';
     },
 
-    calculateRtcOutput() {
-      const content = this.message.content;
-      const config = this.message.config || '{}';
-      let output = '';
-      if (config && config.action === 'hangup') {
-        switch (content) {
-          case 'busy':
-            if (this.isSelf) {
-              output = '忙线未接听';
-            } else {
-              output = '对方忙';
-            }
-            break;
-          case 'timeout':
-            if (this.isSelf) {
-              output = '对方未应答';
-            } else {
-              output = '未应答';
-            }
-            break;
-          case 'canceled':
-            if (this.isSelf) {
-              output = '通话已取消';
-            } else {
-              output = '通话已被对方取消';
-            }
-            break;
-          case 'rejected':
-            if (this.isSelf) {
-              output = '通话已拒绝';
-            } else {
-              output = '通话已被对方拒绝';
-            }
-            break;
-          default:
-            output = '通话时长 ' + this.calculateCallTime(content);
-            break;
-        }
-      } else {
-        output = content;
-      }
-      return output;
-    },
-
     messageStatus() {
       const fromUid = toNumber(this.message.from);
       const toUid = toNumber(this.message.to);
@@ -417,22 +373,6 @@ export default {
       this.$store.dispatch('layer/actionSetShowing', 'video');
       this.$store.dispatch('layer/actionSetShowmask', true);
       this.$store.dispatch('layer/actionSetVideoUrl', attachUrl);
-    },
-
-    calculateCallTime(time) {
-      let intervalMsec = parseInt(time);
-      let intervalSec = intervalMsec / 1000;
-      let day = parseInt(intervalSec / 3600 / 24);
-      let hour = parseInt((intervalSec - day * 24 * 3600) / 3600);
-      let min = parseInt((intervalSec - day * 24 * 3600 - hour * 3600) / 60);
-      let sec = parseInt(intervalSec - day * 24 * 3600 - hour * 3600 - min * 60);
-      let rs =
-        (hour > 0 ? hour.toString() : '00') +
-        ':' +
-        (min >= 10 ? min.toString() : min > 0 ? '0' + min.toString() : '00') +
-        ':' +
-        (sec >= 10 ? sec.toString() : sec > 0 ? '0' + sec.toString() : '00');
-      return rs;
     },
 
     /* eslint-disable no-useless-escape */

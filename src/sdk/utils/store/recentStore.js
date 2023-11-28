@@ -30,7 +30,7 @@ const recentStore = {
   saveRecent: (meta) => {
     if (checkTyping(meta)) return;
     // 改为 从 meta 取 from, to， roster 消息，from是要存的，group消息，to 是要存的
-    const { from, to, type, toType, attach, ext, timestamp } = meta;
+    const { from, to, type, toType, attach, config, ext, timestamp } = meta;
     let content = meta.content;
     if (!content && !attach) {
       //两者都无，那就不是正常的消息了
@@ -39,7 +39,12 @@ const recentStore = {
       }
       return;
     }
-    if (type != 'text') content = type;
+    if (type != 'text' && type != 'rtc') content = type;
+
+    if (type === 'rtc' && (!config || !config.action || config.action !== 'record')) {
+      // only rtc record message store in recent store.
+      return;
+    }
 
     let savedUid = toNumber(to);
     const uid = infoStore.getUid();
@@ -52,7 +57,7 @@ const recentStore = {
     const index = allRecents.findIndex((item) => item.type === toType && item.id === savedUid);
     if (index > -1) {
       let item = allRecents[index];
-      if (timestamp > item.timestamp) {
+      if (timestamp > item.timestamp || type === 'rtc') {
         updateRecent = true;
         allRecents.splice(index, 1);
       } else {

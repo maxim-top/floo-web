@@ -3,7 +3,7 @@
     <div @click="requestHistory" id="roster_history_btn">
       {{ queryingHistory ? '正在拉取历史消息，请稍候' : '点击拉取历史消息' }}
     </div>
-    <Message :message="message" v-bind:key="aid" v-for="(message, aid) in allMessages" />
+    <Message ref="vMessages" :message="message" v-bind:key="aid" v-for="(message, aid) in allMessages" />
   </div>
 </template>
 
@@ -30,10 +30,18 @@ export default {
 
     im.on('onRosterMessageContentAppend', (message) => {
       this.calculateScroll(message);
+      let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
+      if (msg) {
+        msg.messageContentAppend(message);
+      }
     });
 
     im.on('onRosterMessageReplace', (message) => {
       this.calculateScroll(message);
+      let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
+      if (msg) {
+        msg.messageReplace(message);
+      }
     });
 
     im.on('onReceiveHistoryMsg', ({ next }) => {

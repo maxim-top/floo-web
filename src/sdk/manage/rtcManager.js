@@ -23,8 +23,14 @@ var localTracks = {};
 var remoteTracks = {};
 
 var initParams = {};
-var hangupTimeoputId = null;
-var hangupTimeout = 1000 * 60;
+var callTimeoutId = null;
+var callTimeout = 1000 * 60;
+
+var pickupTimeoutId = null;
+var pickupTimeout = 1000 * 60;
+
+var localWebrtcState = false;
+var remoteWebrtcState = false;
 
 /**
  * 音视频管理
@@ -46,26 +52,79 @@ const errFunc = (error) => {
   return;
 };
 
+const sendCallMessage = () => {
+  sendRTCMessage({
+    uid: initParams.receiver,
+    content: '',
+    config: JSONBigString.stringify({
+      action: 'call',
+      ios: { mutable_content: true },
+      type: initParams.hasVideo ? 1 : 0,
+      roomId: initParams.roomId,
+      initiator: initParams.id,
+      callId: initParams.callId,
+      roomType: 0,
+      pin: initParams.pin,
+      pushMessageLocKey: 'call_in'
+    }),
+    ext: JSON.stringify({
+      rtc: 'call'
+    })
+  });
+  callTimeoutId = setTimeout(function () {
+    clearTimeout(callTimeoutId);
+    callTimeoutId = null;
+    initParams.hangupCall(true, true);
+  }, callTimeout);
+};
+
+const sendPickUpMessage = () => {
+  sendRTCMessage({
+    uid: initParams.receiver,
+    content: '',
+    config: JSON.stringify({
+      action: 'pickup',
+      callId: initParams.callId
+    })
+  });
+  pickupTimeoutId = setTimeout(function () {
+    clearTimeout(pickupTimeoutId);
+    pickupTimeoutId = null;
+    initParams.hangupCall(true, true);
+  }, pickupTimeout);
+};
+
+const checkPeerDrop = () => {
+  setTimeout(() => {
+    if (getInCallStatus()) {
+      initParams.hangupCall(true, false, true);
+    }
+  }, 5000);
+};
+
 /**
  * 发起端发起音视频呼叫
  * @static
  * @param {object} params 初始化参数
  * @param {string} params.server RTC服务器地址
  * @param {number} params.id 音视频用户id
- * @param {string} params.name 音视频用户名称
- * @param {number} params.receiver 音视频用户对方id
  * @param {boolean} params.caller 是否为呼叫发起者
- * @param {string} params.secret 创建的房间操作密码
- * @param {string} params.pin 创建的房间加入pin码
+ * @param {number} params.receiver 音视频用户对方id
+ * @param {string} params.pin 房间加入pin码（caller为true时发起者需要创建新的pin码）
  * @param {boolean} params.hasVideo 是否存在视频流
  * @param {boolean} params.hasAudio 是否存在音频流
+ * @param {function} params.attachStream 音视频通话信息流处理函数
+ * @param {function} params.getThrough 音视频通话是否接通
+ * @param {function} params.hangupCall 音视频通话是否挂断
+ * @param {function} params.getHangUpStatus 获取挂断状态函数
+ * 以下是caller为 true 的必须参数（被呼叫者必须参数）
+ * @param {number} params.roomId 被呼叫者邀请加入的 room id
+ * 以下是caller为 true 的必须参数（呼叫者必须参数）
+ * @param {string} params.secret 创建的房间操作密码
+ * @param {string} params.callId 创建音视频呼叫时音视频 callid
+ * 以下时视频会话必须的参数（视频宽度和高度设置函数）
  * @param {number} params.width 视频流画面宽度
  * @param {number} params.height 视频流画面高度
- * @param {string} params.localVideo 本地video标签id
- * @param {string} params.remoteVideo 远程video标签id
- * @param {string} params.remoteAudio 远程audio标签id
- * @param {boolean} params.getThrough 音视频通话是否接通
- * @param {boolean} params.hangupCall 音视频通话是否挂断
  * @return {null}
  * @example
  * {% lanying_code_snippet repo="lanying-im-web",class="rtcManage",function="initRTCEngine" %}{% endlanying_code_snippet %}
@@ -102,32 +161,13 @@ const initRTCEngine = (params) => {
                   message: createRoom,
                   success: (data) => {
                     initParams.roomId = data.room;
-                    let join = {
-                      request: 'join',
-                      room: initParams.roomId,
-                      ptype: 'publisher',
-                      pin: initParams.pin
-                    };
-                    publishHandler.send({
-                      message: join,
-                      success: () => {},
-                      error: errFunc
-                    });
+                    sendCallMessage();
                   },
                   error: errFunc
                 });
               } else {
-                let join = {
-                  request: 'join',
-                  room: initParams.roomId,
-                  ptype: 'publisher',
-                  pin: initParams.pin
-                };
-                publishHandler.send({
-                  message: join,
-                  success: () => {},
-                  error: errFunc
-                });
+                sendPickUpMessage();
+                joinRoom();
               }
             },
             error: errFunc,
@@ -140,30 +180,9 @@ const initRTCEngine = (params) => {
             webrtcState: function (on) {
               log.log('Janus says our WebRTC PeerConnection is ' + (on ? 'up' : 'down') + ' now');
               if (on) {
-                if (initParams.caller) {
-                  sendRTCMessage({
-                    uid: initParams.receiver,
-                    content: '',
-                    config: JSONBigString.stringify({
-                      action: 'call',
-                      ios: { mutable_content: true },
-                      type: initParams.hasVideo ? 1 : 0,
-                      roomId: initParams.roomId,
-                      initiator: initParams.id,
-                      callId: initParams.callId,
-                      roomType: 0,
-                      pin: initParams.pin,
-                      pushMessageLocKey: 'call_in'
-                    }),
-                    ext: JSON.stringify({
-                      rtc: 'call'
-                    })
-                  });
-                  hangupTimeoputId = setTimeout(function () {
-                    clearTimeout(hangupTimeoputId);
-                    hangupTimeoputId = null;
-                    initParams.hangupCall(true, true);
-                  }, hangupTimeout);
+                localWebrtcState = true;
+                if (localWebrtcState && remoteWebrtcState) {
+                  initParams.getThrough();
                 }
               } else {
                 if (!initParams.getHangUpStatus()) {
@@ -249,6 +268,7 @@ const initRTCEngine = (params) => {
                   } else if (msg['leaving']) {
                     let leaving = msg['leaving'];
                     unSubscribe(leaving);
+                    checkPeerDrop();
                   } else if (msg['unpublished']) {
                     let unpublished = msg['unpublished'];
                     if (unpublished === 'ok') {
@@ -256,6 +276,7 @@ const initRTCEngine = (params) => {
                       return;
                     }
                     unSubscribe(unpublished);
+                    checkPeerDrop();
                   } else if (msg['error']) {
                     log.log('error : ' + msg['error']);
                   }
@@ -291,7 +312,9 @@ const initRTCEngine = (params) => {
                 }
                 let stream = new MediaStream([track]);
                 localTracks[trackId] = stream;
-                Janus.attachMediaStream(initParams.localVideo, stream);
+                if (stream) {
+                  initParams.attachStream(stream, 'video', true);
+                }
               }
             },
             onremotetrack: function (track, mid, on) {
@@ -326,19 +349,28 @@ const destroy = () => {
   if (typeof window.stream === 'object') {
     window.stream.getTracks().forEach((track) => track.stop());
   }
-  if (hangupTimeoputId != null) {
-    clearTimeout(hangupTimeoputId);
-    hangupTimeoputId = null;
+  if (callTimeoutId != null) {
+    clearTimeout(callTimeoutId);
+    callTimeoutId = null;
   }
+  if (pickupTimeoutId != null) {
+    clearTimeout(pickupTimeoutId);
+    pickupTimeoutId = null;
+  }
+
   localTracks = {};
   remoteTracks = {};
   myStream = {};
   feedStreams = {};
   subscriptions = {};
-  janus.destroy();
+  localWebrtcState = false;
+  remoteWebrtcState = false;
   publishHandler = null;
   subscribeHandler = null;
-  janus = null;
+  if (janus) {
+    janus.destroy();
+    janus = null;
+  }
 };
 
 /**
@@ -369,8 +401,20 @@ const sendRTCMessage = (msg) => {
  * @example
  * {% lanying_code_snippet repo="lanying-im-web",class="rtcManage",function="joinRoom" %}{% endlanying_code_snippet %}
  */
-const joinRoom = (params) => {
-  initRTCEngine(params);
+const joinRoom = () => {
+  if (publishHandler) {
+    let join = {
+      request: 'join',
+      room: initParams.roomId,
+      ptype: 'publisher',
+      pin: initParams.pin
+    };
+    publishHandler.send({
+      message: join,
+      success: () => {},
+      error: errFunc
+    });
+  }
 };
 
 /**
@@ -456,9 +500,13 @@ const subscribe = (sources) => {
     return;
   }
 
-  if (hangupTimeoputId != null) {
-    clearTimeout(hangupTimeoputId);
-    hangupTimeoputId = null;
+  if (callTimeoutId != null) {
+    clearTimeout(callTimeoutId);
+    callTimeoutId = null;
+  }
+  if (pickupTimeoutId != null) {
+    clearTimeout(pickupTimeoutId);
+    pickupTimeoutId = null;
   }
 
   if (subscribeHandler) {
@@ -570,7 +618,10 @@ const subscribe = (sources) => {
     webrtcState: function (on) {
       log.log('Janus says our WebRTC PeerConnection is ' + (on ? 'up' : 'down') + ' now');
       if (on) {
-        initParams.getThrough();
+        remoteWebrtcState = true;
+        if (localWebrtcState && remoteWebrtcState) {
+          initParams.getThrough();
+        }
       } else {
         if (!initParams.getHangUpStatus()) {
           initParams.hangupCall();
@@ -601,10 +652,12 @@ const subscribe = (sources) => {
       }
       let stream = new MediaStream([track]);
       remoteTracks[mid] = stream;
-      if (track.kind === 'audio') {
-        Janus.attachMediaStream(initParams.remoteAudio, stream);
-      } else if (track.kind === 'video') {
-        Janus.attachMediaStream(initParams.remoteVideo, stream);
+      if (stream) {
+        if (track.kind === 'audio') {
+          initParams.attachStream(stream, 'audio', false);
+        } else if (track.kind === 'video') {
+          initParams.attachStream(stream, 'video', false);
+        }
       }
     },
     oncleanup: function () {}
@@ -765,6 +818,10 @@ const getSubscribeHandler = () => {
   return subscribeHandler;
 };
 
+const getInCallStatus = () => {
+  return messageStore.getInCallStatus();
+};
+
 export default {
   initRTCEngine,
   destroy,
@@ -781,5 +838,6 @@ export default {
   muteRemoteVideo,
   getJanusObject,
   getPublishHandler,
-  getSubscribeHandler
+  getSubscribeHandler,
+  getInCallStatus
 };

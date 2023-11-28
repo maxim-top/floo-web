@@ -81,7 +81,6 @@ export default {
       } else {
         this.$store.dispatch('layer/actionSetShowing', 'audiocall');
       }
-      this.$store.dispatch('setting/actionSetCallStatus', true);
     },
     hangupCall() {
       this.$store.getters.im.rtcManage.sendRTCMessage({
@@ -100,7 +99,6 @@ export default {
       this.$store.dispatch('contact/actionSetCallInviteInfo', null);
       this.$store.dispatch('contact/actionSetCallId', '');
       this.$store.dispatch('contact/actionSetCallPickupTime', 0);
-      this.$store.dispatch('setting/actionSetCallStatus', false);
     }
   },
   beforeDestroy() {}

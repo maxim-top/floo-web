@@ -148,6 +148,7 @@ const metaToCustomer = (meta) => {
     timestamp: numToString(timestamp || 0),
     toType: type == 2 ? 'roster' : 'group',
     isHistory: false,
+    isNative: false,
     isPlayed: false,
     editTimestamp: numToString(edit_timestamp || 0)
   };

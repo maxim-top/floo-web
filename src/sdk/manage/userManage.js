@@ -90,6 +90,8 @@ export default {
    */
   asyncRegister: http.userRegister,
   asyncRegisterAnonymous: http.userRegisterAnonymous,
+  asyncGenerateSecretInfo: http.userGenerateSecretInfo,
+  asyncSendSecretInfo: http.userSendSecretInfo,
   asyncUserBindMobile: http.userBindMobile,
   asyncUserUpdateMobile: http.userUpdateMobile,
   asyncUserSendSms: http.userSendSms,

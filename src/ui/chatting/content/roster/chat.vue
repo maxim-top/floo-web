@@ -110,12 +110,14 @@ export default {
       let msgs = this.getMessages || [];
       msgs = msgs.filter((item) => {
         const { type, config, ext } = item;
-        if (type == 'rtc' && config && config.action && config.action !== 'hangup') {
+        if (type == 'rtc' && config && config.action && config.action !== 'record') {
           return false;
         }
         if (ext) {
           const sext = JSON.parse(ext);
-          if (sext && sext.input_status) {
+          if (type == 'rtc' && sext && sext.callId) {
+            return false;
+          } else if (sext && sext.input_status) {
             return false;
           }
         }

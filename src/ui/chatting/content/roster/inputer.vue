@@ -82,14 +82,12 @@ export default {
     videoCallClickHandler() {
       this.$store.dispatch('layer/actionSetShowing', 'videocall');
       this.$store.dispatch('layer/actionSetShowmask', 'true');
-      this.$store.dispatch('setting/actionSetCallStatus', true);
       this.$store.dispatch('contact/actionSetCallId', this.im.userManage.getUid().toString() + '_' + Date.now());
     },
 
     audioCallClickHandler() {
       this.$store.dispatch('layer/actionSetShowing', 'audiocall');
       this.$store.dispatch('layer/actionSetShowmask', 'true');
-      this.$store.dispatch('setting/actionSetCallStatus', true);
       this.$store.dispatch('contact/actionSetCallId', this.im.userManage.getUid().toString() + '_' + Date.now());
     },
 

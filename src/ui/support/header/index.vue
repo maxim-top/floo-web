@@ -124,11 +124,28 @@ export default {
       const kw = e.target.value;
       this.$store.dispatch('contact/actionSetSearchkeyword', kw);
     },
+
+    getApp() {
+      return this.$parent.$parent;
+    },
+
     openMax() {
-      var url = window.location + '';
-      url = url.replaceAll('action=support', 'action=chat');
-      url.concat('&token=' + this.token);
-      window.open(url);
+      const loginInfo = this.getApp().getLoginInfo();
+      this.$store.getters.im.userManage
+        .asyncGenerateSecretInfo({
+          expire_seconds: 60,
+          secret_text: JSON.stringify({
+            username: loginInfo.username,
+            password: loginInfo.password
+          })
+        })
+        .then((res) => {
+          let url = window.location + '';
+          url = url.replaceAll('action=support', 'action=chat');
+          url = url.concat('&code=' + res.code);
+          window.open(url);
+        })
+        .catch(() => {});
     }
   }
 };
@@ -191,7 +208,8 @@ export default {
   display: flex;
   align-items: center;
   padding: 2px 10px;
-  width: 300px;
+  max-width: calc(100% - 90px);
+  min-width: 220px;
 }
 
 .profile-picture {
@@ -204,6 +222,7 @@ export default {
 
 .profile-info {
   flex: 1;
+  width: calc(100% - 50px);
 }
 
 .name {
@@ -212,6 +231,10 @@ export default {
   line-height: 24px;
   top: 0px;
   color: white;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: calc(100% - 20px);
 }
 
 .bio {
@@ -219,5 +242,9 @@ export default {
   line-height: 20px;
   top: 0px;
   color: white;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: calc(100% - 20px);
 }
 </style>

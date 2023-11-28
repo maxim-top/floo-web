@@ -14,10 +14,6 @@ const getters = {
 
   getProfileInfo(state) {
     return state.profileInfo;
-  },
-
-  getCallStatus(state) {
-    return state.callStatus;
   }
 };
 
@@ -28,10 +24,6 @@ const mutations = {
 
   setProfileInfo(state, x) {
     state.profileInfo = x;
-  },
-
-  setCallStatus(state, x) {
-    state.callStatus = x;
   }
 };
 
@@ -47,9 +39,6 @@ const actions = {
     rootState.im.userManage.asyncGetSettings().then((res) => {
       context.commit('setSettingInfo', res);
     });
-  },
-  actionSetCallStatus(context, status) {
-    context.commit('setCallStatus', status);
   }
 };
 

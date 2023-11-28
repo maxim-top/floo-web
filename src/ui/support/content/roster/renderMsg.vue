@@ -96,14 +96,6 @@ export default {
     const im = this.$store.getters.im;
     if (!im) return;
 
-    im.on('onRosterMessageContentAppend', (message) => {
-      this.messageContentAppend(message);
-    });
-
-    im.on('onRosterMessageReplace', (message) => {
-      this.messageReplace(message);
-    });
-
     let { timestamp } = this.message;
     timestamp = toNumber(timestamp);
     const savedMessageTime = this.getMessageTime;

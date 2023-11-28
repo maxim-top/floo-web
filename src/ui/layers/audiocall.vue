@@ -60,43 +60,32 @@ export default {
   },
   mounted() {
     const app_id = this.$store.state.im.userManage.getAppid();
-    const uid = this.$store.state.im.userManage.getUid();
-    const rInfo = this.$store.state.im.rosterManage.getRosterInfo(uid);
     const info = this.getCallInviteInfo;
     if (info) {
+      this.caller = false;
       this.refreshUserInfo(info.initiator);
-      this.$store.getters.im.rtcManage.joinRoom({
-        server: this.$store.state.im.sysManage.getServers(app_id).rtc,
-        id: this.$store.state.im.userManage.getUid(),
-        roomId: info.roomId,
-        caller: false,
-        pin: info.pin,
-        hasVideo: false,
-        hasAudio: true,
-        remoteAudio: document.getElementById('roster_remote_only_audio'),
-        getThrough: this.getThrough,
-        hangupCall: this.hangupCall
-      });
     } else {
+      this.caller = true;
       this.refreshUserInfo(this.getSid);
-      this.$store.getters.im.rtcManage.initRTCEngine({
-        server: this.$store.state.im.sysManage.getServers(app_id).rtc,
-        id: this.$store.state.im.userManage.getUid(),
-        name: rInfo.nick_name || rInfo.username,
-        receiver: this.getSid,
-        caller: true,
-        callId: this.getCallId,
-        secret: this.randomString(8),
-        pin: this.randomString(8),
-        hasVideo: false,
-        hasAudio: true,
-        remoteAudio: document.getElementById('roster_remote_only_audio'),
-        getThrough: this.getThrough,
-        hangupCall: this.hangupCall
-      });
       this.startPhoneRing();
     }
     document.getElementById('roster_remote_only_audio').muted = false;
+    this.$store.getters.im.rtcManage.initRTCEngine({
+      server: this.$store.state.im.sysManage.getServers(app_id).rtc,
+      id: this.$store.state.im.userManage.getUid(),
+      caller: this.caller,
+      receiver: this.caller ? this.getSid : info.initiator,
+      roomId: this.caller ? 0 : info.roomId,
+      secret: this.caller ? this.randomString(8) : '',
+      callId: this.caller ? this.getCallId : '',
+      pin: this.caller ? this.randomString(8) : info.pin,
+      hasVideo: false,
+      hasAudio: true,
+      getThrough: this.getThrough,
+      hangupCall: this.hangupCall,
+      getHangUpStatus: this.getHangUpStatus,
+      attachStream: this.attachStream
+    });
   },
   watch: {
     getSid(newSid) {
@@ -123,14 +112,17 @@ export default {
       });
     },
     micChangeStatus() {
-      this.mic = !this.mic;
-      console.log('micChangeStatus ' + this.mic);
-      this.$store.getters.im.rtcManage.muteLocalAudio(!this.mic);
+      if (this.isGetThrough) {
+        this.mic = !this.mic;
+        this.$store.getters.im.rtcManage.muteLocalAudio(!this.mic);
+      }
     },
     speakerChangeStatus() {
-      this.speaker = !this.speaker;
+      if (this.isGetThrough) {
+        this.speaker = !this.speaker;
+      }
     },
-    hangupCall(active, timeout) {
+    hangupCall(active, timeout = false, peerDrop = false) {
       if (active) {
         let pickupTime = this.getCallPickupTime;
         let content = '';
@@ -158,6 +150,7 @@ export default {
             action: 'hangup',
             callId: this.getCallId,
             initiator: toNumber(this.getCallId.split('_')[0]),
+            peerDrop: peerDrop,
             pushMessageLocKey: pushlocKey,
             pushMessageLocArgs: callTime
           })
@@ -168,7 +161,6 @@ export default {
       this.$store.dispatch('contact/actionSetCallInviteInfo', null);
       this.$store.dispatch('contact/actionSetCallId', '');
       this.$store.dispatch('contact/actionSetCallPickupTime', 0);
-      this.$store.dispatch('setting/actionSetCallStatus', false);
       this.$store.getters.im.rtcManage.leaveRoom();
       this.doHangup = true;
       this.stopPhoneRing();
@@ -191,18 +183,19 @@ export default {
         (sec >= 10 ? sec.toString() : sec > 0 ? '0' + sec.toString() : '00');
     },
     getThrough() {
-      this.isGetThrough = true;
-      this.$store.getters.im.rtcManage.sendRTCMessage({
-        uid: this.userInfo.user_id,
-        content: '',
-        config: JSON.stringify({
-          action: 'pickup',
-          callId: this.getCallId
-        })
-      });
-      this.$store.dispatch('contact/actionSetCallPickupTime', Date.now());
-      this.stopPhoneRing();
-      setInterval(this.calculateDisplayTime, 1000);
+      if (!this.isGetThrough) {
+        this.isGetThrough = true;
+        this.$store.dispatch('contact/actionSetCallPickupTime', Date.now());
+        this.stopPhoneRing();
+        setInterval(this.calculateDisplayTime, 1000);
+      }
+    },
+    attachStream(stream, type, isLocal = false) {
+      if (type === 'audio') {
+        let rAudio = document.getElementById('roster_remote_only_audio');
+        rAudio.srcObject = stream;
+        rAudio.play();
+      }
     },
     randomString(len) {
       let charSet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';

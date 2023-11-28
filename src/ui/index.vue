@@ -99,7 +99,11 @@ export default {
       if (im && im.isReady && im.isReady()) {
         console.log('flooim 初始化成功 ', times);
         this.sdkok = true;
-        this.imLogin();
+        if (this.intent.code) {
+          this.codeLogin();
+        } else {
+          this.imLogin();
+        }
         return;
       }
       if (times < INIT_CHECK_TIMES_MAX) {
@@ -241,6 +245,22 @@ export default {
         });
     },
 
+    codeLogin() {
+      const im = this.getIM();
+      im.userManage
+        .asyncSendSecretInfo({
+          code: this.intent.code
+        })
+        .then((res) => {
+          const info = JSON.parse(res.secret_text);
+          this.saveLoginInfo(info, this.intent.app_id);
+          this.imLogin();
+        })
+        .catch((err) => {
+          this.alert('code失效: ' + err.code + ':' + err.errMsg);
+        });
+    },
+
     imLogin() {
       const im = this.getIM();
       if (!this.isIMLogin()) {
@@ -326,7 +346,8 @@ export default {
           app_id: params.get('app_id'),
           uid: parseInt(params.get('uid')),
           text: params.get('text'),
-          action: params.get('action')
+          action: params.get('action'),
+          code: params.get('code')
         };
       }
     },
