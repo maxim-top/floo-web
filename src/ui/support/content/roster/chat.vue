@@ -3,7 +3,9 @@
     <div @click="requestHistory" id="roster_history_btn">
       {{ queryingHistory ? '正在拉取历史消息，请稍候' : '点击拉取历史消息' }}
     </div>
-    <Message ref="vMessages" :message="message" v-bind:key="aid" v-for="(message, aid) in allMessages" />
+    <div>
+      <Message ref="vMessages" :message="message" v-bind:key="aid" v-for="(message, aid) in allMessages" />
+    </div>
   </div>
 </template>
 
@@ -29,18 +31,22 @@ export default {
     });
 
     im.on('onRosterMessageContentAppend', (message) => {
-      this.calculateScroll(message);
-      let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
-      if (msg) {
-        msg.messageContentAppend(message);
+      if (this.$refs.vMessages) {
+        this.calculateScroll(message);
+        let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
+        if (msg) {
+          msg.messageContentAppend(message);
+        }
       }
     });
 
     im.on('onRosterMessageReplace', (message) => {
-      this.calculateScroll(message);
-      let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
-      if (msg) {
-        msg.messageReplace(message);
+      if (this.$refs.vMessages) {
+        this.calculateScroll(message);
+        let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
+        if (msg) {
+          msg.messageReplace(message);
+        }
       }
     });
 
@@ -85,6 +91,8 @@ export default {
 
     im.off({
       onRosterMessage: '',
+      onRosterMessageContentAppend: '',
+      onRosterMessageReplace: '',
       onReceiveHistoryMsg: '',
       onMessageStatusChanged: '',
       onMessageRecalled: '',
@@ -107,7 +115,22 @@ export default {
   computed: {
     ...mapGetters('content', ['getSid', 'getMessages', 'getMessageTime', 'getScroll']),
     allMessages() {
-      const msgs = this.getMessages || [];
+      let msgs = this.getMessages || [];
+      msgs = msgs.filter((item) => {
+        const { type, config, ext } = item;
+        if (type == 'rtc' && config && config.action && config.action !== 'record') {
+          return false;
+        }
+        if (ext) {
+          const sext = JSON.parse(ext);
+          if (type == 'rtc' && sext && sext.callId) {
+            return false;
+          } else if (sext && sext.input_status) {
+            return false;
+          }
+        }
+        return true;
+      });
       msgs.forEach((x) => {
         x.aid = numToString(x.id);
       });
@@ -177,8 +200,9 @@ export default {
     },
 
     scroll() {
+      let that = this;
       setTimeout(() => {
-        this.$refs.rlist && (this.$refs.rlist.scrollTop = this.$refs.rlist.scrollHeight);
+        that.$refs.rlist && (that.$refs.rlist.scrollTop = that.$refs.rlist.scrollHeight);
       }, 200);
     },
 
@@ -189,10 +213,13 @@ export default {
           this.scrollTimer && clearInterval(this.scrollTimer);
           let count = ext.ai.stream_interval * 5;
           if (count) {
+            let that = this;
             this.scrollTimer = setInterval(() => {
-              this.$refs.rlist && (this.$refs.rlist.scrollTop = this.$refs.rlist.scrollHeight);
+              that.$nextTick(() => {
+                that.$refs.rlist && (that.$refs.rlist.scrollTop = that.$refs.rlist.scrollHeight);
+              });
               if (count-- <= 0) {
-                clearInterval(this.scrollTimer);
+                clearInterval(that.scrollTimer);
               }
             }, 200);
           }

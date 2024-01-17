@@ -266,8 +266,12 @@ const getMessageStatus = (cid, mid, isGroup = false) => {
     message = messageStore.getRosterMessageById(cid, mid);
   }
 
-  const status = Object.keys(STATIC_MESSAGE_STATUS)[message.status];
-  return status ? status.toLowerCase() : undefined;
+  if (message && message.status) {
+    const status = Object.keys(STATIC_MESSAGE_STATUS)[message.status];
+    return status ? status.toLowerCase() : undefined;
+  } else {
+    return undefined;
+  }
 };
 
 /**
@@ -505,9 +509,11 @@ export default {
   getChatFile,
   downloadAudio,
   getServers: dnsManager.getServers,
+  getLinkServer: infoStore.getLinkServer,
   asyncWechatUnbind: io.wechatUnbind,
   asyncWechatIsbind: io.wechatIsbind,
   asyncWechatBind: io.wechatBind,
+  aysncParseLink: io.parseLink,
 
   deleteConversation
 };

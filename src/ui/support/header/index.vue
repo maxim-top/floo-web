@@ -2,7 +2,7 @@
   <div class="header">
     <!-- <div class="header_title">{{ rosterName }}</div> -->
     <div class="profile-container">
-      <img :src="getRosterAvatar" class="profile-picture" />
+      <img :src="getRosterAvatar" class="profile-picture" :style="{ filter: useDefaultAvatar ? 'brightness(0) invert(1)' : 'none' }" />
       <div class="profile-info">
         <div class="name">{{ rosterName }}</div>
         <div class="bio">{{ rosterDescription }}</div>
@@ -30,7 +30,8 @@ export default {
       convImage: '',
       contactImage: '',
       settingImage: '',
-      rosterAvatar: ''
+      rosterAvatar: '',
+      useDefaultAvatar: false
     };
   },
   watch: {
@@ -43,6 +44,9 @@ export default {
           avatar: rosterInfo.avatar,
           type: 'roster'
         }) || '/image/roster.png';
+      if (this.rosterAvatar === '/image/roster.png') {
+        this.useDefaultAvatar = true;
+      }
     }
   },
   computed: {
@@ -140,10 +144,12 @@ export default {
           })
         })
         .then((res) => {
-          let url = window.location + '';
-          url = url.replaceAll('action=support', 'action=chat');
-          url = url.concat('&code=' + res.code);
-          window.open(url);
+          let currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.set('action', 'chat');
+          currentUrl.searchParams.set('code', res.code);
+          setTimeout(() => {
+            window.open(currentUrl.toString());
+          }, 100);
         })
         .catch(() => {});
     }
@@ -216,7 +222,6 @@ export default {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background-color: #3498db; /* 蓝色背景，你可以替换为实际图片 */
   margin-right: 10px;
 }
 

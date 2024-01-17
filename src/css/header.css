@@ -2,6 +2,9 @@
   height: 48px;
   background: #47b6ff;
   border-radius: 10px 10px 0px 0px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  border-bottom: 1px solid #e6e6e6;
 }
 
 .header .searchArea {

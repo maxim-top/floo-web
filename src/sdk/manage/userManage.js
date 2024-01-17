@@ -96,6 +96,7 @@ export default {
   asyncUserUpdateMobile: http.userUpdateMobile,
   asyncUserSendSms: http.userSendSms,
   asyncCaptchaSms: http.captchaSms,
+  aysncGenerateWXUrlLink: http.generateWXUrlLink,
   asyncUserNameCheck: http.userNameCheck,
   asyncUserMobileBind: http.userMobileBind,
   asyncUserMobileBindSign: http.userMobileBindSign,

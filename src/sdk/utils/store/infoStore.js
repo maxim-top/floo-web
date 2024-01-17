@@ -36,6 +36,10 @@ const deleteToken = () => {
   removeItem('key_user_token');
 };
 
+const deleteLinkServer = () => {
+  removeItem('key_user_link_server');
+};
+
 const deleteAesKey = () => {
   removeItem('key_user_aes_key');
 };
@@ -59,6 +63,9 @@ const infoStore = {
   saveTokenAppId: (appId) => saveItem('key_user_token_app_id', appId),
   getTokenAppId: () => getItem('key_user_token_app_id'),
   deleteTokenAppId,
+  saveLinkServer: (linkServer) => saveItem('key_user_link_server', linkServer),
+  getLinkServer: () => getItem('key_user_link_server'),
+  deleteLinkServer,
   getAesKey: () => getItem('key_user_aes_key'),
   saveAesKey: (key) => saveItem('key_user_aes_key', key),
   deleteAesKey,
@@ -95,6 +102,7 @@ const infoStore = {
     removeUid();
     deleteDeviceGuid();
     deleteTokenAppId();
+    deleteLinkServer();
   },
 
   saveAppid,

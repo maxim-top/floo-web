@@ -395,18 +395,20 @@ export default {
           if (this.addHlgs) {
             newContent = newContent.replaceAll('<code', '<code class="hljs"');
           }
-          this.appendMarkdownContent = newContent.slice(this.markContent.length);
+          this.showMarkdownContent = this.markContent;
+          this.appendMarkdownContent = newContent.slice(this.showMarkdownContent.length);
           this.markContent = newContent;
         } else {
           let hasCode = this.hasCodeBlock(content);
           if (hasCode) {
+            let that = this;
             this.marked = new Marked(
               markedHighlight({
                 langPrefix: 'hljs language-',
                 highlight(code, lang) {
                   let language = hljs.getLanguage(lang) ? lang : 'plaintext';
                   if (language === 'plaintext') {
-                    this.addHlgs = true;
+                    that.addHlgs = true;
                     return hljs.highlightAuto(code).value;
                   }
                   return hljs.highlight(code, { language }).value;
@@ -452,17 +454,18 @@ export default {
         this.appendTimer && clearInterval(this.appendTimer);
         //每一次计时周期增加两个字符展示。
         let period = (ext.ai.stream_interval * 1000) / (this.appendContent.length / 2);
+        let that = this;
         this.appendTimer = setInterval(() => {
-          if (this.appendContent.length <= 0) {
-            clearInterval(this.appendTimer);
-            this.appendTimer = null;
-            this.showContent = content;
+          if (that.appendContent.length <= 0) {
+            clearInterval(that.appendTimer);
+            that.appendTimer = null;
+            that.showContent = content;
             if (showAll) {
-              this.showMarkdownContent = this.markContent;
+              that.showMarkdownContent = that.markContent;
             }
           } else {
-            this.showContent += this.appendContent.slice(0, 2);
-            this.appendContent = this.appendContent.slice(2);
+            that.showContent += that.appendContent.slice(0, 2);
+            that.appendContent = that.appendContent.slice(2);
           }
         }, period);
       } else {
@@ -476,17 +479,18 @@ export default {
         this.appendMarkdownTimer && clearInterval(this.appendMarkdownTimer);
         //每一次计时周期增加两个字符展示。
         let period = (ext.ai.stream_interval * 1000) / (this.appendMarkdownContent.length / 2);
+        let that = this;
         this.appendMarkdownTimer = setInterval(() => {
-          if (this.appendMarkdownContent.length <= 0) {
-            clearInterval(this.appendMarkdownTimer);
-            this.appendMarkdownTimer = null;
-            this.showMarkdownContent = markContent;
+          if (that.appendMarkdownContent.length <= 0) {
+            clearInterval(that.appendMarkdownTimer);
+            that.appendMarkdownTimer = null;
+            that.showMarkdownContent = markContent;
             if (showAll) {
-              this.showContent = this.content;
+              that.showContent = that.content;
             }
           } else {
-            this.showMarkdownContent += this.appendMarkdownContent.slice(0, 2);
-            this.appendMarkdownContent = this.appendMarkdownContent.slice(2);
+            that.showMarkdownContent += that.appendMarkdownContent.slice(0, 2);
+            that.appendMarkdownContent = that.appendMarkdownContent.slice(2);
           }
         }, period);
       } else {
@@ -500,7 +504,7 @@ export default {
         if (this.isMarkdown) {
           this.calculateMarkdownAppend(this.markContent, message.ext);
         }
-        this.appendContent += message.appendedContent;
+        this.appendContent = message.content.slice(this.showContent.length);
         this.calculateAppend(message.content, message.ext);
       } else {
         if (this.isMarkdown) {

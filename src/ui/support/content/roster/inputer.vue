@@ -23,7 +23,10 @@
         </div>
       </div>
     </div>
-    <div class="support_link"><a href="https://www.lanyingim.com" target="_blank">打造你的智能聊天APP，使用蓝莺IM SDK</a></div>
+    <div class="support_link">
+      <span>AppID:{{ appid }}</span>
+      <a href="https://www.lanyingim.com" target="_blank">打造你的智能聊天APP，使用蓝莺IM SDK</a>
+    </div>
   </div>
 </template>
 
@@ -44,6 +47,9 @@ export default {
     ...mapGetters('content', ['getSid', 'getIntentMessage']),
     im() {
       return this.$store.state.im;
+    },
+    appid() {
+      return this.$store.state.im.userManage.getAppid();
     }
   },
   mounted() {

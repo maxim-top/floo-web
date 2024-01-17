@@ -99,15 +99,22 @@ export default {
       if (im && im.isReady && im.isReady()) {
         console.log('flooim 初始化成功 ', times);
         this.sdkok = true;
-        if (this.intent.code) {
-          this.codeLogin();
+        if (this.intent.link && !this.intent.hasParseLink) {
+          this.parseLink();
         } else {
-          this.imLogin();
+          if (this.intent.code) {
+            this.codeLogin();
+          } else {
+            this.imLogin();
+          }
         }
         return;
       }
       if (times < INIT_CHECK_TIMES_MAX) {
-        setTimeout(() => this.waitForFlooReadyAndLogin(times + 1), 1000);
+        let that = this;
+        setTimeout(() => {
+          that.waitForFlooReadyAndLogin(times + 1);
+        }, 1000);
       } else {
         console.error('flooim 初始化失败，请重新初始化');
       }
@@ -119,7 +126,7 @@ export default {
         // dnsServer: "https://dns.lanyingim.com/v2/app_dns",
         appid: this.appid,
         ws: false, // uniapp版需要设置为true, web版需要设置为false
-        autoLogin: true,
+        autoLogin: this.intent.code || this.intent.link ? false : true,
         logLevel: logLevel
       };
       console.log('Init floo IM for ', this.appid);
@@ -144,14 +151,16 @@ export default {
     },
 
     addIMListeners() {
+      let that = this;
       this.getIM().on({
         loginSuccess: () => {
-          this.$store.dispatch('login/actionChangeAppStatus', this.intent.action === 'support' ? 'support' : 'chatting');
-          this.maybeRedirectToIntentPage();
+          that.$store.dispatch('login/actionChangeAppStatus', that.intent.action === 'support' ? 'support' : 'chatting');
+          that.maybeRedirectToIntentPage();
+          that.maybeLaunchWXMP();
           // this.bindDeviceToken( device_token, notifier_name );
         },
         loginFail: (msg) => {
-          this.alert('登陆失败, error: ' + msg);
+          that.alert('登陆失败, error: ' + msg);
         },
         flooNotice: (msg) => {
           const { category, desc } = msg;
@@ -160,22 +169,22 @@ export default {
             case 'action':
               if ('relogin' == desc) {
                 console.log('Token失效，尝试自动登录中');
-                const info = this.getLoginInfo();
+                const info = that.getLoginInfo();
                 if (info.name && autoLoginTimes < AUTO_LOGIN_TIMES_MAX) {
                   console.log('Token失效，尝试自动登录中:', autoLoginTimes);
                   setTimeout(() => {
-                    this.getIM().login(info);
+                    that.getIM().login(info);
                   }, autoLoginTimes * AUTO_LOGIN_DELAY);
                   autoLoginTimes++;
                 } else {
                   console.log('自动登录失败次数过多，请手工登录。');
                   autoLoginTimes = 0;
-                  this.alert('请重新登录');
-                  this.imLogout();
+                  that.alert('请重新登录');
+                  that.imLogout();
                 }
               } else if ('relogin_manually' == desc) {
-                this.alert('请重新登录');
-                this.imLogout();
+                that.alert('请重新登录');
+                that.imLogout();
               } else {
                 console.log('Floo Notice: unknown action ', desc);
               }
@@ -184,7 +193,7 @@ export default {
               console.log('Floo Notice: 收到用户/设备通知 : ', desc);
               break;
             case 'loginMessage':
-              this.$store.dispatch('login/actionAddLoginLog', desc);
+              that.$store.dispatch('login/actionAddLoginLog', desc);
               break;
             case 'conversation_deleted':
               console.log('Floo Notice: 会话被删除：', desc.toString());
@@ -197,13 +206,13 @@ export default {
           const { category, desc } = msg;
           switch (category) {
             case 'USER_BANNED':
-              this.alert('用户错误: ' + desc);
+              that.alert('用户错误: ' + desc);
               break;
             case 'DNS_FAILED':
-              this.alert('DNS错误: 无法访问 ' + desc);
+              that.alert('DNS错误: 无法访问 ' + desc);
               break;
             case 'LICENSE':
-              this.alert('服务需要续费: ' + desc);
+              that.alert('服务需要续费: ' + desc);
               break;
             default:
               console.log('Floo Error：' + category + ' : ' + desc);
@@ -217,6 +226,7 @@ export default {
     bindDeviceToken(device_token, notifier_name) {
       const imUser = this.getIM().userManage;
       const device_sn = imUser.getDeviceSN();
+      let that = this;
       imUser
         .asyncBindDeviceToken({
           device_sn,
@@ -224,41 +234,77 @@ export default {
           notifier_name
         })
         .then(() => {
-          this.alert('设备绑定成功: ' + device_sn);
+          that.alert('设备绑定成功: ' + device_sn);
         })
         .catch((err) => {
-          this.alert('设备绑定失败: ' + err.code + ':' + err.errMsg);
+          that.alert('设备绑定失败: ' + err.code + ':' + err.message);
         });
     },
     unbindDeviceToken() {
       const imUser = this.getIM().userManage;
       const device_sn = imUser.getDeviceSN();
+      let that = this;
       imUser
         .asyncUnbindDeviceToken({
           deviceSn: device_sn
         })
         .then(() => {
-          this.alert('设备解绑成功: ' + device_sn);
+          that.alert('设备解绑成功: ' + device_sn);
         })
         .catch((err) => {
-          this.alert('设备解绑失败: ' + err.code + ':' + err.errMsg);
+          that.alert('设备解绑失败: ' + err.code + ':' + err.message);
+        });
+    },
+
+    parseLink() {
+      const im = this.getIM();
+      const linkServer = im.sysManage.getLinkServer();
+      let that = this;
+      im.sysManage
+        .aysncParseLink(linkServer, {
+          link: this.intent.link
+        })
+        .then((res) => {
+          that.intent.app_id = res.app_id;
+          that.intent.uid = parseInt(res.uid);
+          that.intent.text = res.text;
+          that.intent.type = res.type;
+          that.intent.hasParseLink = true;
+          if (that.intent.app_id == that.appid) {
+            if (that.intent.code) {
+              that.codeLogin();
+            } else {
+              that.imLogin();
+            }
+          } else {
+            that.$store.dispatch('actionChangeAppID', that.intent.app_id);
+          }
+        })
+        .catch((err) => {
+          that.alert('Link无效： ' + err.code + ':' + err.message);
         });
     },
 
     codeLogin() {
       const im = this.getIM();
-      im.userManage
-        .asyncSendSecretInfo({
-          code: this.intent.code
-        })
-        .then((res) => {
-          const info = JSON.parse(res.secret_text);
-          this.saveLoginInfo(info, this.intent.app_id);
-          this.imLogin();
-        })
-        .catch((err) => {
-          this.alert('code失效: ' + err.code + ':' + err.errMsg);
-        });
+      let that = this;
+      setTimeout(() => {
+        im.userManage
+          .asyncSendSecretInfo({
+            code: this.intent.code
+          })
+          .then((res) => {
+            const info = JSON.parse(res.secret_text);
+            that.saveLoginInfo(info, that.intent.app_id);
+            let currentUrl = new URL(window.location.href);
+            currentUrl.searchParams.delete('code');
+            window.history.replaceState({}, document.title, currentUrl.toString());
+            that.imLogin();
+          })
+          .catch((err) => {
+            that.alert('登录失败, code无效 : ' + err.code + ' ' + err.message);
+          });
+      }, 100);
     },
 
     imLogin() {
@@ -292,6 +338,9 @@ export default {
     },
 
     imLogout() {
+      let currentUrl = new URL(window.location.href);
+      currentUrl.search = '';
+      window.history.replaceState({}, document.title, currentUrl.toString());
       this.getIM().logout();
       this.removeLoginInfo();
       this.$store.dispatch('login/actionChangeAppStatus', 'login');
@@ -330,9 +379,11 @@ export default {
       const im = this.getIM();
       var username = 'anon_';
       let password = '' + new Date().getTime() + Math.floor(Math.random() * 1000000000) + Math.floor(Math.random() * 1000000000);
-      im.userManage.asyncRegisterAnonymous({ username, password }).then((res) => {
+      let cid = this.intent.uid;
+      let that = this;
+      im.userManage.asyncRegisterAnonymous({ username, password, cid }).then((res) => {
         username = res.username;
-        this.saveLoginInfo({ username, password }, this.appid);
+        that.saveLoginInfo({ username, password }, that.appid);
         im.login({
           name: username,
           password: password
@@ -346,9 +397,16 @@ export default {
           app_id: params.get('app_id'),
           uid: parseInt(params.get('uid')),
           text: params.get('text'),
-          action: params.get('action'),
-          code: params.get('code')
+          action: params.get('action')
         };
+      }
+      if (params.get('code')) {
+        this.intent.code = params.get('code');
+      }
+      if (params.get('link')) {
+        this.intent.link = params.get('link');
+        this.intent.hasParseLink = false;
+        this.intent.action = this.intent.action ? this.intent.action : 'support';
       }
     },
     maybeRedirectToIntentPage() {
@@ -359,6 +417,64 @@ export default {
           type: 'rosterchat'
         });
         this.$store.dispatch('content/actionSetIntentMessage', this.intent.text);
+      }
+    },
+    needLaunch() {
+      let bLaunch = false;
+      if (/(MicroMessenger)/i.test(navigator.userAgent)) {
+        bLaunch = true;
+      }
+      if (/(Macintosh|Intel|Windows)/i.test(navigator.userAgent)) {
+        bLaunch = false;
+      }
+      /*
+      if (/(Mobi|iPhone|iPod|iPad|Android|MicroMessenger)/i.test(navigator.userAgent)) {
+        bLaunch = true;
+      }
+      if (navigator.userAgentData && navigator.userAgentData.mobile) {
+        bLaunch = true;
+      }
+      if (/Android|iPhone|iPad|iPod/i.test(navigator.platform)) {
+        bLaunch = true;
+      }*/
+
+      return bLaunch;
+    },
+    maybeLaunchWXMP() {
+      if (this.needLaunch() && parent) {
+        const loginInfo = this.getLoginInfo();
+        const im = this.getIM();
+        im.userManage
+          .asyncGenerateSecretInfo({
+            expire_seconds: 60,
+            secret_text: JSON.stringify({
+              username: loginInfo.username,
+              password: loginInfo.password
+            })
+          })
+          .then((res) => {
+            let query = 'link=' + this.intent.link + '&code=' + res.code;
+            im.userManage
+              .aysncGenerateWXUrlLink({
+                path: 'pages/profile/index',
+                query: query
+              })
+              .then((res) => {
+                parent.postMessage(
+                  JSON.stringify({
+                    type: 'lanying_link_wakeup',
+                    data: res.url_link
+                  }),
+                  '*'
+                );
+              })
+              .catch((err) => {
+                console.log('生成微信 url link 异常: code ' + err.code + ' : ' + err.message);
+              });
+          })
+          .catch((err) => {
+            console.log('获取登录凭证 code 异常: code ' + err.code + ' : ' + err.message);
+          });
       }
     },
     alert(msg) {

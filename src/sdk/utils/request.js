@@ -37,6 +37,7 @@ const paramCheck = (params = {}, checks = []) => {
 
 const noTokenUrls = [
   'app_dns',
+  'info',
   'app/captcha/image',
   'app/captcha/sms',
   'app/captcha/sms_web',
@@ -47,7 +48,8 @@ const noTokenUrls = [
   'qr_login',
   'token/id',
   'token/user',
-  'user/register'
+  'user/register',
+  '/app/secret_info'
 ];
 
 const isTokenRequired = (url) => {

@@ -2,10 +2,8 @@
   background: #fafbfc;
   height: calc(100% - 50px);
   margin-left: 240px;
-  border-radius: 0px 0px 10px 0px;
   overflow: hidden;
   margin-left: 0px;
-  border-radius: 0px 0px 10px 10px;
   min-width: 360px;
 }
 
@@ -327,17 +325,34 @@ td {
 .support-content .inputer_frame .support_link {
   height: 22px;
   width: 100%;
-  text-align: right;
   /*opacity: 0.3;*/
   background-color: #f6f6f6;
   border-radius: 0px 0px 10px 10px;
 }
 
+.support-content .inputer_frame .support_link span {
+  max-width: 40%;
+  margin-left: 5px;
+  color: gray;
+  position: absolute;
+  display: inline;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 .support-content .inputer_frame .support_link a {
   text-decoration: none;
-  margin-right: 10px;
+  margin-right: 5px;
   color: gray;
   text: bold;
+  position: absolute;
+  right: 0;
+  max-width: 55%;
+  display: inline;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .support-content .inputer_frame .attach .ico {
@@ -373,7 +388,8 @@ td {
 }
 
 .support-content .inputer_frame .input {
-  border: 2px solid #e6e6e6;
+  border-top: 1px solid #e6e6e6;
+  border-bottom: 1px solid #e6e6e6;
 }
 
 .support-content .inputer_frame .input .input_text {

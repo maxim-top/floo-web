@@ -3,7 +3,9 @@
     <div @click="requestHistory" id="roster_history_btn">
       {{ queryingHistory ? '正在拉取历史消息，请稍候' : '点击拉取历史消息' }}
     </div>
-    <Message :message="message" v-bind:key="aid" v-for="(message, aid) in allMessages" />
+    <div>
+      <Message ref="vMessages" :message="message" v-bind:key="aid" v-for="(message, aid) in allMessages" />
+    </div>
   </div>
 </template>
 
@@ -26,11 +28,23 @@ export default {
     });
 
     this.$store.getters.im.on('onGroupMessageContentAppend', (message) => {
-      this.calculateScroll(message);
+      if (this.$refs.vMessages) {
+        this.calculateScroll(message);
+        let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
+        if (msg) {
+          msg.messageContentAppend(message);
+        }
+      }
     });
 
     this.$store.getters.im.on('onGroupMessageReplace', (message) => {
-      this.calculateScroll(message);
+      if (this.$refs.vMessages) {
+        this.calculateScroll(message);
+        let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
+        if (msg) {
+          msg.messageReplace(message);
+        }
+      }
     });
 
     this.$store.getters.im.on('onReceiveHistoryMsg', ({ next }) => {
@@ -65,6 +79,23 @@ export default {
       if (uid + '' === message.uid + '') {
         this.requireMessage();
       }
+    });
+  },
+
+  destroyed() {
+    const im = this.$store.getters.im;
+    if (!im) return;
+
+    im.off({
+      onGroupMessage: '',
+      onGroupMessageContentAppend: '',
+      onGroupMessageReplace: '',
+      onReceiveHistoryMsg: '',
+      onMessageStatusChanged: '',
+      onSendingMessageStatusChanged: '',
+      onMessageRecalled: '',
+      onMessageDeleted: '',
+      onMessageCanceled: ''
     });
   },
 
@@ -170,8 +201,9 @@ export default {
     },
 
     scroll() {
+      let that = this;
       setTimeout(() => {
-        this.$refs.listg && (this.$refs.listg.scrollTop = this.$refs.listg.scrollHeight);
+        that.$refs.listg && (that.$refs.listg.scrollTop = that.$refs.listg.scrollHeight);
       }, 200);
     },
 
@@ -182,10 +214,13 @@ export default {
           this.scrollTimer && clearInterval(this.scrollTimer);
           let count = ext.ai.stream_interval * 5;
           if (count) {
+            let that = this;
             this.scrollTimer = setInterval(() => {
-              this.$refs.rlist && (this.$refs.rlist.scrollTop = this.$refs.rlist.scrollHeight);
+              that.$nextTick(() => {
+                that.$refs.rlist && (that.$refs.rlist.scrollTop = that.$refs.rlist.scrollHeight);
+              });
               if (count-- <= 0) {
-                clearInterval(this.scrollTimer);
+                clearInterval(that.scrollTimer);
               }
             }, 200);
           }

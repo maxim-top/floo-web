@@ -3,6 +3,9 @@ import { request } from '../../../utils/request';
 // dns
 const getServers = (url, params) => request(url, 'get', params, ['app_id'], true);
 
+// link
+const parseLink = (url, params) => request(url, 'get', params, ['link'], true);
+
 // logins
 const tokenUser = (params) => request('/token/user', 'post', params, [['mobile', 'name'], 'password']);
 const tokenId = (params) => request('/token/id', 'post', params, ['user_id', 'password']);
@@ -20,6 +23,9 @@ const userMobileBindSign = (params) => request('/app/user/mobile_bind_with_sign'
 const userMobileLogin = (params) => request('/app/user/info_pwd', 'get', params, ['captcha', 'mobile'], true);
 const captchaImagePost = (params) => request('/app/captcha/image', 'post', params, []);
 const captchaSms = (params) => request('/app/captcha/sms_web', 'get', params, ['captcha', 'image_id', 'mobile'], true);
+
+// wx url link
+const generateWXUrlLink = (params) => request('/app/generate_url_link', 'post', params, ['path', 'query']);
 
 // rosters
 const rosterAccept = (params) => request('/roster/accept', 'post', params, ['user_id'], true);
@@ -141,6 +147,7 @@ const wechatBind = (params) => request('/app/wechat/bind', 'post', params, ['ope
 
 export {
   getServers,
+  parseLink,
   tokenUser,
   tokenId,
   userRegister,
@@ -156,6 +163,7 @@ export {
   userUpdateMobile,
   captchaImagePost,
   captchaSms,
+  generateWXUrlLink,
   rosterAccept,
   rosterApply,
   rosterDecline,

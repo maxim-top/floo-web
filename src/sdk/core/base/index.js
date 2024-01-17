@@ -35,9 +35,17 @@ let isLogin = false;
  * const im = flooim(config);
  * {% lanying_code_snippet repo="lanying-im-web",class="",function="flooim" %}{% endlanying_code_snippet %}
  */
-const webim = function ({ autoLogin = true, dnsServer = 'https://dns.lanyingim.com/v2/app_dns', appid = 'welovemaxim', ws = false, logLevel = 'debug' }) {
+const webim = function ({
+  autoLogin = true,
+  dnsServer = 'https://dns.lanyingim.com/v2/app_dns',
+  appid = 'welovemaxim',
+  ws = false,
+  logLevel = 'debug',
+  linkServer = 'https://lanying.link/info'
+}) {
   log.setLogLevel(logLevel);
   infoStore.saveAppid(appid);
+  infoStore.saveLinkServer(linkServer);
   dnsManager
     .asyncGetDns(dnsServer, appid, ws)
     .then((res) => {

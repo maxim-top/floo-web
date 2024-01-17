@@ -2,6 +2,7 @@
   background: #fafbfc;
   height: 100%;
   margin-left: 240px;
+  border-left: 1px solid #e6e6e6;
   border-radius: 0px 0px 10px 0px;
   overflow: hidden;
 }
@@ -44,6 +45,7 @@
   display: flex;
   flex-direction: row;
   width: 100%;
+  border-bottom: 1px solid #e6e6e6;
 }
 
 .content .header .header_items .name {
@@ -410,15 +412,17 @@ td {
 
 .content .inputer_frame .input {
   background-color: #f6f6f6;
+  height: calc(100% - 20px);
 }
 
 .content .inputer_frame .input .input_text {
   background-color: #f6f6f6;
   width: 100%;
+  height: 100%;
 }
 
 .content .chat-index .inputer_frame {
-  height: 80px;
+  height: calc(25% - 40px);
   background: white;
   box-sizing: border-box;
   position: relative;
