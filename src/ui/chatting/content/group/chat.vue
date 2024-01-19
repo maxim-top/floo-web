@@ -29,20 +29,22 @@ export default {
 
     this.$store.getters.im.on('onGroupMessageContentAppend', (message) => {
       if (this.$refs.vMessages) {
-        this.calculateScroll(message);
         let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
         if (msg) {
           msg.messageContentAppend(message);
+          this.calculateScroll(message);
         }
       }
     });
 
     this.$store.getters.im.on('onGroupMessageReplace', (message) => {
       if (this.$refs.vMessages) {
-        this.calculateScroll(message);
         let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
         if (msg) {
           msg.messageReplace(message);
+          setTimeout(() => {
+            this.calculateScroll(message, msg.getLastSliceStreamTime());
+          }, 200);
         }
       }
     });
@@ -207,12 +209,15 @@ export default {
       }, 200);
     },
 
-    calculateScroll(message) {
+    calculateScroll(message, maxInterval = 0) {
       if (message.ext) {
         let ext = JSONBigString.parse(message.ext);
         if (ext && ext.ai && ext.ai.stream) {
           this.scrollTimer && clearInterval(this.scrollTimer);
           let count = ext.ai.stream_interval * 5;
+          if (maxInterval > ext.ai.stream_interval) {
+            count = maxInterval * 5;
+          }
           if (count) {
             let that = this;
             this.scrollTimer = setInterval(() => {

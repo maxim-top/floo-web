@@ -98,10 +98,13 @@ export default {
       showContent: '',
       appendContent: '',
       appendTimer: null,
+      lastSliceStreamTime: 0,
 
       showMarkdownContent: '',
-      appendMarkdownContent: '',
-      appendMarkdownTimer: null
+      showTotalContent: '',
+      showAppendContent: '',
+      appendMarkdownTimer: null,
+      lastMarkdownSliceStreamTime: 0
     };
   },
   mounted() {
@@ -139,11 +142,10 @@ export default {
 
     if (this.message.ext && this.message.ext.length && this.isAIStreamFinish(this.message.ext)) {
       if (this.showMarkdown) {
-        this.appendMarkdownContent = this.markContent;
-        this.calculateMarkdownAppend(this.markContent, this.message.ext, true);
+        this.calculateMarkdownAppend(this.message.content, this.message.ext);
       }
       this.appendContent = this.content;
-      this.calculateAppend(this.content, this.message.ext, true);
+      this.calculateAppend(this.content, this.message.ext);
     } else {
       this.showMarkdownContent = this.markContent;
       this.showContent = this.message.content;
@@ -386,18 +388,22 @@ export default {
       }
     },
 
+    parseMarkdownContent(content) {
+      let newContent = this.marked.parse(content);
+      if (this.addHlgs) {
+        newContent = newContent.replaceAll('<code', '<code class="hljs"');
+      } else {
+        newContent = newContent.replaceAll('<pre><code', '<pre><code class="hljs"');
+      }
+      return newContent;
+    },
+
     calculateContent(content) {
       this.isMarkdown = this.isMarkdownFormat(content);
       if (this.isMarkdown) {
         if (this.marked) {
           // already generate markded object. do nothing.
-          let newContent = this.marked.parse(content);
-          if (this.addHlgs) {
-            newContent = newContent.replaceAll('<code', '<code class="hljs"');
-          }
-          this.showMarkdownContent = this.markContent;
-          this.appendMarkdownContent = newContent.slice(this.showMarkdownContent.length);
-          this.markContent = newContent;
+          this.markContent = this.parseMarkdownContent(content);
         } else {
           let hasCode = this.hasCodeBlock(content);
           if (hasCode) {
@@ -418,12 +424,8 @@ export default {
           } else {
             this.marked = new Marked();
           }
-          this.markContent = this.marked.parse(content);
-          if (this.addHlgs) {
-            this.markContent = this.markContent.replaceAll('<code', '<code class="hljs"');
-          } else {
-            this.markContent = this.markContent.replaceAll('<pre><code', '<pre><code class="hljs"');
-          }
+          this.markContent = this.parseMarkdownContent(content);
+          this.showAppendContent = content;
           this.showMarkdown = true;
         }
       }
@@ -452,8 +454,18 @@ export default {
       let ext = JSONBigString.parse(extension);
       if (ext && ext.ai && ext.ai.stream && ext.ai.stream_interval) {
         this.appendTimer && clearInterval(this.appendTimer);
-        //每一次计时周期增加两个字符展示。
-        let period = (ext.ai.stream_interval * 1000) / (this.appendContent.length / 2);
+        //每一次计时周期增加一个字符展示。
+        let count = 1;
+        let period = (ext.ai.stream_interval * 1000) / this.appendContent.length;
+        if (period < 40) {
+          period = 40;
+          if (showAll && period * this.showAppendContent.length > 20 * 1000) {
+            count = Math.ceil(this.showAppendContent.length / 500);
+          }
+        }
+        if (showAll) {
+          this.lastSliceStreamTime = Math.ceil((period * this.showAppendContent.length) / (1000 * count));
+        }
         let that = this;
         this.appendTimer = setInterval(() => {
           if (that.appendContent.length <= 0) {
@@ -464,8 +476,8 @@ export default {
               that.showMarkdownContent = that.markContent;
             }
           } else {
-            that.showContent += that.appendContent.slice(0, 2);
-            that.appendContent = that.appendContent.slice(2);
+            that.showContent += that.appendContent.slice(0, count);
+            that.appendContent = that.appendContent.slice(count);
           }
         }, period);
       } else {
@@ -473,36 +485,57 @@ export default {
       }
     },
 
-    calculateMarkdownAppend(markContent, extension, showAll = false) {
+    calculateMarkdownAppend(content, extension, showAll = false) {
       let ext = JSONBigString.parse(extension);
       if (ext && ext.ai && ext.ai.stream && ext.ai.stream_interval) {
         this.appendMarkdownTimer && clearInterval(this.appendMarkdownTimer);
-        //每一次计时周期增加两个字符展示。
-        let period = (ext.ai.stream_interval * 1000) / (this.appendMarkdownContent.length / 2);
+        //每一次计时周期增加一个字符展示。
+        let count = 1;
+        let period = (ext.ai.stream_interval * 1000) / this.showAppendContent.length;
+        if (period < 40) {
+          period = 40;
+          if (showAll && period * this.showAppendContent.length > 20 * 1000) {
+            count = Math.ceil(this.showAppendContent.length / 500);
+          }
+        }
+        if (showAll) {
+          this.lastMarkdownSliceStreamTime = Math.ceil((period * this.showAppendContent.length) / (1000 * count));
+        }
         let that = this;
         this.appendMarkdownTimer = setInterval(() => {
-          if (that.appendMarkdownContent.length <= 0) {
+          if (that.showAppendContent.length <= 0) {
             clearInterval(that.appendMarkdownTimer);
             that.appendMarkdownTimer = null;
-            that.showMarkdownContent = markContent;
+            that.showMarkdownContent = that.parseMarkdownContent(that.showTotalContent);
             if (showAll) {
               that.showContent = that.content;
             }
           } else {
-            that.showMarkdownContent += that.appendMarkdownContent.slice(0, 2);
-            that.appendMarkdownContent = that.appendMarkdownContent.slice(2);
+            that.showTotalContent += that.showAppendContent.slice(0, count);
+            that.showAppendContent = that.showAppendContent.slice(count);
+            that.showMarkdownContent = that.parseMarkdownContent(that.showTotalContent);
           }
         }, period);
       } else {
-        this.showMarkdownContent = markContent;
+        this.showMarkdownContent = this.markContent;
       }
     },
 
+    getLastSliceStreamTime() {
+      return Math.max(this.lastSliceStreamTime, this.lastMarkdownSliceStreamTime);
+    },
+
     messageContentAppend(message) {
+      let oldFlag = this.isMarkdown;
       this.calculateContent(message.content);
+      if (false == oldFlag && true == this.isMarkdown) {
+        this.showTotalContent = this.showContent;
+        this.showMarkdownContent = this.parseMarkdownContent(this.showContent);
+      }
       if (message.ext && message.ext.length && this.isAIStream(message.ext)) {
         if (this.isMarkdown) {
-          this.calculateMarkdownAppend(this.markContent, message.ext);
+          this.showAppendContent = message.content.slice(this.showTotalContent.length);
+          this.calculateMarkdownAppend(message.content, message.ext);
         }
         this.appendContent = message.content.slice(this.showContent.length);
         this.calculateAppend(message.content, message.ext);
@@ -515,10 +548,16 @@ export default {
     },
 
     messageReplace(message) {
+      let oldFlag = this.isMarkdown;
       this.calculateContent(message.content);
+      if (false == oldFlag && true == this.isMarkdown) {
+        this.showTotalContent = this.showContent;
+        this.showMarkdownContent = this.parseMarkdownContent(this.showContent);
+      }
       if (message.ext && message.ext.length && this.isAIStream(message.ext)) {
         if (this.isMarkdown) {
-          this.calculateMarkdownAppend(this.markContent, message.ext, true);
+          this.showAppendContent = message.content.slice(this.showTotalContent.length);
+          this.calculateMarkdownAppend(message.content, message.ext, true);
         }
         this.appendContent = message.content.slice(this.showContent.length);
         this.calculateAppend(message.content, message.ext, true);

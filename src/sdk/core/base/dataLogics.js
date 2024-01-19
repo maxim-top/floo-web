@@ -1008,6 +1008,7 @@ const replaceMessage = (meta, content, config, ext, editTimestamp) => {
   }
   custom.editTimestamp = editTimestamp;
   if (content) {
+    custom.appendedContent = content.slice(custom.content.length);
     custom.content = content;
   }
   if (config) {
