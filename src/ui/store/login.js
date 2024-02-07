@@ -6,7 +6,8 @@ const state = {
   loginLog: ['这里是登录日志..'],
   mobileSign: '',
   signMobile: '',
-  loginInfo: {}
+  loginInfo: {},
+  loginInfoList: []
 };
 
 const getters = {
@@ -24,6 +25,9 @@ const getters = {
   },
   getLoginInfo(state) {
     return state.loginInfo;
+  },
+  getLoginInfoList(state) {
+    return state.loginInfoList;
   }
 };
 
@@ -49,6 +53,9 @@ const mutations = {
   },
   setLoginInfo(state, info) {
     state.loginInfo = info;
+  },
+  setLoginInfoList(state, list) {
+    state.loginInfoList = list;
   }
 };
 
@@ -69,6 +76,9 @@ const actions = {
   },
   actionSetLoginInfo(context, info) {
     context.commit('setLoginInfo', info);
+  },
+  actionSetLoginInfoList(context, list) {
+    context.commit('setLoginInfoList', list);
   }
 };
 export default {

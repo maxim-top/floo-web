@@ -354,13 +354,25 @@ export default {
    * @param {object} params 参数
    * @param {number} params.user_id 用户ID
    * @param {string} params.ext 扩展字段
-   * @param {string} params.alias 备注名称
    * @param {boolean} params.mute_notification 是否接收消息提醒
    * @returns {Promise.<boolean>} 是否成功
    * @example
    * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncUpdateRosterExt" %}{% endlanying_code_snippet %}
    */
   asyncUpdateRosterExt: http.rosterExt,
+
+  /**
+   * 修改好友扩展别名字段
+   * @function
+   * @param {object} params 参数
+   * @param {number} params.user_id 用户ID
+   * @param {string} params.alias 备注名称
+   * @param {boolean} params.mute_notification 是否接收消息提醒
+   * @returns {Promise.<boolean>} 是否成功
+   * @example
+   * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncUpdateRosterAlias" %}{% endlanying_code_snippet %}
+   */
+  asyncUpdateRosterAlias: http.rosterAlias,
   /**
    * 按名称搜索用户
    * @function

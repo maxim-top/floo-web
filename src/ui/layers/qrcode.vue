@@ -15,6 +15,7 @@
 <script>
 import { mapGetters } from 'vuex';
 import QRCode from 'qrcode';
+var JSONBigString = require('json-bigint');
 
 export default {
   data() {
@@ -31,8 +32,14 @@ export default {
     if (this.getShowing === 'qrlogin') {
       this.requestLoginQr();
     } else if (this.getShowing === 'qrprofile') {
-      const uid = 'R_' + this.im.userManage.getUid();
-      QRCode.toCanvas(this.$refs.canvas, uid, { width: 180, margin: 0 }, function (/*err*/) {
+      const info = {
+        info: {
+          uid: this.im.userManage.getUid()
+        },
+        action: 'profile',
+        source: 'web'
+      };
+      QRCode.toCanvas(this.$refs.canvas, JSONBigString.stringify(info), { width: 180, margin: 0 }, function (/*err*/) {
         //
       });
     } else {

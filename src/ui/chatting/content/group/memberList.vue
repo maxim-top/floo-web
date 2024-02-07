@@ -10,10 +10,12 @@
     <!-- <div class="search">
       <input type="text" placeholder="Search" />
     </div> -->
-    <div class="gm_list" ref="imgContainer">
-      <div @click="touchRoster(roster.user_id)" class="item" v-bind:key="roster.user_id" v-for="roster in getMemberList">
-        <img :src="rImage(roster.avatar)" class="avatar" />
-        <div class="name">{{ roster.display_name || roster.user_name }}</div>
+    <div class="gm_list">
+      <div class="gm_scroll_list" ref="imgContainer">
+        <div @click="touchRoster(roster.user_id)" class="item" v-bind:key="roster.user_id" v-for="roster in getMemberList">
+          <img :src="rImage(roster.avatar)" class="avatar" />
+          <div class="name">{{ roster.display_name || roster.user_name }}</div>
+        </div>
       </div>
     </div>
   </div>
@@ -29,13 +31,21 @@ export default {
     };
   },
 
-  mounted() {},
+  mounted() {
+    this.$store.getters.im.on('onGroupMemberChanged', (/*gid*/) => {
+      this.$store.dispatch('content/actionUpdateMemberList');
+    });
+  },
 
   computed: {
-    ...mapGetters('content', ['getSid', 'getMemberList', 'getAdminList']),
+    ...mapGetters('content', ['getSid', 'getGroupInfo', 'getMemberList', 'getAdminList']),
     isAdmin() {
       const uid = this.$store.getters.im.userManage.getUid();
       return this.getAdminList.filter((x) => x.user_id === uid).length > 0;
+    },
+    isOwner() {
+      const uid = this.$store.getters.im.userManage.getUid();
+      return this.getGroupInfo.owner_id === uid;
     },
     im() {
       return this.$store.getters.im;
@@ -44,11 +54,11 @@ export default {
 
   methods: {
     settingClicked() {
-      if (this.isAdmin) {
+      if (this.isOwner || this.isAdmin) {
         this.$store.dispatch('layer/actionSetShowing', 'groupsetting');
         this.$store.dispatch('layer/actionSetShowmask', 'true');
       } else {
-        alert('只有管理员才可设置');
+        alert('只有群主或管理员才可设置');
       }
     },
     touchRoster(sid) {

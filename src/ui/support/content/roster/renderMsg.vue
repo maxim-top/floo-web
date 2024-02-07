@@ -120,7 +120,7 @@ export default {
       this.calculateContent(this.message.content);
     }
 
-    if (this.message.ext && this.message.ext.length && this.isAIStreamFinish(this.message.ext)) {
+    if (!this.message.isHistory && this.message.ext && this.message.ext.length && this.isAIStreamFinish(this.message.ext)) {
       if (this.showMarkdown) {
         this.calculateMarkdownAppend(this.message.content, this.message.ext);
       }
@@ -444,6 +444,8 @@ export default {
           this.showAppendContent = content;
           this.showMarkdown = true;
         }
+      } else {
+        this.showMarkdown = false;
       }
       this.content = content;
     },
@@ -570,7 +572,7 @@ export default {
         this.showTotalContent = this.showContent;
         this.showMarkdownContent = this.parseMarkdownContent(this.showContent);
       }
-      if (message.ext && message.ext.length && this.isAIStream(message.ext)) {
+      if (!message.isHistory && message.ext && message.ext.length && this.isAIStream(message.ext)) {
         if (this.isMarkdown) {
           this.showAppendContent = message.content.slice(this.showTotalContent.length);
           this.calculateMarkdownAppend(message.content, message.ext, true);

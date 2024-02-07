@@ -1,7 +1,7 @@
 .contact {
   float: left;
   background: white;
-  overflow: scroll;
+  overflow: hidden;
   width: 240px;
   height: 100%;
   border-radius: 10px 0px 0px 10px;
@@ -108,6 +108,7 @@
   text-overflow: ellipsis;
   overflow: hidden;
   max-width: 40%;
+  white-space: nowrap;
 }
 
 .contact .l_conversation .item .last_msg_time {

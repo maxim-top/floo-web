@@ -57,16 +57,31 @@ export default {
     nameEnter() {
       this.$refs.password.focus();
     },
+    getApp() {
+      return this.$parent.$parent;
+    },
     submit() {
       if (!this.user.username || !this.user.password) {
         this.$message.error('请输入用户名或密码');
         return;
       }
       const im = this.$store.state.im;
-      im.userManage.asyncRegister(this.user).then(() => {
-        this.$store.dispatch('login/actionSetLoginInfo', this.user);
-        this.$store.dispatch('login/actionChangeAppStatus', 'bind');
-      });
+      im.userManage
+        .asyncRegister(this.user)
+        .then(() => {
+          this.$store.dispatch('login/actionSetLoginInfo', this.user);
+          this.$store.dispatch('login/actionChangeAppStatus', 'bind');
+        })
+        .catch((err) => {
+          if (err && err.code) {
+            console.log('用户注册失败 code = ' + err.code + ' : ' + err.message);
+            if (err.code === 40002) {
+              this.getApp().alert('当前APP用户数已达上限，请使用已有账号登录或联系管理员开通商业版');
+            }
+          } else {
+            console.log('asyncRegister request error, please retry later: ', err);
+          }
+        });
     },
     switchLogin(type) {
       this.$store.dispatch('login/actionChangeAppStatus', type);

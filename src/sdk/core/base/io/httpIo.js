@@ -33,6 +33,7 @@ const rosterApply = (params) => request('/roster/apply', 'post', params, ['user_
 const rosterDecline = (params) => request('/roster/decline', 'post', params, ['user_id']);
 const rosterDelete = (params) => request('/roster/delete', 'post', params, ['user_id'], true);
 const rosterExt = (params) => request('/roster/ext', 'post', params, ['user_id', 'ext']);
+const rosterAlias = (params) => request('/roster/ext', 'post', params, ['user_id', 'alias']);
 const rosterId = (params) => request('/roster/id', 'get', params, ['user_id']); // 暂时没用
 const rosterList = (params) => request('/roster/list', 'get', params, []);
 const rosterListPost = (params) => request('/roster/list', 'post', params, ['list']);
@@ -169,6 +170,7 @@ export {
   rosterDecline,
   rosterDelete,
   rosterExt,
+  rosterAlias,
   rosterId,
   rosterList,
   rosterListPost,

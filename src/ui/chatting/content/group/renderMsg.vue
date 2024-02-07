@@ -9,7 +9,6 @@
       <div class="contentFrame">
         <p class="username" v-if="!isSelf">{{ userObj.username }}</p>
         <div :class="{ user_content: true, self: isSelf, roster: !isSelf }">
-          <div class="c_content" v-html="message.mentionStr" v-if="message.mentionStr"></div>
           <div class="c_content_more">
             <div class="c_content_text_more" v-if="message.type === 'text'">
               <span class="c_ext_title" v-if="isMarkdown" @click="changeShowMarkdownFormat">{{ showMarkdownTitle }}</span>
@@ -26,7 +25,7 @@
               </div>
             </el-popover>
           </div>
-          <div class="c_content" v-if="!message.mentionStr" :style="{ 'padding-bottom': showMarkdown ? '0px' : '' }">
+          <div class="c_content" :style="{ 'padding-bottom': showMarkdown ? '0px' : '' }">
             <div v-if="message.type === 'text'">
               <div v-if="showMarkdown" v-html="showMarkdownContent" class="c_markdown" />
               <div v-else>
@@ -140,7 +139,7 @@ export default {
       this.calculateContent(this.message.content);
     }
 
-    if (this.message.ext && this.message.ext.length && this.isAIStreamFinish(this.message.ext)) {
+    if (!this.message.isHistory && this.message.ext && this.message.ext.length && this.isAIStreamFinish(this.message.ext)) {
       if (this.showMarkdown) {
         this.calculateMarkdownAppend(this.message.content, this.message.ext);
       }
@@ -157,7 +156,7 @@ export default {
   },
   props: ['message'],
   computed: {
-    ...mapGetters('content', ['getSid', 'getMessageTime']),
+    ...mapGetters('content', ['getSid', 'getMessageTime', 'getMemberList']),
     timeMessage() {
       let { timestamp } = this.message;
       timestamp = toNumber(timestamp);
@@ -194,8 +193,13 @@ export default {
       const umaps = this.im.rosterManage.getAllRosterDetail();
       const fromUid = toNumber(this.message.from);
       const fromUserObj = umaps[fromUid] || {};
-      let username = fromUserObj.username || '';
-
+      let username = '';
+      for (let i = 0; i < this.getMemberList.length; i++) {
+        if (this.getMemberList[i].user_id === fromUid) {
+          username = this.getMemberList[i].display_name;
+          break;
+        }
+      }
       let avatar = this.getImage({ url: fromUserObj.avatar, type: 'group' });
       if (fromUid === cuid) {
         username = '我';
@@ -428,6 +432,8 @@ export default {
           this.showAppendContent = content;
           this.showMarkdown = true;
         }
+      } else {
+        this.showMarkdown = false;
       }
       this.content = content;
     },
@@ -554,7 +560,7 @@ export default {
         this.showTotalContent = this.showContent;
         this.showMarkdownContent = this.parseMarkdownContent(this.showContent);
       }
-      if (message.ext && message.ext.length && this.isAIStream(message.ext)) {
+      if (!message.isHistory && message.ext && message.ext.length && this.isAIStream(message.ext)) {
         if (this.isMarkdown) {
           this.showAppendContent = message.content.slice(this.showTotalContent.length);
           this.calculateMarkdownAppend(message.content, message.ext, true);

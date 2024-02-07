@@ -151,11 +151,22 @@ const groupAddMemberLogic = (group_id, uids, isNotice, replace) => {
 
     const arr = [];
     const allRosterInfos = rosterStore.getAllRosterInfos();
+    const uid = infoStore.getUid();
     res.forEach((item) => {
       if (!allRosterInfos[item.user_id] || !allRosterInfos[item.user_id].username) {
         arr.push(item.user_id);
       } else {
-        item.display_name = item.display_name || allRosterInfos[item.user_id].username;
+        if (item.user_id != uid) {
+          item.display_name =
+            allRosterInfos[item.user_id].alias ||
+            item.display_name ||
+            allRosterInfos[item.user_id].nick_name ||
+            allRosterInfos[item.user_id].username ||
+            allRosterInfos[item.user_id].user_id;
+        } else {
+          item.display_name = item.display_name || allRosterInfos[item.user_id].nick_name || allRosterInfos[item.user_id].username || allRosterInfos[item.user_id].user_id;
+        }
+
         item.avatar = allRosterInfos[item.user_id].avatar;
       }
     });
@@ -168,7 +179,16 @@ const groupAddMemberLogic = (group_id, uids, isNotice, replace) => {
         const allRosterInfos = rosterStore.getAllRosterInfos();
         res = res.map((sitem) => {
           if (!sitem.display_name) {
-            sitem.display_name = sitem.display_name || allRosterInfos[sitem.user_id].username;
+            if (sitem.user_id != uid) {
+              sitem.display_name =
+                allRosterInfos[sitem.user_id].alias ||
+                sitem.display_name ||
+                allRosterInfos[sitem.user_id].nick_name ||
+                allRosterInfos[sitem.user_id].username ||
+                allRosterInfos[sitem.user_id].user_id;
+            } else {
+              sitem.display_name = sitem.display_name || allRosterInfos[sitem.user_id].nick_name || allRosterInfos[sitem.user_id].username || allRosterInfos[sitem.user_id].user_id;
+            }
           }
 
           sitem.avatar = allRosterInfos[sitem.user_id].avatar;
@@ -307,6 +327,10 @@ bind('imGetRecent', (idx) => {
 
 bind('imGroupMessage', (meta) => {
   const meta_cus = metaToCustomer(meta);
+  if (meta.isHistory) {
+    meta_cus.isHistory = true;
+  }
+
   messageStore.saveGroupMessage(meta_cus);
   meta_cus.toType = 'group';
   recentStore.saveRecent(meta_cus);
@@ -479,8 +503,16 @@ bind('imRosterUnbaned', (meta) => {
 bind('imRosterInfoUpdated', (meta) => {
   //roster 信息修改
   const { payload } = meta;
-  const { from, content = '{}' } = payload;
+  const { from, to = [], content = '{}' } = payload;
+  const uid = infoStore.getUid();
   const fromUid = toNumber(from.uid);
+  let rosterId = 0;
+  if (fromUid === uid) {
+    rosterId = toNumber(to[0].uid);
+  } else {
+    rosterId = fromUid;
+  }
+
   let info = {};
   try {
     info = JSONBigString.parse(content);
@@ -489,9 +521,9 @@ bind('imRosterInfoUpdated', (meta) => {
   }
 
   if (Object.keys(info).length) {
-    let sinfo = Object.assign({}, rosterStore.getRosterInfo(fromUid), info);
+    let sinfo = Object.assign({}, rosterStore.getRosterInfo(rosterId), info);
     rosterStore.saveRosterInfo([sinfo]);
-    fire('onRosterInfoUpdate');
+    fire('onRosterInfoUpdate', [fromUid]);
     fire('onRosterListUpdate');
   }
 });
@@ -879,7 +911,8 @@ bind('imGroupUnbaned', (meta) => {
 });
 bind('imGroupInfoUpdated', (meta) => {
   const { payload } = meta;
-  const { gid, content = '{}' } = payload;
+  const { gid, from, content = '{}' } = payload;
+  const memberId = toNumber(from.uid);
   const groupId = toNumber(gid.uid);
   let info = {};
   try {
@@ -888,9 +921,13 @@ bind('imGroupInfoUpdated', (meta) => {
     //
   }
   if (Object.keys(info).length) {
-    let sinfo = Object.assign({}, groupStore.getGroupInfo(groupId), info);
-    groupStore.saveGroupInfo([sinfo]);
-    fire('onGroupListUpdate');
+    if (info.property === 'display_name' && info.display_name) {
+      groupAddMemberLogic(groupId, memberId, false);
+    } else {
+      let sinfo = Object.assign({}, groupStore.getGroupInfo(groupId), info);
+      groupStore.saveGroupInfo([sinfo]);
+      fire('onGroupListUpdate');
+    }
     // fire('onGroupInfoUpdated', meta);
   }
   // messageStore.saveGroupMessage(meta);
@@ -975,6 +1012,7 @@ const appendRosterMessageContent = (meta, appendedContent, config, ext, editTime
         custom.appendExt = ext;
       }
       messageStore.saveRosterMessage(custom);
+      recentStore.saveRecent(custom);
       changed = true;
     }
   }
@@ -1031,6 +1069,7 @@ const replaceRosterMessage = (meta, content, config, ext, editTimestamp) => {
     let custom = replaceMessage(meta, content, config, ext, editTimestamp);
     if (custom) {
       messageStore.saveRosterMessage(custom);
+      recentStore.saveRecent(custom);
       changed = true;
     }
   }
@@ -1136,6 +1175,7 @@ const appendGroupMessageContent = (meta, appendedContent, config, ext, editTimes
         custom.appendExt = ext;
       }
       messageStore.saveGroupMessage(custom);
+      recentStore.saveRecent(custom);
       changed = true;
     }
   }
@@ -1148,6 +1188,7 @@ const replaceGroupMessage = (meta, content, config, ext, editTimestamp) => {
     let custom = replaceMessage(meta, content, config, ext, editTimestamp);
     if (custom) {
       messageStore.saveGroupMessage(custom);
+      recentStore.saveRecent(custom);
       changed = true;
     }
   }

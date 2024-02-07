@@ -57,7 +57,7 @@ const recentStore = {
     const index = allRecents.findIndex((item) => item.type === toType && item.id === savedUid);
     if (index > -1) {
       let item = allRecents[index];
-      if (timestamp > item.timestamp || type === 'rtc') {
+      if (timestamp > item.timestamp || content !== item.content) {
         updateRecent = true;
         allRecents.splice(index, 1);
       } else {

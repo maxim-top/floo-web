@@ -47,7 +47,11 @@ export default {
   computed: {
     ...mapGetters('content', ['getGroupInfo', 'getSid']),
     groupName() {
-      return this.getGroupInfo.name;
+      let name = this.getGroupInfo.name;
+      if (!name) {
+        this.$store.dispatch('content/actionUpdateGroup');
+      }
+      return name;
     }
   },
   methods: {

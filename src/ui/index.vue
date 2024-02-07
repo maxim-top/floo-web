@@ -46,9 +46,29 @@ export default {
     };
   },
   mounted() {
-    this.loadIntent();
-    this.appid = this.retrieveAppId();
-    this.$store.dispatch('actionChangeAppID', this.appid);
+    let that = this;
+    window.addEventListener('message', function (event) {
+      if (event.origin.startsWith('https://www.lanyingim.com') || event.origin.startsWith('https://lanying.link') || event.origin.startsWith('https://link.lanyingim.com')) {
+        if (event.data) {
+          let data = JSON.parse(event.data);
+          if (data.type === 'lanying_link_support_user' && data.data) {
+            try {
+              let info = JSON.parse(data.data);
+              that.saveLoginInfo({ username: info.username, password: info.password }, info.appid);
+            } catch (ex) {
+              console.error('Can not parse info in lanying_link_support_user');
+            }
+          }
+        }
+      }
+    });
+    setTimeout(() => {
+      this.loadIntent();
+      setTimeout(() => {
+        this.appid = this.retrieveAppId();
+        this.$store.dispatch('actionChangeAppID', this.appid);
+      }, 200);
+    }, 100);
   },
   watch: {
     getAppID: {
@@ -156,7 +176,11 @@ export default {
         loginSuccess: () => {
           that.$store.dispatch('login/actionChangeAppStatus', that.intent.action === 'support' ? 'support' : 'chatting');
           that.maybeRedirectToIntentPage();
+          that.maybeFeedbackLoginUser();
           that.maybeLaunchWXMP();
+          let info = that.getLoginInfo();
+          info.user_id = that.getIM().userManage.getUid();
+          that.saveLoginInfoList(info);
           // this.bindDeviceToken( device_token, notifier_name );
         },
         loginFail: (msg) => {
@@ -170,10 +194,13 @@ export default {
               if ('relogin' == desc) {
                 console.log('Token失效，尝试自动登录中');
                 const info = that.getLoginInfo();
-                if (info.name && autoLoginTimes < AUTO_LOGIN_TIMES_MAX) {
+                if (info.username && autoLoginTimes < AUTO_LOGIN_TIMES_MAX) {
                   console.log('Token失效，尝试自动登录中:', autoLoginTimes);
                   setTimeout(() => {
-                    that.getIM().login(info);
+                    that.getIM().login({
+                      name: info.username,
+                      password: info.password
+                    });
                   }, autoLoginTimes * AUTO_LOGIN_DELAY);
                   autoLoginTimes++;
                 } else {
@@ -337,6 +364,18 @@ export default {
       }
     },
 
+    switchLogin(info) {
+      this.imLogout();
+      this.saveLoginInfo(
+        {
+          username: info.username,
+          password: info.password
+        },
+        info.app_id
+      );
+      this.$store.dispatch('actionChangeAppID', info.app_id);
+    },
+
     imLogout() {
       let currentUrl = new URL(window.location.href);
       currentUrl.search = '';
@@ -369,6 +408,43 @@ export default {
     removeLoginInfo() {
       window.localStorage.removeItem('lanying_im_logininfo');
     },
+    saveLoginInfoList(info) {
+      const list = window.localStorage.getItem('lanying_im_logininfo_list') || '';
+      let infoList = [];
+      try {
+        if (info && info.app_id && info.username) {
+          if (list.length) {
+            infoList = JSONBigString.parse(list);
+          }
+          if (infoList.length) {
+            infoList = infoList.filter((item) => {
+              return item.app_id !== info.app_id || item.username !== info.username;
+            });
+          }
+          infoList.unshift(info);
+          window.localStorage.setItem('lanying_im_logininfo_list', JSONBigString.stringify(infoList));
+        }
+      } catch (ex) {
+        console.error('Can not parse info list json: ', list);
+        this.removeLoginInfoList();
+      }
+    },
+    getLoginInfoList() {
+      const list = window.localStorage.getItem('lanying_im_logininfo_list') || '';
+      let infoList = [];
+      try {
+        if (list.length) {
+          infoList = JSONBigString.parse(list);
+        }
+      } catch (ex) {
+        console.error('Can not parse info list json: ', list);
+        this.removeLoginInfoList();
+      }
+      return infoList;
+    },
+    removeLoginInfoList() {
+      window.localStorage.removeItem('lanying_im_logininfo_list');
+    },
     saveAppId(appid) {
       window.localStorage.setItem('lanying_im_appid', appid);
     },
@@ -381,14 +457,27 @@ export default {
       let password = '' + new Date().getTime() + Math.floor(Math.random() * 1000000000) + Math.floor(Math.random() * 1000000000);
       let cid = this.intent.uid;
       let that = this;
-      im.userManage.asyncRegisterAnonymous({ username, password, cid }).then((res) => {
-        username = res.username;
-        that.saveLoginInfo({ username, password }, that.appid);
-        im.login({
-          name: username,
-          password: password
+      im.userManage
+        .asyncRegisterAnonymous({ username, password, cid })
+        .then((res) => {
+          username = res.username;
+          that.saveLoginInfo({ username, password }, that.appid);
+          im.login({
+            name: username,
+            password: password
+          });
+        })
+        .catch((err) => {
+          if (err && err.code) {
+            console.log('用户注册失败 code = ' + err.code + ' : ' + err.message);
+            if (err.code === 40002) {
+              that.$store.dispatch('login/actionChangeAppStatus', that.intent.action === 'support' ? 'support' : 'chatting');
+              this.alert('当前APP用户数已达上限，请使用已有账号登录或联系管理员开通商业版');
+            }
+          } else {
+            console.log('asyncRegisterAnonymous request error, please retry later: ', err);
+          }
         });
-      });
     },
     loadIntent() {
       let params = new URL(document.location).searchParams;
@@ -408,6 +497,14 @@ export default {
         this.intent.hasParseLink = false;
         this.intent.action = this.intent.action ? this.intent.action : 'support';
       }
+      if (params.get('action') !== 'chat') {
+        parent.postMessage(
+          JSON.stringify({
+            type: 'lanying_link_fetch_user'
+          }),
+          '*'
+        );
+      }
     },
     maybeRedirectToIntentPage() {
       if (this.intent.action === 'chat' || this.intent.action === 'support') {
@@ -417,6 +514,22 @@ export default {
           type: 'rosterchat'
         });
         this.$store.dispatch('content/actionSetIntentMessage', this.intent.text);
+      }
+    },
+    maybeFeedbackLoginUser() {
+      if (this.intent.action !== 'chat') {
+        const loginInfo = this.getLoginInfo();
+        parent.postMessage(
+          JSON.stringify({
+            type: 'lanying_link_feedback_support_user',
+            data: JSON.stringify({
+              username: loginInfo.username,
+              password: loginInfo.password,
+              appid: loginInfo.app_id
+            })
+          }),
+          '*'
+        );
       }
     },
     needLaunch() {
@@ -490,7 +603,7 @@ export default {
       x.innerHTML = msg;
       setTimeout(function () {
         x.className = x.className.replace('show', '');
-      }, 3000);
+      }, 2500);
     }
   }
 };

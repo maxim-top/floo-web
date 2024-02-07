@@ -3,7 +3,8 @@
     <div class="attach">
       <div class="mentionList" v-if="this.filteredMentionRosters.length > 0">
         <div :key="roster.user_id" @click="clickMemberListHander(roster.user_id)" class="mentionItem" v-for="roster in this.filteredMentionRosters">
-          {{ roster.display_name }}
+          <img :src="rImage(roster.avatar)" class="avatar" />
+          <span class="name">{{ roster.display_name }}</span>
         </div>
       </div>
       <input @change="fileChangeHandler" ref="fileRef" type="file" />
@@ -12,7 +13,7 @@
       <span v-popover:tooltip.top="'发送位置'" @click="locationClickHandler" class="ico location"></span>
     </div>
     <div class="input">
-      <textarea @keydown="textareaKeyDown" @keyup="textKeyUp" class="input_text" placeholder="Type a message!" v-model="message" wrap="hard"></textarea>
+      <textarea @keydown="textareaKeyDown" @keyup="textKeyUp" class="input_text" v-model="message" wrap="hard"></textarea>
     </div>
   </div>
 </template>
@@ -76,6 +77,13 @@ export default {
         });
       }
       this.filteredMentionRosters = [].concat(ret);
+      console.log('filterMemberList');
+      console.log(this.filteredMentionRosters);
+    },
+    rImage(avatar) {
+      return this.im.sysManage.getImage({
+        avatar
+      });
     },
     calcMentionIds() {
       if (!this.message) return;

@@ -5,7 +5,7 @@
       <div class="list" v-show="rosterShow">
         <div @click="touchRoster(roster.user_id)" class="item" v-bind:key="roster.user_id" v-for="roster in getRosterList">
           <img :src="roster.avatar" class="avatar" />
-          <span class="name">{{ roster.nick_name || roster.username || roster.user_id }}</span>
+          <span class="name">{{ roster.alias || roster.nick_name || roster.username || roster.user_id }}</span>
         </div>
       </div>
     </div>
@@ -83,6 +83,9 @@ export default {
       });
     },
     touchGroup(group_id) {
+      this.$store.dispatch('content/actionPreOpenGroup', {
+        sid: group_id
+      });
       this.$store.dispatch('content/actionSetType', {
         sid: group_id,
         type: 'groupinfo'

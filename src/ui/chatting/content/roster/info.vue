@@ -14,6 +14,16 @@
       <p class="lr">{{ rosterName }}</p>
     </div>
 
+    <div class="line">
+      <span class="ll">用户昵称</span>
+      <p class="lr">{{ nickName }}</p>
+    </div>
+
+    <div class="line">
+      <span class="ll">用户别名</span>
+      <p @click="setRosterAlias" class="lr">{{ alias }}</p>
+    </div>
+
     <div @click="chatRemoveHandler" class="logout mt15" v-if="isFriend">删除好友</div>
     <div @click="addFriendHandler" class="logout mt15" v-else>添加好友</div>
     <div @click="chatClickHandler" class="logout mt15" v-if="isFriend">开始聊天</div>
@@ -34,7 +44,7 @@ export default {
     this.refreshUserInfo(this.getSid);
 
     this.$store.getters.im.on('onRosterInfoUpdate', (ids) => {
-      if (ids.has(this.getSid)) {
+      if (Array.isArray(ids) && ids.includes(this.getSid)) {
         this.refreshUserInfo(this.getSid);
       }
     });
@@ -49,7 +59,13 @@ export default {
     ...mapGetters('content', ['getSid']),
     ...mapGetters('contact', ['getRosterList']),
     rosterName() {
-      return this.userInfo.nick_name || this.userInfo.username;
+      return this.userInfo.username;
+    },
+    alias() {
+      return this.userInfo.alias;
+    },
+    nickName() {
+      return this.userInfo.nick_name;
     },
     token() {
       return this.$store.getters.im.userManage.getToken();
@@ -68,6 +84,23 @@ export default {
         });
         this.userInfo = res;
       });
+    },
+    setRosterAlias() {
+      const im = this.$store.getters.im;
+      this.$prompt('请输入别名', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消'
+      })
+        .then(({ value }) => {
+          if (!value) return;
+          im.rosterManage.asyncUpdateRosterAlias({ user_id: this.getSid, alias: value }).then(() => {
+            this.$store.dispatch('content/actionUpdateRoster');
+            this.$store.dispatch('contact/actionGetConversationList');
+            this.$store.dispatch('contact/actionLazyGetRosterList');
+            alert('修改成功');
+          });
+        })
+        .catch(() => {});
     },
     chatRemoveHandler() {
       this.$store.getters.im.rosterManage.asyncDeleteRoster({ user_id: this.getSid }).then(() => {

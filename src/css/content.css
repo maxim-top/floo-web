@@ -51,6 +51,7 @@
 .content .header .header_items .name {
   text-overflow: ellipsis;
   overflow: hidden;
+  white-space: nowrap;
   max-width: 33.3%;
 }
 
@@ -201,6 +202,10 @@
   color: #000;
   padding: 0 0 5px 10px;
   margin: 0;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 33.3%;
 }
 
 .self .contentFrame .user_content {
@@ -236,20 +241,20 @@
 }
 
 .content .c_content table {
-  display: block;
   overflow-x: auto;
   border-collapse: collapse;
   background-color: #fafafa;
+  margin-bottom: 12px;
 }
 
 .content .c_content table,
-th,
-td {
+.content .c_content th,
+.content .c_content td {
   border: 1px solid gray;
 }
 
 .content .c_content th,
-td {
+.content .c_content td {
   padding-left: 5px;
   padding-right: 5px;
   min-width: 50px;
@@ -402,12 +407,44 @@ td {
 
 .content .inputer_frame .attach .mentionList {
   position: absolute;
-  width: 150px;
+  min-width: 160px;
   height: 200px;
   top: -180px;
   left: 0;
-  background: orange;
-  overflow-y: auto;
+  background: white;
+  overflow-x: hidden;
+  white-space: nowrap;
+  border-radius: 10px;
+  padding: 5px;
+}
+
+.content .inputer_frame .attach .mentionList .mentionItem {
+  line-height: 30px;
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+}
+
+.content .inputer_frame .attach .mentionList .mentionItem:hover {
+  line-height: 30px;
+  display: flex;
+  align-items: center;
+  background: #eaeaea;
+}
+
+.content .inputer_frame .attach .mentionList .mentionItem .avatar {
+  width: 24px;
+  height: 24px;
+  overflow: hidden;
+  padding-left: 3px;
+  border-radius: 3px;
+  background-size: 24px 24px;
+}
+
+.content .inputer_frame .attach .mentionList .mentionItem .name {
+  padding-left: 5px;
+  width: 125px;
+  overflow: hidden;
 }
 
 .content .inputer_frame .input {
@@ -470,7 +507,7 @@ td {
   width: 200px;
   border-left: 1px solid #eee;
   height: 75%;
-  margin-top: 38px;
+  margin-top: 40px;
   background: white;
   box-sizing: border-box;
   border-bottom-right-radius: 10px;
@@ -514,30 +551,38 @@ td {
 }
 
 .content .chat-index .group_memberlist .gm_list {
-  height: 100%;
+  height: calc(100% - 50px);
   overflow-y: auto;
   margin-top: 10px;
 }
 
-.content .chat-index .group_memberlist .gm_list .item {
+.content .chat-index .group_memberlist .gm_list .gm_scroll_list {
+  height: calc(100% - 10px);
+  overflow-y: auto;
+}
+
+.content .chat-index .group_memberlist .gm_list .gm_scroll_list .item {
   height: 22px;
   padding: 5px 10px;
   line-height: 22px;
 }
 
-.content .chat-index .group_memberlist .gm_list .item .avatar {
+.content .chat-index .group_memberlist .gm_list .gm_scroll_list .item .avatar {
   width: 22px;
   height: 22px;
   float: left;
   border-radius: 3px;
 }
 
-.content .chat-index .group_memberlist .gm_list .item .name {
+.content .chat-index .group_memberlist .gm_list .gm_scroll_list .item .name {
   height: 22px;
   margin-left: 28px;
   line-height: 22px;
   font-size: 12px;
   color: #333;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 /********** user setting 部分 *********/
@@ -551,7 +596,7 @@ td {
   box-shadow: 0 2px 4px 2px rgba(199, 199, 199, 0.5);
   border-radius: 10px;
   width: 240px;
-  height: 330px;
+  height: 340px;
   padding: 22px 45px;
   left: 50%;
   top: 50%;
@@ -604,7 +649,9 @@ td {
   display: block;
   text-overflow: ellipsis;
   overflow: hidden;
+  white-space: nowrap;
   padding-left: 33.3%;
+  height: 35px;
 }
 
 .user_setting .line .switcher {
@@ -619,6 +666,41 @@ td {
   text-align: center;
   margin: 2px 0;
   color: white;
+}
+
+.user_setting .el-dialog__body {
+  padding: 10px 10px;
+}
+
+.user_setting .el-dialog__footer {
+  padding: 10px 20px 0px 20px;
+}
+
+.user_setting .account_form_item {
+  margin-bottom: 0;
+}
+
+.user_setting .el-table__cell {
+  padding: 5px 0;
+}
+
+.user_setting .el-form-item__content {
+  line-height: 15px;
+}
+
+.user_setting .account_name {
+  font-size: 14px;
+  display: block;
+  padding-bottom: 2px;
+}
+
+.user_setting .account_id {
+  font-size: 12px;
+  color: rgb(144, 144, 144);
+}
+
+.user_setting .account_form_item {
+  margin-bottom: 0;
 }
 
 .roster_notice_list {

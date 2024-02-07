@@ -44,6 +44,9 @@ export default {
     nameEnter() {
       this.$refs.password.focus();
     },
+    getApp() {
+      return this.$parent.$parent;
+    },
     submit() {
       if (!this.user.username || !this.user.password) {
         this.$message.error('请输入用户名或密码');
@@ -58,11 +61,23 @@ export default {
             password: this.user.password
           });
         })
-        .catch(() => {
-          im.login({
-            name: this.user.username,
-            password: this.user.password
-          });
+        .catch((err) => {
+          if (err && err.code) {
+            console.log('用户注册失败 code = ' + err.code + ' : ' + err.message);
+            if (err.code === 40002) {
+              this.getApp().alert('当前APP用户数已达上限，请使用已有账号登录或联系管理员开通商业版');
+            } else {
+              im.login({
+                name: this.user.username,
+                password: this.user.password
+              });
+            }
+          } else {
+            im.login({
+              name: this.user.username,
+              password: this.user.password
+            });
+          }
         });
     },
     switchLogin(type) {

@@ -1,5 +1,5 @@
 <template>
-  <div class="list" ref="listg">
+  <div class="list" ref="listg" v-if="!forceRefresh">
     <div @click="requestHistory" id="roster_history_btn">
       {{ queryingHistory ? '正在拉取历史消息，请稍候' : '点击拉取历史消息' }}
     </div>
@@ -104,7 +104,9 @@ export default {
   data() {
     return {
       queryingHistory: false,
-      scrollTimer: null
+      scrollTimer: null,
+      reloadList: [],
+      forceRefresh: false
     };
   },
 
@@ -139,6 +141,9 @@ export default {
           x.mentionStr = content;
         }
       });
+      if (msgs.length > 1 && msgs[0]) {
+        this.reloadFirstMessage(msgs[0]);
+      }
       return msgs;
     }
   },
@@ -154,6 +159,24 @@ export default {
     }
   },
   methods: {
+    reloadFirstMessage(message) {
+      let needReload = true;
+      for (let i = 0; i < this.reloadList.length; i++) {
+        if (this.reloadList[i] === this.getSid) {
+          needReload = false;
+          break;
+        }
+      }
+
+      if (this.$refs.vMessages && needReload) {
+        let msg = this.$refs.vMessages[0];
+        if (msg) {
+          this.reloadList.unshift(this.getSid);
+          msg.messageReplace(message);
+        }
+      }
+    },
+
     requireMessage() {
       setTimeout(() => {
         this.$store.dispatch('content/actionRequireMessage');
@@ -163,6 +186,10 @@ export default {
     deleteMessage(mid) {
       setTimeout(() => {
         this.$store.dispatch('content/actionDeleteMessage', mid);
+        this.forceRefresh = true;
+        this.$nextTick(() => {
+          this.forceRefresh = false;
+        });
       }, 200);
 
       !this.getMessages.length && this.scroll();

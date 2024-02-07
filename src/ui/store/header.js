@@ -43,6 +43,12 @@ const actions = {
   actionChangeHeaderUserProfile(context, profile) {
     context.commit('changeHeaderUserProfile', profile);
   },
+  actionGetHeaderProfile(context) {
+    const { rootState } = context;
+    rootState.im.userManage.asyncGetProfile(true).then((profile) => {
+      context.commit('changeHeaderUserProfile', profile);
+    });
+  },
   actionLazyGetHeaderProfile(context) {
     const { state, rootState } = context;
     if (!state.userProfile.user_id && !headerRequestFlag.profile) {

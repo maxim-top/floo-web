@@ -97,14 +97,28 @@ export default {
             type: 'group'
           });
           this.groupInfo = res;
+          const uid = this.$store.getters.im.userManage.getUid();
+          const user = this.getMemberList.find((x) => x.user_id === uid);
+          this.cardName = (user && (user.display_name || user.name)) || '';
+          if (!this.cardName) {
+            this.$store.getters.im.groupManage
+              .asyncGetMemberDisplayName({
+                group_id: newSid,
+                user_list: [uid]
+              })
+              .then((res) => {
+                if (!res || !res.length) {
+                  return;
+                }
+                res.forEach((item) => {
+                  this.cardName = item.display_name;
+                });
+              });
+          }
         })
         .catch((ex) => {
           this.serr(ex);
         });
-
-      const uid = this.$store.getters.im.userManage.getUid();
-      const user = this.getMemberList.find((x) => x.user_id === uid);
-      this.cardName = (user && (user.display_name || user.name)) || '';
     },
 
     chatClickHandler() {
@@ -218,9 +232,6 @@ export default {
         .catch(() => {});
     },
     cardModifyHandler() {
-      if (!this.isAdmin && !this.isOwner && !this.getGroupInfo.member_modify) {
-        return;
-      }
       this.$prompt('请输入群名片', '提示', {
         confirmButtonText: '确定',
         cancelButtonText: '取消'

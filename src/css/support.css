@@ -46,6 +46,7 @@
 .support-content .header .header_items .name {
   text-overflow: ellipsis;
   overflow: hidden;
+  white-space: nowrap;
   max-width: 33.3%;
 }
 
@@ -205,20 +206,20 @@
 }
 
 .support-content .c_content table {
-  display: block;
   overflow-x: auto;
   border-collapse: collapse;
   background-color: #fafafa;
+  margin-bottom: 12px;
 }
 
 .support-content .c_content table,
-th,
-td {
+.support-content .c_content th,
+.support-content .c_content td {
   border: 1px solid gray;
 }
 
 .support-content .c_content th,
-td {
+.support-content .c_content td {
   padding-left: 5px;
   padding-right: 5px;
   min-width: 50px;
@@ -331,7 +332,7 @@ td {
 }
 
 .support-content .inputer_frame .support_link span {
-  max-width: 40%;
+  max-width: calc(100% - 270px);
   margin-left: 5px;
   color: gray;
   position: absolute;
@@ -348,7 +349,7 @@ td {
   text: bold;
   position: absolute;
   right: 0;
-  max-width: 55%;
+  width: 260px;
   display: inline;
   text-overflow: ellipsis;
   overflow: hidden;

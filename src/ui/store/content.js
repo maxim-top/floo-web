@@ -160,6 +160,42 @@ const actions = {
       });
   },
 
+  actionPreOpenGroup(context, x) {
+    const { rootState } = context;
+    rootState.im.groupManage.openGroup(x.sid);
+    rootState.im.groupManage.readGroupMessage(x.sid);
+
+    rootState.im.groupManage
+      .asyncGetAdminList({ group_id: x.sid })
+      .then((res) => {
+        context.commit('setAdminList', res);
+      })
+      .catch((err) => {
+        console.error('Failed to GetAdminList, error:', err);
+      });
+
+    rootState.im.groupManage
+      .asyncGetGroupInfo(x.sid, true)
+      .then((res) => {
+        context.commit('setGroupInfo', res);
+      })
+      .catch((err) => {
+        console.error('Failed to GetGroupInfo, error:', err);
+      });
+  },
+
+  actionGetGroupAdminList(context, x) {
+    const { rootState } = context;
+    rootState.im.groupManage
+      .asyncGetAdminList({ group_id: x.sid })
+      .then((res) => {
+        context.commit('setAdminList', res);
+      })
+      .catch((err) => {
+        console.error('Failed to GetAdminList, error:', err);
+      });
+  },
+
   actionSetType(context, x) {
     const { state } = context;
     if (typeof x.sid === 'undefined' || x.sid < 0) {

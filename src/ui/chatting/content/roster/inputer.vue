@@ -9,16 +9,7 @@
       <span v-popover:tooltip.top="'语音通话'" @click="audioCallClickHandler" class="ico audiocall"></span>
     </div>
     <div class="input">
-      <textarea
-        @blur="inputBlurHandler"
-        @focus="inputFocusHandler"
-        @keydown="textareaKeyDown"
-        class="input_text"
-        placeholder="Type a message!"
-        v-model="message"
-        wrap="hard"
-        ref="inputTextRef"
-      ></textarea>
+      <textarea @blur="inputBlurHandler" @focus="inputFocusHandler" @keydown="textareaKeyDown" class="input_text" v-model="message" wrap="hard" ref="inputTextRef"></textarea>
     </div>
   </div>
 </template>

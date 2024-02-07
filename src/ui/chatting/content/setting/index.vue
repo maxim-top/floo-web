@@ -21,6 +21,10 @@
       <!-- <input type="text" v-model="nick_name" /><a @click="saveNick">保存</a> -->
     </div>
     <div class="line">
+      <span class="ll">切换账号</span>
+      <p @click="swtichAccount" class="lr">{{ ' > ' }}</p>
+    </div>
+    <div class="line">
       <span class="ll">好友验证</span>
       <i :class="['r', auth_mode ? 'switcher_on' : 'switcher_off']" @click="rosterSwitchTouch" class="switcher"></i>
     </div>
@@ -28,8 +32,27 @@
       <span class="ll">群邀请验证</span>
       <i :class="['r', group_confirm ? 'switcher_on' : 'switcher_off']" @click="groupSwitchTouch" class="switcher"></i>
     </div>
-
     <div @click="logout" class="logout">退出</div>
+    <el-dialog title="切换账号" :visible.sync="show_swtich_account" fullscreen :modal="false">
+      <el-table :data="this.getApp().getLoginInfoList()" style="width: 100%" border fit highlight-current-row @current-change="handleCurrentChange" height="240" size="mini">
+        <el-table-column label="账号列表">
+          <template slot-scope="props">
+            <el-form>
+              <el-form-item class="account_form_item">
+                <span class="account_name">{{ props.row.username + ' (AppID:' + props.row.app_id + ')' }}</span>
+              </el-form-item>
+              <el-form-item class="account_form_item">
+                <span class="account_id">{{ props.row.user_id }}</span>
+              </el-form-item>
+            </el-form>
+          </template>
+        </el-table-column>
+      </el-table>
+      <span slot="footer" class="dialog-footer">
+        <el-button @click="cancelChangeAccount()">取消</el-button>
+        <el-button type="primary" @click="changeAccount()">确定</el-button>
+      </span>
+    </el-dialog>
   </div>
 </template>
 
@@ -45,6 +68,8 @@ export default {
       nick_name: '',
       auth_mode: 0,
       group_confirm: false,
+      show_swtich_account: false,
+      switch_info: null,
       user_id: ''
     };
   },
@@ -120,6 +145,22 @@ export default {
     getApp() {
       return this.$parent.$parent.$parent;
     },
+    swtichAccount() {
+      this.show_swtich_account = true;
+    },
+    handleCurrentChange(info) {
+      this.switch_info = info;
+    },
+    cancelChangeAccount() {
+      this.show_swtich_account = false;
+      this.switch_info = null;
+    },
+    changeAccount() {
+      const loginInfo = this.getApp().getLoginInfo();
+      if (this.switch_info && (this.switch_info.app_id !== loginInfo.app_id || this.switch_info.username !== loginInfo.username)) {
+        this.getApp().switchLogin(this.switch_info);
+      }
+    },
     logout() {
       this.getApp().imLogout();
       this.$store.dispatch('login/actionChangeAppStatus', 'login');
@@ -187,6 +228,7 @@ export default {
           if (!value) return;
           im.userManage.asyncUpdateNickName({ nick_name: value }).then(() => {
             this.nick_name = value;
+            this.$store.dispatch('header/actionGetHeaderProfile');
             alert('修改成功');
           });
         })
