@@ -3,7 +3,7 @@ import { getItem, removeItem, saveItem } from './storeBase';
 
 const saveUid = (uid) => {
   if (uid) {
-    saveItem('key_user_id', uid + '', false);
+    saveItem('key_user_id', uid + '', false, -1, true);
   } else {
     log.error('uid error:', uid);
     throw new Error('uid is error ...');
@@ -11,13 +11,13 @@ const saveUid = (uid) => {
 };
 
 const getUid = () => {
-  let uid = getItem('key_user_id', false);
+  let uid = getItem('key_user_id', false, -1, true);
   if (uid) return uid - 0;
 };
 
 const saveAppid = (appid) => {
   if (appid) {
-    saveItem('key_app_id', appid + '', false);
+    saveItem('key_app_id', appid + '', false, -1, true);
   } else {
     log.error('Invalid appid :', appid);
     throw new Error('Invalid appid ...');
@@ -25,7 +25,7 @@ const saveAppid = (appid) => {
 };
 
 const getAppid = () => {
-  return getItem('key_app_id', false);
+  return getItem('key_app_id', false, -1, true);
 };
 
 const removeUid = () => {

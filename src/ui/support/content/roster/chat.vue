@@ -15,13 +15,13 @@ import Message from './renderMsg.vue';
 import { numToString, toNumber } from '../../../third/tools';
 
 import { mapGetters } from 'vuex';
-var JSONBigString = require('json-bigint');
 
 export default {
   name: 'RosterChat',
   mounted() {
     this.requireMessage();
     this.scroll();
+    this.$store.dispatch('forward/actionCancelForward', false);
 
     const im = this.$store.getters.im;
     if (!im) return;
@@ -126,7 +126,12 @@ export default {
           return false;
         }
         if (ext) {
-          const sext = JSON.parse(ext);
+          let sext = {};
+          try {
+            sext = JSON.parse(ext);
+          } catch (ex) {
+            //
+          }
           if (type == 'rtc' && sext && sext.callId) {
             return false;
           } else if (sext && sext.input_status) {
@@ -209,7 +214,12 @@ export default {
         }
         this.requireMessage();
         if (message.ext && !message.isHistory) {
-          let ext = JSONBigString.parse(message.ext);
+          let ext = {};
+          try {
+            ext = JSON.parse(message.ext);
+          } catch (ex) {
+            //
+          }
           if (ext && ext.ai && ext.ai.stream && !ext.ai.finish) {
             this.calculateScroll(message);
           } else {
@@ -242,7 +252,12 @@ export default {
 
     calculateScroll(message, maxInterval = 0) {
       if (message.ext) {
-        let ext = JSONBigString.parse(message.ext);
+        let ext = {};
+        try {
+          ext = JSON.parse(message.ext);
+        } catch (ex) {
+          //
+        }
         if (ext && ext.ai && ext.ai.stream) {
           this.scrollTimer && clearInterval(this.scrollTimer);
           let count = ext.ai.stream_interval * 5;

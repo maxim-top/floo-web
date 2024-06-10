@@ -49,8 +49,11 @@ const actions = {
           const retObj = res.map((i) => {
             const rosterInfo = allMaps[i] || { user_id: i };
             return {
-              name: rosterInfo.username,
-              id: rosterInfo.user_id
+              name: rosterInfo.alias || rosterInfo.nick_name || rosterInfo.username || rosterInfo.user_id,
+              id: rosterInfo.user_id,
+              avatar: rootState.im.sysManage.getImage({
+                avatar: rosterInfo.avatar
+              })
             };
           });
           context.commit('setRosterList', [].concat(retObj));
@@ -62,7 +65,11 @@ const actions = {
         const retObj = res.map((i) => {
           return {
             name: i.name,
-            id: i.group_id
+            id: i.group_id,
+            avatar: rootState.im.sysManage.getImage({
+              avatar: i.avatar,
+              type: 'group'
+            })
           };
         });
         // this.forwardMembers.groupps = [].concat(retObj);
@@ -86,7 +93,7 @@ const actions = {
     } else {
       fmsg.gid = xid;
     }
-    fmsg.mid = state.forwardMessage.id;
+    fmsg.message = state.forwardMessage;
     rootState.im.sysManage.forwardMessage(fmsg);
     context.commit('setShowForwardList', false);
   },

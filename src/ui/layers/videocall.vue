@@ -107,7 +107,12 @@ export default {
       const { ext, isHistory } = message;
       const callStatus = this.$store.state.im.rtcManage.getInCallStatus();
       if (!isHistory && callStatus && ext && message.from != this.$store.state.im.userManage.getUid()) {
-        const sext = JSON.parse(ext);
+        let sext = {};
+        try {
+          sext = JSON.parse(ext);
+        } catch (ex) {
+          //
+        }
         if (sext && sext.callId === this.getCallId) {
           if (Object.prototype.hasOwnProperty.call(sext, 'mute_video')) {
             this.peerCameraClose = sext.mute_video;

@@ -123,7 +123,7 @@ const metaToCustomer = (meta) => {
   let attach = null;
   let sconfig = null;
   try {
-    attach = JSONBigString.parse(attachment);
+    attach = JSON.parse(attachment);
   } catch (ex) {
     //
   }

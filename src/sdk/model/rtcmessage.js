@@ -16,7 +16,7 @@ function rtcmessage(params) {
   );
   typeof params.type !== 'undefined' && (this.type = params.type);
   typeof params.content !== 'undefined' && (this.content = params.content);
-  typeof params.media_server !== 'undefined' && (this.contmedia_serverent = params.media_server);
+  typeof params.media_server !== 'undefined' && (this.media_server = params.media_server);
 }
 
 rtcmessage.prototype = {

@@ -7,7 +7,7 @@
     <input @change="fileChangeHandler" ref="fileRef" type="file" />
     <div class="line">
       <span class="ll">手机号码</span>
-      <p @click="settingMobile" class="lr">{{ mobile || '点击设置' }}</p>
+      <p class="lr">{{ mobile || '点击设置' }}</p>
       <!-- <input type="text" v-model="mobile" /><a @click="saveMobile">保存</a> -->
     </div>
     <div class="line">
@@ -117,6 +117,7 @@ export default {
         })
         .then(() => {
           this.$store.dispatch('setting/actionGetProfile');
+          this.$store.dispatch('header/actionGetHeaderProfile');
           alert('更新头像完成');
         });
     },
@@ -162,9 +163,21 @@ export default {
       }
     },
     logout() {
-      this.getApp().imLogout();
-      this.$store.dispatch('login/actionChangeAppStatus', 'login');
-      this.$store.dispatch('header/actionChangeHeaderUserProfile', {});
+      this.$confirm('是否退出全部Web页面登录', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        center: true
+      })
+        .then(() => {
+          this.getApp().imLogout(false, true);
+          this.$store.dispatch('login/actionChangeAppStatus', 'login');
+          this.$store.dispatch('header/actionChangeHeaderUserProfile', {});
+        })
+        .catch(() => {
+          this.getApp().imLogout(false, false);
+          this.$store.dispatch('login/actionChangeAppStatus', 'login');
+          this.$store.dispatch('header/actionChangeHeaderUserProfile', {});
+        });
     },
     rosterSwitchTouch() {
       const auth_mode = this.auth_mode === 1 ? 0 : 1;

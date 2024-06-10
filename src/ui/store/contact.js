@@ -126,6 +126,7 @@ const actions = {
       const id = item.id;
       const content = item.content;
       const timestamp = item.timestamp;
+      const hasAt = item.hasAt;
       // const img = allRosterMap[id] && allRosterMap[id].avatar;
       let avatar = ''; //(img && this.client.signatureUrl(img, { expires: 600, process: 'image/resize,w_50' })) || '/image/roster.png';
       const unreadCount = item.type == 'roster' ? rootState.im.rosterManage.getUnreadCount(id) : rootState.im.groupManage.getUnreadCount(id);
@@ -154,6 +155,7 @@ const actions = {
         timestamp,
         avatar,
         unread,
+        hasAt,
         sid: id
       };
     });

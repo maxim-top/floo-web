@@ -1,6 +1,6 @@
 .support-content {
   background: #fafbfc;
-  height: calc(100% - 50px);
+  height: calc(100% - 49px);
   margin-left: 240px;
   overflow: hidden;
   margin-left: 0px;
@@ -143,6 +143,24 @@
   float: right;
 }
 
+.profile-name {
+  font-size: 18px;
+  font-weight: bold;
+  line-height: 24px;
+  color: black;
+}
+
+.profile-bio {
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.profile-tip {
+  font-size: 12px;
+  line-height: 20px;
+  color: black;
+}
+
 .roster .rosterInfo {
   float: left;
 }
@@ -153,7 +171,7 @@
   display: inline-flex;
   align-items: flex-end;
   max-width: 72%;
-  min-width: max(66.6%, 290px);
+  min-width: max(66.6%, 280px);
 }
 
 .roster .support-contentFrame {
@@ -161,7 +179,7 @@
   text-align: left;
   display: block;
   max-width: 72%;
-  min-width: max(66.6%, 290px);
+  min-width: max(66.6%, 280px);
 }
 
 .support-contentFrame .username {
@@ -241,6 +259,10 @@
   max-height: 200px;
 }
 
+.support-content .c_content .c_image {
+  padding-top: 14px;
+}
+
 .support-content .notice_frame {
   height: 60px;
   line-height: 60px;
@@ -277,6 +299,7 @@
 }
 
 .support-content .c_content .loc_frame {
+  padding-top: 14px;
   overflow: hidden;
 }
 
@@ -294,6 +317,7 @@
 }
 
 .support-content .c_content .audio_frame {
+  padding-top: 14px;
   overflow: hidden;
 }
 
@@ -542,10 +566,6 @@
   transform: translate(0, -18px); /* 逆时针旋转45度 */
 }
 
-.support-content .chat-index .inputer_frame .button:hover {
-  background: #47b6ff;
-}
-
 .im_send {
   width: 40px;
   height: 40px;
@@ -555,4 +575,16 @@
   transform: rotate(-45deg); /* 逆时针旋转45度 */
   transform-origin: center; /* 旋转中心点为容器中心 */
   /*filter: brightness(0) invert(0.9);*/
+}
+
+.im_tips {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  background-image: url(/image/im_tips.png);
+  background-size: 18px 18px;
+}
+
+.el-tooltip__popper {
+  border: none !important;
 }

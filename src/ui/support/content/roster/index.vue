@@ -19,7 +19,9 @@ export default {
       // status: "login"
     };
   },
-  mounted() {},
+  mounted() {
+    this.requireUserInfo();
+  },
   components: {
     Chat,
     Inputer
@@ -27,7 +29,11 @@ export default {
   computed: {
     ...mapGetters('content', ['getSid', 'getMessages', 'getMessageTime'])
   },
-  methods: {},
+  methods: {
+    requireUserInfo() {
+      this.$store.dispatch('content/actionUpdateRoster');
+    }
+  },
   watch: {
     getSid(a, b) {
       if (a !== b) {

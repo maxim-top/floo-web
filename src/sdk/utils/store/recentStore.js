@@ -2,13 +2,12 @@ import { toNumber } from '../tools';
 import { getItem, saveItem, removeItem } from './storeBase';
 import { fire } from '../cusEvent';
 import infoStore from './infoStore';
-var JSONBigString = require('json-bigint');
 
 const checkTyping = (message) => {
   const { ext } = message;
   let s = {};
   try {
-    s = JSONBigString.parse(ext);
+    s = JSON.parse(ext);
   } catch (ex) {
     //
   }
@@ -27,10 +26,10 @@ const checkTyping = (message) => {
 };
 
 const recentStore = {
-  saveRecent: (meta) => {
+  saveRecent: (meta, forceUpdate = false) => {
     if (checkTyping(meta)) return;
     // 改为 从 meta 取 from, to， roster 消息，from是要存的，group消息，to 是要存的
-    const { from, to, type, toType, attach, config, ext, timestamp } = meta;
+    const { from, to, type, toType, attach, config, ext, timestamp, isHistory } = meta;
     let content = meta.content;
     if (!content && !attach) {
       //两者都无，那就不是正常的消息了
@@ -52,16 +51,29 @@ const recentStore = {
       savedUid = toNumber(from);
     }
 
+    let hasAt = false;
+    if (config && config.mentionList && config.mentionList.indexOf(uid) >= 0 && !isHistory) {
+      hasAt = true;
+    }
+
     let updateRecent = false;
     const allRecents = getItem('key_recent_store') || [];
     const index = allRecents.findIndex((item) => item.type === toType && item.id === savedUid);
     if (index > -1) {
       let item = allRecents[index];
-      if (timestamp > item.timestamp || content !== item.content) {
+      if (toNumber(timestamp) > toNumber(item.timestamp)) {
         updateRecent = true;
         allRecents.splice(index, 1);
       } else {
         // history message don't need update recent message.
+        if (forceUpdate) {
+          updateRecent = true;
+          hasAt = false;
+          allRecents.splice(index, 1);
+        }
+      }
+      if (item.hasAt === true) {
+        hasAt = true;
       }
     } else {
       updateRecent = true;
@@ -73,7 +85,8 @@ const recentStore = {
         id: savedUid,
         content,
         ext,
-        timestamp
+        timestamp,
+        hasAt
       });
       saveItem('key_recent_store', allRecents);
       fire('recentlistUpdate');
@@ -86,10 +99,14 @@ const recentStore = {
       const allRecents = getItem('key_recent_store') || [];
       let content = '';
       let timestamp = '';
+      let hasAt = false;
+      let ext = {};
       const index = allRecents.findIndex((item) => item.type === type && item.id === xid);
       if (index > -1) {
         content = allRecents[index].content;
+        ext = allRecents[index].ext;
         timestamp = allRecents[index].timestamp;
+        hasAt = allRecents[index].hasAt;
         allRecents.splice(index, 1);
       }
 
@@ -97,11 +114,34 @@ const recentStore = {
         type,
         id: xid,
         content,
-        timestamp
+        ext,
+        timestamp,
+        hasAt
       });
       saveItem('key_recent_store', allRecents);
     });
     fire('recentlistUpdate');
+  },
+
+  updateRecentsAt: (id, status) => {
+    const allRecents = getItem('key_recent_store') || [];
+    const index = allRecents.findIndex((item) => item.id + '' === id + '');
+    if (index > -1) {
+      let item = allRecents[index];
+      if (item.hasAt !== status) {
+        allRecents.splice(index, 1);
+        allRecents.unshift({
+          type: item.type,
+          id: item.id,
+          content: item.content,
+          ext: item.ext,
+          timestamp: item.timestamp,
+          hasAt: status
+        });
+        saveItem('key_recent_store', allRecents);
+        fire('recentlistUpdate');
+      }
+    }
   },
 
   getRecents: () => {

@@ -24,7 +24,6 @@
   overflow: hidden;
   border-radius: 10px;
   background: white;
-  border: 1px solid goldenrod;
   box-shadow: 0 1px 10px 0 rgba(240, 242, 245, 0.98);
 }
 
@@ -247,7 +246,7 @@
 /** 添加好友的layer **/
 .add_friend_layer {
   position: fixed;
-  width: 400px;
+  width: min(400px, 80%);
   height: auto;
   left: 50%;
   top: 50%;
@@ -261,7 +260,37 @@
 .add_friend_layer .canvas {
   width: 200px;
   height: 200px;
-  margin-left: 88px;
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, 0);
+}
+
+.add_friend_layer .wxmp_mask {
+  width: 200px;
+  height: 200px;
+  left: 50%;
+  transform: translate(-50%, 0);
+  z-index: 2;
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+.add_friend_layer .wxmp_mask .mask_click {
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+  margin-top: 5px;
+  color: #47b6ff;
+}
+
+.add_friend_layer .wxmp_mask .mask_tips {
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
 }
 
 .image_layer {
@@ -614,4 +643,215 @@
   font-size: 14px;
   text-align: left;
   color: #e6e6e6;
+}
+
+.link_login {
+  position: fixed;
+  width: 360px;
+  height: 400px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.link_login .link_layer {
+  display: flex;
+  flex-direction: column;
+  -ms-flex-direction: column;
+  align-items: center;
+  background: #e6e6e6;
+}
+
+.link_close {
+  margin: 10px 10px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 18px;
+  line-height: 20px;
+  cursor: pointer;
+  background-size: 20px 20px;
+  filter: brightness(0) invert(1);
+}
+
+.link_login .close {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  width: 12px;
+  height: 12px;
+}
+
+.link_login .change_login {
+  position: absolute;
+  top: 8px;
+  right: 45px;
+  color: gray;
+  font-size: 12px;
+}
+
+.link_login .interaction {
+  position: absolute;
+  right: 60px;
+  top: 4px;
+  height: 8px;
+}
+
+.link_login .link_panel {
+  position: fixed;
+  width: 300px;
+  height: 300px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: white;
+}
+
+.link_login .link_panel .link_header {
+  line-height: 50px;
+  text-indent: 0px;
+}
+
+.link_login .link_panel .link_header .hint {
+  position: relative;
+  margin-top: 20px;
+  margin-left: 10px;
+  font-size: 14px;
+  text-align: left;
+  color: #e6e6e6;
+}
+
+.link_login .link_panel .link_header .edit_logo {
+  width: 12px;
+  height: 12px;
+  margin-left: 10px;
+  filter: brightness(0) invert(1);
+}
+
+.link_login .link_panel .link_header .link_qrcode {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  filter: brightness(0) invert(1);
+}
+
+.link_login .link_panel .layer_content {
+  padding: 20px 20px 10px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.link_login .link_panel .layer_content_wechat {
+  background: #e6e6e6;
+  width: 300px;
+  height: 300px;
+}
+
+.link_login .link_panel .layer_content .we_chat_tips {
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 5px;
+  line-height: 25px;
+}
+
+.link_login .link_panel .layer_content .canvas {
+  width: 160px;
+  height: 160px;
+}
+
+.link_login .link_panel .layer_content .canvas .woa_canvas {
+  position: relative;
+}
+
+.link_login .link_panel .layer_content .canvas .woa_canvas_mask {
+  width: 160px;
+  height: 160px;
+  z-index: 2;
+  position: absolute;
+  top: 50px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+.link_login .link_panel .layer_content .canvas .woa_canvas_mask .mask_click {
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+  margin-top: 5px;
+  color: #47b6ff;
+}
+
+.link_login .link_panel .layer_content .canvas .woa_canvas_mask .mask_tips {
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.link_login .link_panel .layer_content .we_chat_l_tips {
+  font-size: 11px;
+  color: gray;
+  text-align: center;
+}
+
+.link_login .link_panel .layer_content .logo {
+  height: 40px;
+  padding: 10px;
+  text-align: center;
+}
+
+.logo img {
+  height: 50px;
+}
+
+.link_login .link_panel .layer_content .tab {
+  line-height: 16px;
+  margin-top: 10px;
+  margin-bottom: 0px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.link_login .link_panel .layer_content .iptFrame {
+  border: 1px solid #e6e8eb;
+  border-radius: 4px;
+  height: 32px;
+  margin-left: 28px;
+  margin-right: 28px;
+  width: 100%;
+}
+
+.link_login .link_panel .layer_content .iptFrame input {
+  border: none;
+  width: 90%;
+  height: 90%;
+  font-size: 14px;
+  text-indent: 10px;
+  outline: none;
+}
+
+.link_login .link_panel .layer_content .loginBtn {
+  margin-left: 28px;
+  margin-right: 28px;
+  line-height: 38px;
+  background: #47b6ff;
+  border-radius: 4px;
+  font-size: 14px;
+  text-align: center;
+  margin-top: 20px;
+  color: white;
+  width: 100%;
+}
+
+.link_login .layer .tips {
+  position: absolute;
+  bottom: 20px;
+  font-size: 12px;
+  color: gray;
 }

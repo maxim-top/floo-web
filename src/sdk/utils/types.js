@@ -514,6 +514,18 @@
  */
 
 /**
+ * 成员退群通知
+ * @event onGroupLeaved
+ * @param {module:types~Meta} meta 群通知的消息内容
+ */
+
+/**
+ * 成员被踢出群通知
+ * @event onGroupKicked
+ * @param {module:types~Meta} meta 群通知的消息内容
+ */
+
+/**
  * 群申请被通过
  * @event onGroupApplyAccepted
  * @param {module:types~Meta} meta 群通知的消息内容

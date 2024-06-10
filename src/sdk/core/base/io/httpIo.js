@@ -114,10 +114,13 @@ const userSettings = () => request('/user/settings', 'get', {}, []);
 const userSettingsPost = (params) => request('/user/settings', 'post', params, ['user_id']);
 const userSounds = (params) => request('/user/sounds', 'post', params, ['value']);
 const userVibratory = (params) => request('/user/vibratory', 'post', params, ['value']);
+const userChangePassword = (params) => request('/user/change_password', 'post', params, ['old_password', 'new_password']);
 
 const bindDeviceToken = (params) => request('/user/token/bind', 'post', params, ['device_sn', 'device_token', 'notifier_name']);
 const unbindDeviceToken = (params) => request('/user/token/unbind', 'post', params, [], true);
 const userDelete = (params) => request('/user/delete', 'post', params, ['password']);
+const userDeviceList = (params) => request('/user/device/list', 'get', params, [], true);
+const userKick = (params) => request('/user/kick', 'post', params, ['device_sn']);
 
 // file upload
 const fileForward = (params) => request('/file/upload/forward', 'get', params, ['file_sign', 'access-token', 'to_id', 'to_type'], true);
@@ -136,6 +139,12 @@ const qrcode = (params) => request('/app/qr_code', 'get', params, []);
 const qrlogin = (params) => request('/app/qr_login', 'get', params, ['qr_code']);
 const qrcodeGroupsign = (params) => request('/app/qrcode/group_sign', 'get', params, ['group_id'], true);
 const qrcodeGroupinvite = (params) => request('/app/qrcode/group_invite', 'get', params, ['qr_info'], true);
+
+//wechat official accounts
+const woaqrcode = (params) => request('/app/official_account/qrcode', 'get', params, [], true);
+const woaqrcodestatus = (params) => request('/app/official_account/qrcode_status', 'get', params, ['qrcode_id'], true);
+const woaqrlogin = (params) => request('/app/official_account/login', 'get', params, ['code'], true);
+const woaIsBind = () => request('/app/official_account/is_bind', 'get');
 
 // wechat miniprogram
 const wxbind = (params) => request('/user/bind_openid', 'get', params, ['open_id'], true);
@@ -241,9 +250,12 @@ export {
   userSettingsPost,
   userSounds,
   userVibratory,
+  userChangePassword,
   bindDeviceToken,
   unbindDeviceToken,
   userDelete,
+  userDeviceList,
+  userKick,
   fileForward,
   asyncFileUpload,
   fileUploadAvatarUrl,
@@ -254,6 +266,10 @@ export {
   qrlogin,
   qrcodeGroupsign,
   qrcodeGroupinvite,
+  woaqrcode,
+  woaqrcodestatus,
+  woaqrlogin,
+  woaIsBind,
   wxbind,
   wxlogin,
   getStaticContact,

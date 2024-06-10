@@ -61,8 +61,16 @@ socketCls.prototype.send = function (data) {
 };
 
 bind('socketClsOnSignal', (content) => {
+  let sContent = null;
   if (that.readyState === 1) {
-    that.emit('message', JSONBigString.parse(content));
+    try {
+      sContent = JSONBigString.parse(content);
+    } catch (ex) {
+      //
+    }
+    if (sContent) {
+      that.emit('message', sContent);
+    }
   }
 });
 

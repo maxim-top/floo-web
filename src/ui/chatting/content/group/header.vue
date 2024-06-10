@@ -76,6 +76,7 @@ export default {
 
     closeMention() {
       this.mentionMessage = '';
+      this.$store.state.im.groupManage.consumeGroupAtStatus(this.getSid);
     }
     //finish
   }

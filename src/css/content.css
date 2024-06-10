@@ -409,7 +409,7 @@
   position: absolute;
   min-width: 160px;
   height: 200px;
-  top: -180px;
+  top: -190px;
   left: 0;
   background: white;
   overflow-x: hidden;
@@ -444,7 +444,9 @@
 .content .inputer_frame .attach .mentionList .mentionItem .name {
   padding-left: 5px;
   width: 125px;
+  text-overflow: ellipsis;
   overflow: hidden;
+  white-space: nowrap;
 }
 
 .content .inputer_frame .input {
@@ -737,12 +739,14 @@
   position: absolute;
   right: 0;
   top: 60px;
-  width: 140px;
-  background: #eee;
+  width: 180px;
+  background: white;
   line-height: 22px;
   max-height: 470px;
   overflow-y: auto;
-  padding-left: 15px;
+  padding: 5px;
+  white-space: nowrap;
+  border-radius: 10px;
 }
 
 .closer {
@@ -752,6 +756,37 @@
   top: 0;
   right: 0;
   font-size: 18px;
-  line-height: 20px;
+  line-height: 30px;
   cursor: pointer;
+}
+
+.forwardMemberList .forwardItem {
+  line-height: 30px;
+  display: flex;
+  align-items: center;
+  border-radius: 6px;
+}
+
+.forwardMemberList .forwardItem:hover {
+  line-height: 30px;
+  display: flex;
+  align-items: center;
+  background: #eaeaea;
+}
+
+.forwardMemberList .forwardItem .avatar {
+  width: 24px;
+  height: 24px;
+  overflow: hidden;
+  padding-left: 3px;
+  border-radius: 3px;
+  background-size: 24px 24px;
+}
+
+.forwardMemberList .forwardItem .name {
+  padding-left: 5px;
+  width: 135px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }

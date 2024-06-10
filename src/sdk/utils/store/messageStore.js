@@ -428,7 +428,12 @@ const messageStore = {
           ret--;
         }
         if (ext) {
-          const sext = JSON.parse(ext);
+          let sext = {};
+          try {
+            sext = JSON.parse(ext);
+          } catch (ex) {
+            //
+          }
           if (type == 'rtc' && sext && sext.callId) {
             ret--;
           }

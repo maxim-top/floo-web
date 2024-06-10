@@ -12,7 +12,6 @@ import * as io from './io/httpIo';
 import { metaToCustomer, numToString, toNumber, metaToRtcSignalCustomer } from '../../utils/tools';
 import { makeReadAllMessage, makeReadMessageAck, makeRosterRTCMessage } from './messageMaker';
 import { STATIC_MESSAGE_OPTYPE, STATIC_MESSAGE_TYPE, STATIC_MESSAGE_STATUS } from '../../utils/static';
-var JSONBigString = require('json-bigint');
 
 bind('imRostersGroupslistReady', (lists) => {
   const { rosters } = lists;
@@ -275,7 +274,7 @@ bind('imRosterMessage', (meta) => {
 
   let jext = {};
   try {
-    jext = JSONBigString.parse(ext);
+    jext = JSON.parse(ext);
   } catch (ex) {
     //
   }
@@ -515,7 +514,7 @@ bind('imRosterInfoUpdated', (meta) => {
 
   let info = {};
   try {
-    info = JSONBigString.parse(content);
+    info = JSON.parse(content);
   } catch (e) {
     //
   }
@@ -768,7 +767,7 @@ bind('imGroupKicked', (meta) => {
     // messageStore.saveGroupMessage(meta);
     groupDeleteMemberLogic(groupId, toUids); // 里边有fire
   }
-  // fire('onGroupKicked', meta);
+  fire('onGroupKicked', meta);
   // fire('onGroupListUpdate');
 });
 
@@ -916,7 +915,7 @@ bind('imGroupInfoUpdated', (meta) => {
   const groupId = toNumber(gid.uid);
   let info = {};
   try {
-    info = JSONBigString.parse(content);
+    info = JSON.parse(content);
   } catch (e) {
     //
   }
@@ -1001,14 +1000,25 @@ const appendRosterMessageContent = (meta, appendedContent, config, ext, editTime
       custom.appendedContent = appendedContent;
       custom.editTimestamp = editTimestamp;
       if (config) {
-        let rConfig = JSONBigString.parse(config);
+        let rConfig = {};
+        try {
+          rConfig = JSON.parse(config);
+        } catch (ex) {
+          //
+        }
         custom.config = mergeJson(custom.config, rConfig);
         custom.appendConfig = rConfig;
       }
       if (ext) {
-        let extension = JSONBigString.parse(custom.ext);
-        let rExtension = JSONBigString.parse(ext);
-        custom.ext = JSONBigString.stringify(mergeJson(extension, rExtension));
+        let extension = {};
+        let rExtension = {};
+        try {
+          extension = JSON.parse(custom.ext);
+          rExtension = JSON.parse(ext);
+        } catch (ex) {
+          //
+        }
+        custom.ext = JSON.stringify(mergeJson(extension, rExtension));
         custom.appendExt = ext;
       }
       messageStore.saveRosterMessage(custom);
@@ -1050,14 +1060,25 @@ const replaceMessage = (meta, content, config, ext, editTimestamp) => {
     custom.content = content;
   }
   if (config) {
-    let rConfig = JSONBigString.parse(config);
+    let rConfig = {};
+    try {
+      rConfig = JSON.parse(config);
+    } catch (ex) {
+      //
+    }
     custom.config = mergeJson(custom.config, rConfig);
     custom.replaceConfig = rConfig;
   }
   if (ext) {
-    let extension = JSONBigString.parse(custom.ext);
-    let rExtension = JSONBigString.parse(ext);
-    custom.ext = JSONBigString.stringify(mergeJson(extension, rExtension));
+    let extension = {};
+    let rExtension = {};
+    try {
+      extension = JSON.parse(custom.ext);
+      rExtension = JSON.parse(ext);
+    } catch (ex) {
+      //
+    }
+    custom.ext = JSON.stringify(mergeJson(extension, rExtension));
     custom.replaceExt = ext;
   }
   return custom;
@@ -1164,14 +1185,25 @@ const appendGroupMessageContent = (meta, appendedContent, config, ext, editTimes
       custom.appendedContent = appendedContent;
       custom.editTimestamp = editTimestamp;
       if (config) {
-        let rConfig = JSONBigString.parse(config);
+        let rConfig = {};
+        try {
+          rConfig = JSON.parse(config);
+        } catch (ex) {
+          //
+        }
         custom.config = mergeJson(custom.config, rConfig);
         custom.appendConfig = rConfig;
       }
       if (ext) {
-        let extension = JSONBigString.parse(custom.ext);
-        let rExtension = JSONBigString.parse(ext);
-        custom.ext = JSONBigString.stringify(mergeJson(extension, rExtension));
+        let extension = {};
+        let rExtension = {};
+        try {
+          extension = JSON.parse(custom.ext);
+          rExtension = JSON.parse(ext);
+        } catch (ex) {
+          //
+        }
+        custom.ext = JSON.stringify(mergeJson(extension, rExtension));
         custom.appendExt = ext;
       }
       messageStore.saveGroupMessage(custom);
@@ -1242,7 +1274,9 @@ const resetLastMessage = (uid, isGroup) => {
   }
 
   if (messages.length > 0) {
-    recentStore.saveRecent(messages[messages.length - 1]);
+    recentStore.saveRecent(messages[messages.length - 1], true);
+  } else {
+    recentStore.deleteRecentById(uid);
   }
 };
 
@@ -1252,9 +1286,9 @@ bind('onActionMessage', (meta) => {
   const cuid = infoStore.getUid() + '';
   const toUid = to ? numToString(to.uid) : 0;
   const fromUid = numToString(from.uid);
-  const messageUid = cuid + '' === fromUid + '' ? toUid : fromUid;
   const allGids = groupStore.getJoinedGroups();
-  const isGroup = allGids.indexOf(toUid - 0) != -1;
+  const isGroup = Array.isArray(allGids) ? allGids.indexOf(toUid - 0) != -1 : false;
+  const messageUid = isGroup ? toUid : cuid + '' === fromUid + '' ? toUid : fromUid;
   const editTimestamp = numToString(edit_timestamp || 0);
 
   if (type !== STATIC_MESSAGE_TYPE.OPER) return;
@@ -1286,6 +1320,7 @@ bind('onActionMessage', (meta) => {
       mid
     });
   } else if (opType === STATIC_MESSAGE_OPTYPE.DELETE) {
+    const isGroup = Array.isArray(allGids) ? allGids.indexOf(xid.uid - 0) != -1 : false;
     !isGroup && messageStore.deleteSingleRosterMessage(xid.uid, mid);
     isGroup && messageStore.deleteSingleGroupMessage(xid.uid, mid);
 

@@ -15,7 +15,10 @@
       <div class="last_msg_time">
         {{ formatTimeString(conversation.timestamp) }}
       </div>
-      <div class="last_msg">{{ conversation.content }}</div>
+      <div class="last_msg">
+        <span v-if="conversation.hasAt" class="at_tips">[有人@我]</span>
+        <span>{{ conversation.content }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -66,12 +69,15 @@ export default {
     },
 
     touchConversation(index) {
-      const conversation = this.getConversationList[index];
+      let conversation = this.getConversationList[index];
       this.$store.dispatch('header/actionChangeHeaderStatus', 'conversation');
       this.$store.dispatch('content/actionSetType', {
         sid: conversation.sid,
         type: conversation.type === 'group' ? 'groupchat' : 'rosterchat'
       });
+      if (conversation.type === 'group' && conversation.hasAt) {
+        this.$store.state.im.groupManage.consumeGroupAtStatus(conversation.sid);
+      }
     }
   }
 };

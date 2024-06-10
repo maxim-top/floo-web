@@ -63,6 +63,10 @@ const checkSuccess = (messageObj) => {
     const category = 'LICENSE';
     const desc = '超出 LICENSE 用户数限制，请购买更高规格服务。';
     fire('flooError', { category, desc });
+  } else if (code === STATIC_FRAME_ERROR_STATUS.FAIL) {
+    const category = 'FAIL';
+    const desc = reason;
+    fire('flooError', { category, desc });
   } else {
     const category = code;
     const desc = reason;

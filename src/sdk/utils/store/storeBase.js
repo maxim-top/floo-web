@@ -1,12 +1,16 @@
 import log from '../log';
 import { transferToLong } from '../tools';
-var JSONBigString = require('json-bigint');
 
 const PARTITION_NUMBER = 31;
 
 const getUid = () => {
-  let uid = window.localStorage.getItem('key_user_id');
-  if (uid) return uid - 0;
+  let uid = window.sessionStorage.getItem('key_user_id');
+  if (uid) {
+    return uid - 0;
+  } else {
+    uid = window.localStorage.getItem('key_user_id');
+    if (uid) return uid - 0;
+  }
   return;
 };
 
@@ -14,7 +18,7 @@ const partitionId = (key) => {
   return key % PARTITION_NUMBER;
 };
 
-const saveItem = (key, item, hasuid = true, partition_key = -1) => {
+const saveItem = (key, item, hasuid = true, partition_key = -1, sessionStore = false) => {
   if (typeof item === 'undefined' || typeof key === 'undefined') {
     log.error('localstorage save error:', key, item);
     return;
@@ -30,6 +34,9 @@ const saveItem = (key, item, hasuid = true, partition_key = -1) => {
   }
 
   if (typeof item === 'string') {
+    if (sessionStore) {
+      window.sessionStorage.setItem(skey, item);
+    }
     window.localStorage.setItem(skey, item);
     return;
   }
@@ -44,13 +51,18 @@ const saveItem = (key, item, hasuid = true, partition_key = -1) => {
   }
   try {
     const itemString = JSON.stringify(ret);
-    itemString && window.localStorage.setItem(skey, itemString);
+    if (itemString) {
+      if (sessionStore) {
+        window.sessionStorage.setItem(skey, itemString);
+      }
+      window.localStorage.setItem(skey, itemString);
+    }
   } catch (ex) {
     log.error('stringify error:', ex, skey, item);
   }
 };
 
-const getItem = (key, hasuid = true, partition_key = -1) => {
+const getItem = (key, hasuid = true, partition_key = -1, sessionStore = false) => {
   if (typeof key === 'undefined') {
     log.error('localstorage get error:', key);
     return;
@@ -65,11 +77,19 @@ const getItem = (key, hasuid = true, partition_key = -1) => {
     skey = skey + '_' + partitionId(partition_key);
   }
 
-  const itemString = window.localStorage.getItem(skey);
+  let itemString = null;
+  if (sessionStore) {
+    itemString = window.sessionStorage.getItem(skey);
+    if (!itemString) {
+      itemString = window.localStorage.getItem(skey);
+    }
+  } else {
+    itemString = window.localStorage.getItem(skey);
+  }
   if (!itemString) return undefined;
   let ret = itemString;
   try {
-    ret = JSONBigString.parse(itemString);
+    ret = JSON.parse(itemString);
   } catch (ex) {
     //
   }

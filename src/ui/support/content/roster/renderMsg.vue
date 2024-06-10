@@ -4,7 +4,25 @@
     <div class="timeline" v-if="timeMessage != ''">{{ timeMessage }}</div>
     <div :class="{ messageFrame: true, self: isSelf, roster: !isSelf }">
       <div class="rosterInfo">
-        <img :src="userObj.avatar" />
+        <div v-if="isSelf">
+          <el-popover placement="left-start" trigger="click" width="170" :visible-arrow="false" :append-to-body="false">
+            <div class="profile-name">{{ this.getUserProfile.nick_name || this.getUserProfile.username }}</div>
+            <div class="profile-bio">昵称：{{ this.getUserProfile.nick_name }}</div>
+            <div class="profile-bio">用户名：{{ this.getUserProfile.username }}</div>
+            <div class="profile-bio">ID: {{ this.getUserProfile.user_id }}</div>
+            <hr />
+            <div>
+              <span class="profile-tip">公开信息：</span>
+              <span class="profile-bio">{{ this.getUserProfile.public_info }}</span>
+            </div>
+            <div slot="reference">
+              <img :src="userObj.avatar" />
+            </div>
+          </el-popover>
+        </div>
+        <div v-else>
+          <img :src="userObj.avatar" />
+        </div>
       </div>
       <div class="support-contentFrame">
         <!--        <p class="username" v-if="!isSelf">{{ userObj.username }}</p>-->
@@ -18,7 +36,7 @@
               <div class="c_content_ext" v-if="showExt">ext: {{ message.ext }}</div>
             </div>
             <div v-if="message.type === 'image'">
-              <img :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
+              <img class="c_image" :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
             </div>
             <div @click="playAudio" class="audio_frame" v-if="message.type === 'audio'">
               <img class="audio" src="/image/audio.png" />
@@ -63,7 +81,6 @@ import { Marked } from '../../../third/marked.min.js';
 import { markedHighlight } from 'marked-highlight';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/atom-one-light.css';
-var JSONBigString = require('json-bigint');
 
 export default {
   name: 'RosterChat',
@@ -138,6 +155,7 @@ export default {
   props: ['message'],
   computed: {
     ...mapGetters('content', ['getSid', 'getMessageTime']),
+    ...mapGetters('header', ['getUserProfile']),
     timeMessage() {
       let { timestamp } = this.message;
       timestamp = toNumber(timestamp);
@@ -172,6 +190,7 @@ export default {
 
       if (fromUid === cuid) {
         username = '我';
+        avatar = this.im.sysManage.getImage({ avatar: this.getUserProfile.avatar });
       } else if (0 == fromUid) {
         username = this.system_roster.name;
         avatar = this.system_roster.avatar;
@@ -250,6 +269,12 @@ export default {
 
       // status will be unread / delivered / read
       return this.im.sysManage.getMessageStatus(cid, this.message.id);
+    }
+  },
+
+  watch: {
+    getUserProfile() {
+      this.userObj();
     }
   },
 
@@ -451,25 +476,38 @@ export default {
     },
 
     isAIStream(extension) {
-      let ext = JSONBigString.parse(extension);
-      if (ext && ext.ai && ext.ai.stream) {
-        return true;
-      } else {
+      try {
+        let ext = JSON.parse(extension);
+        if (ext && ext.ai && ext.ai.stream) {
+          return true;
+        } else {
+          return false;
+        }
+      } catch (ex) {
         return false;
       }
     },
 
     isAIStreamFinish(extension) {
-      let ext = JSONBigString.parse(extension);
-      if (ext && ext.ai && ext.ai.stream && !ext.ai.finish) {
-        return true;
-      } else {
+      try {
+        let ext = JSON.parse(extension);
+        if (ext && ext.ai && ext.ai.stream && !ext.ai.finish) {
+          return true;
+        } else {
+          return false;
+        }
+      } catch (ex) {
         return false;
       }
     },
 
     calculateAppend(content, extension, showAll = false) {
-      let ext = JSONBigString.parse(extension);
+      let ext = {};
+      try {
+        ext = JSON.parse(extension);
+      } catch (ex) {
+        //
+      }
       if (ext && ext.ai && ext.ai.stream && ext.ai.stream_interval) {
         this.appendTimer && clearInterval(this.appendTimer);
         //每一次计时周期增加一个字符展示。
@@ -504,7 +542,12 @@ export default {
     },
 
     calculateMarkdownAppend(content, extension, showAll = false) {
-      let ext = JSONBigString.parse(extension);
+      let ext = {};
+      try {
+        ext = JSON.parse(extension);
+      } catch (ex) {
+        //
+      }
       if (ext && ext.ai && ext.ai.stream && ext.ai.stream_interval) {
         this.appendMarkdownTimer && clearInterval(this.appendMarkdownTimer);
         //每一次计时周期增加一个字符展示。
@@ -526,7 +569,7 @@ export default {
             that.appendMarkdownTimer = null;
             that.showMarkdownContent = that.parseMarkdownContent(that.showTotalContent);
             if (showAll) {
-              that.showContent = that.content;
+              that.showContent = content;
             }
           } else {
             that.showTotalContent += that.showAppendContent.slice(0, count);
@@ -589,3 +632,13 @@ export default {
   }
 };
 </script>
+
+<style scoped>
+/deep/ .el-popover {
+  padding: 5px;
+}
+
+/deep/ .el-popper[x-placement^='left'] {
+  margin-right: 2px;
+}
+</style>

@@ -55,7 +55,15 @@ export default {
         this.expired = expired;
         this.qrcode = qr_code;
         this.qrurl = url;
-        QRCode.toCanvas(this.$refs.canvas, 'L_' + qr_code, { width: 200, margin: 0 }, function (/*err*/) {});
+        const info = {
+          info: {
+            qrcode: qr_code,
+            app_id: this.appId
+          },
+          action: 'login',
+          source: 'web'
+        };
+        QRCode.toCanvas(this.$refs.canvas, JSON.stringify(info), { width: 200, margin: 0 }, function (/*err*/) {});
         this.timerLogin();
         this.expTimer();
       });
@@ -66,15 +74,15 @@ export default {
       this.im.sysManage
         .asyncQrlogin({ qr_code: this.qrcode })
         .then((res) => {
-          const { password, user_id } = res;
-          if (!password || !user_id) {
+          const { password, username } = res;
+          if (!password || !username) {
             console.log('没登录，继续');
             this.timer = setTimeout(function () {
               _this.timerLogin();
             }, 1000);
           } else {
             console.log('登录了....');
-            _this.im.qrlogin({ password, user_id });
+            _this.im.login({ password, name: username });
           }
         })
         .catch(() => {

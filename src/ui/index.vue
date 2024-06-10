@@ -5,6 +5,8 @@
     <div id="lanying-snackbar"></div>
     <Chatting v-if="getAppStatus == 'chatting'" />
     <Support v-else-if="getAppStatus == 'support'" />
+    <Loading v-else-if="getAppStatus == 'loading'" />
+    <Skipping v-else-if="getAppStatus == 'skipping'" />
     <Login :appid="appid" :sdkok="sdkok" v-else />
     <Layers />
   </div>
@@ -14,9 +16,10 @@
 import Login from './login/index.vue';
 import Chatting from './chatting/index.vue';
 import Support from './support/index.vue';
+import Loading from './support/loading/index.vue';
+import Skipping from './support/skipping/index.vue';
 import Layers from './layers/index.vue';
 import { mapGetters } from 'vuex';
-var JSONBigString = require('json-bigint');
 
 // 您有两种方式使用 flooim：
 // 1. script 模式，你可以直接 import 后，使用 window.flooIM()
@@ -24,11 +27,13 @@ var JSONBigString = require('json-bigint');
 // import '../sdk/index';
 // 2. module 方式，import flooim 后，使用 flooim()
 import flooim from '../sdk/index';
+import CryptoJS from 'crypto-js';
 
 const AUTO_LOGIN_DELAY = 2000; // ms
 const AUTO_LOGIN_TIMES_MAX = 3;
 let autoLoginTimes = 0;
 const INIT_CHECK_TIMES_MAX = 20;
+const INIT_LOCAL_STORE_KEY = 'vCcjfL6fTO27zqVi';
 
 export default {
   name: 'index',
@@ -36,39 +41,45 @@ export default {
     Login,
     Chatting,
     Support,
+    Loading,
+    Skipping,
     Layers
   },
   data() {
     return {
       appid: '',
       sdkok: false,
-      intent: {}
+      intent: {},
+      autoSkip: true,
+      officialUser: false
     };
   },
   mounted() {
     let that = this;
     window.addEventListener('message', function (event) {
-      if (event.origin.startsWith('https://www.lanyingim.com') || event.origin.startsWith('https://lanying.link') || event.origin.startsWith('https://link.lanyingim.com')) {
-        if (event.data) {
-          let data = JSON.parse(event.data);
-          if (data.type === 'lanying_link_support_user' && data.data) {
-            try {
-              let info = JSON.parse(data.data);
-              that.saveLoginInfo({ username: info.username, password: info.password }, info.appid);
-            } catch (ex) {
-              console.error('Can not parse info in lanying_link_support_user');
-            }
+      if (event.data) {
+        let data = {};
+        try {
+          data = JSON.parse(event.data);
+        } catch (ex) {
+          //
+        }
+        if (data.type === 'lanying_link_support_user' && data.data) {
+          try {
+            let info = JSON.parse(data.data);
+            that.saveLoginInfo({ username: info.username, password: info.password }, info.appid);
+            that.officialUser = true;
+          } catch (ex) {
+            console.error('Can not parse info in lanying_link_support_user');
           }
         }
       }
     });
+    this.loadIntent();
     setTimeout(() => {
-      this.loadIntent();
-      setTimeout(() => {
-        this.appid = this.retrieveAppId();
-        this.$store.dispatch('actionChangeAppID', this.appid);
-      }, 200);
-    }, 100);
+      this.appid = this.retrieveAppId();
+      this.$store.dispatch('actionChangeAppID', this.appid);
+    }, 200);
   },
   watch: {
     getAppID: {
@@ -104,7 +115,7 @@ export default {
         this.saveAppId(this.appid);
 
         const im = this.getIM();
-        im && im.logout && im.logout();
+        im && im.logout && im.logout({ quitAllWeb: false });
 
         this.initFlooIM();
         this.waitForFlooReadyAndLogin(0);
@@ -170,6 +181,17 @@ export default {
       this.addIMListeners();
     },
 
+    flooFailError(desc) {
+      switch (desc) {
+        case 'exceed recall time limit':
+          this.alert('当前消息已经超出允许撤回时间');
+          break;
+        default:
+          this.alert('操作错误: ' + desc);
+      }
+      console.log('Floo Error: FAIL ' + desc);
+    },
+
     addIMListeners() {
       let that = this;
       this.getIM().on({
@@ -207,11 +229,19 @@ export default {
                   console.log('自动登录失败次数过多，请手工登录。');
                   autoLoginTimes = 0;
                   that.alert('请重新登录');
-                  that.imLogout();
+                  if (that.intent.action === 'support') {
+                    that.imLogout(true);
+                  } else {
+                    that.imLogout();
+                  }
                 }
               } else if ('relogin_manually' == desc) {
                 that.alert('请重新登录');
-                that.imLogout();
+                if (that.intent.action === 'support') {
+                  that.imLogout(true);
+                } else {
+                  that.imLogout();
+                }
               } else {
                 console.log('Floo Notice: unknown action ', desc);
               }
@@ -241,6 +271,9 @@ export default {
             case 'LICENSE':
               that.alert('服务需要续费: ' + desc);
               break;
+            case 'FAIL':
+              that.flooFailError(desc);
+              break;
             default:
               console.log('Floo Error：' + category + ' : ' + desc);
           }
@@ -267,6 +300,7 @@ export default {
           that.alert('设备绑定失败: ' + err.code + ':' + err.message);
         });
     },
+
     unbindDeviceToken() {
       const imUser = this.getIM().userManage;
       const device_sn = imUser.getDeviceSN();
@@ -321,12 +355,16 @@ export default {
             code: this.intent.code
           })
           .then((res) => {
-            const info = JSON.parse(res.secret_text);
-            that.saveLoginInfo(info, that.intent.app_id);
-            let currentUrl = new URL(window.location.href);
-            currentUrl.searchParams.delete('code');
-            window.history.replaceState({}, document.title, currentUrl.toString());
-            that.imLogin();
+            try {
+              const info = JSON.parse(res.secret_text);
+              that.saveLoginInfo(info, that.intent.app_id);
+              let currentUrl = new URL(window.location.href);
+              currentUrl.searchParams.delete('code');
+              window.history.replaceState({}, document.title, currentUrl.toString());
+              that.imLogin();
+            } catch (ex) {
+              console.error('Can not parse res secret_text');
+            }
           })
           .catch((err) => {
             that.alert('登录失败, code无效 : ' + err.code + ' ' + err.message);
@@ -364,8 +402,8 @@ export default {
       }
     },
 
-    switchLogin(info) {
-      this.imLogout();
+    switchLogin(info, linkLogin = false) {
+      this.imLogout(linkLogin);
       this.saveLoginInfo(
         {
           username: info.username,
@@ -376,11 +414,13 @@ export default {
       this.$store.dispatch('actionChangeAppID', info.app_id);
     },
 
-    imLogout() {
-      let currentUrl = new URL(window.location.href);
-      currentUrl.search = '';
-      window.history.replaceState({}, document.title, currentUrl.toString());
-      this.getIM().logout();
+    imLogout(linkLogin = false, quitAllWeb = false) {
+      if (!linkLogin) {
+        let currentUrl = new URL(window.location.href);
+        currentUrl.search = '';
+        window.history.replaceState({}, document.title, currentUrl.toString());
+      }
+      this.getIM().logout({ quitAllWeb });
       this.removeLoginInfo();
       this.$store.dispatch('login/actionChangeAppStatus', 'login');
     },
@@ -389,56 +429,71 @@ export default {
       const im = this.getIM();
       return im && im.isLogin && im.isLogin();
     },
+    cryptoEncrypt(str) {
+      return CryptoJS.AES.encrypt(str, INIT_LOCAL_STORE_KEY).toString();
+    },
+
+    cryptoDecrypt(str) {
+      return CryptoJS.AES.decrypt(str, INIT_LOCAL_STORE_KEY).toString(CryptoJS.enc.Utf8);
+    },
+
     saveLoginInfo(info, appid) {
       // const {name, password} = info;
       info.app_id = appid;
-      window.localStorage.setItem('lanying_im_logininfo', JSON.stringify(info));
+      let data = this.cryptoEncrypt(JSON.stringify(info));
+      window.localStorage.setItem('lanying_im_logininfo', data);
+      window.sessionStorage.setItem('lanying_im_logininfo', data);
     },
     getLoginInfo() {
-      const info_str = window.localStorage.getItem('lanying_im_logininfo') || {};
       let info = {};
-      try {
-        info = JSONBigString.parse(info_str);
-      } catch (ex) {
-        console.error('Can not parse json, remove login info: ', info_str);
-        this.removeLoginInfo();
+      const encryptInfo = window.sessionStorage.getItem('lanying_im_logininfo') || window.localStorage.getItem('lanying_im_logininfo') || '';
+      if (encryptInfo) {
+        const info_str = this.cryptoDecrypt(encryptInfo);
+        try {
+          info = JSON.parse(info_str);
+        } catch (ex) {
+          console.error('Can not parse json, remove login info: ', info_str);
+          this.removeLoginInfo();
+        }
       }
       return info;
     },
     removeLoginInfo() {
       window.localStorage.removeItem('lanying_im_logininfo');
+      window.sessionStorage.removeItem('lanying_im_logininfo');
     },
     saveLoginInfoList(info) {
-      const list = window.localStorage.getItem('lanying_im_logininfo_list') || '';
-      let infoList = [];
+      let infoList = this.getLoginInfoList();
       try {
         if (info && info.app_id && info.username) {
-          if (list.length) {
-            infoList = JSONBigString.parse(list);
-          }
           if (infoList.length) {
             infoList = infoList.filter((item) => {
               return item.app_id !== info.app_id || item.username !== info.username;
             });
           }
           infoList.unshift(info);
-          window.localStorage.setItem('lanying_im_logininfo_list', JSONBigString.stringify(infoList));
+          let data = this.cryptoEncrypt(JSON.stringify(infoList));
+          console.log(data);
+          window.localStorage.setItem('lanying_im_logininfo_list', data);
         }
       } catch (ex) {
-        console.error('Can not parse info list json: ', list);
+        console.error('Can not parse info list json: ');
         this.removeLoginInfoList();
       }
     },
     getLoginInfoList() {
-      const list = window.localStorage.getItem('lanying_im_logininfo_list') || '';
       let infoList = [];
-      try {
-        if (list.length) {
-          infoList = JSONBigString.parse(list);
+      const encryptInfo = window.localStorage.getItem('lanying_im_logininfo_list') || '';
+      if (encryptInfo) {
+        const list = this.cryptoDecrypt(encryptInfo);
+        try {
+          if (list.length) {
+            infoList = JSON.parse(list);
+          }
+        } catch (ex) {
+          console.error('Can not parse info list json: ', list);
+          this.removeLoginInfoList();
         }
-      } catch (ex) {
-        console.error('Can not parse info list json: ', list);
-        this.removeLoginInfoList();
       }
       return infoList;
     },
@@ -447,9 +502,10 @@ export default {
     },
     saveAppId(appid) {
       window.localStorage.setItem('lanying_im_appid', appid);
+      window.sessionStorage.setItem('lanying_im_appid', appid);
     },
     retrieveAppId() {
-      return this.intent.app_id || window.localStorage.getItem('lanying_im_appid') || 'welovemaxim';
+      return this.intent.app_id || window.sessionStorage.getItem('lanying_im_appid') || window.localStorage.getItem('lanying_im_appid') || 'welovemaxim';
     },
     autoRegisterAndLogin() {
       const im = this.getIM();
@@ -497,6 +553,9 @@ export default {
         this.intent.hasParseLink = false;
         this.intent.action = this.intent.action ? this.intent.action : 'support';
       }
+      if (this.intent.action === 'support') {
+        this.$store.dispatch('login/actionChangeAppStatus', 'loading');
+      }
       if (params.get('action') !== 'chat') {
         parent.postMessage(
           JSON.stringify({
@@ -533,13 +592,6 @@ export default {
       }
     },
     needLaunch() {
-      let bLaunch = false;
-      if (/(MicroMessenger)/i.test(navigator.userAgent)) {
-        bLaunch = true;
-      }
-      if (/(Macintosh|Intel|Windows)/i.test(navigator.userAgent)) {
-        bLaunch = false;
-      }
       /*
       if (/(Mobi|iPhone|iPod|iPad|Android|MicroMessenger)/i.test(navigator.userAgent)) {
         bLaunch = true;
@@ -551,28 +603,39 @@ export default {
         bLaunch = true;
       }*/
 
-      return bLaunch;
+      return /microMessenger/i.test(navigator.userAgent.toLowerCase()) || typeof navigator.wxuserAgent !== 'undefined';
     },
     maybeLaunchWXMP() {
-      if (this.needLaunch() && parent) {
-        const loginInfo = this.getLoginInfo();
-        const im = this.getIM();
-        im.userManage
-          .asyncGenerateSecretInfo({
-            expire_seconds: 60,
-            secret_text: JSON.stringify({
-              username: loginInfo.username,
-              password: loginInfo.password
-            })
+      if (this.needLaunch() && this.autoSkip && parent) {
+        this.$store.dispatch('login/actionChangeAppStatus', 'skipping');
+      }
+    },
+
+    setAutoSkip(auto) {
+      this.autoSkip = auto;
+    },
+
+    linkLaunchWXMP() {
+      let that = this;
+      const loginInfo = this.getLoginInfo();
+      const im = this.getIM();
+      im.userManage
+        .asyncGenerateSecretInfo({
+          expire_seconds: 60,
+          secret_text: JSON.stringify({
+            username: loginInfo.username,
+            password: loginInfo.password
           })
-          .then((res) => {
-            let query = 'link=' + this.intent.link + '&code=' + res.code;
-            im.userManage
-              .aysncGenerateWXUrlLink({
-                path: 'pages/profile/index',
-                query: query
-              })
-              .then((res) => {
+        })
+        .then((res) => {
+          let query = 'link=' + this.intent.link + '&code=' + res.code;
+          im.userManage
+            .aysncGenerateWXUrlLink({
+              path: 'pages/profile/index',
+              query: query
+            })
+            .then((res) => {
+              if (that.officialUser) {
                 parent.postMessage(
                   JSON.stringify({
                     type: 'lanying_link_wakeup',
@@ -580,15 +643,17 @@ export default {
                   }),
                   '*'
                 );
-              })
-              .catch((err) => {
-                console.log('生成微信 url link 异常: code ' + err.code + ' : ' + err.message);
-              });
-          })
-          .catch((err) => {
-            console.log('获取登录凭证 code 异常: code ' + err.code + ' : ' + err.message);
-          });
-      }
+              } else {
+                window.location.href = res.url_link;
+              }
+            })
+            .catch((err) => {
+              console.log('生成微信 url link 异常: code ' + err.code + ' : ' + err.message);
+            });
+        })
+        .catch((err) => {
+          console.log('获取登录凭证 code 异常: code ' + err.code + ' : ' + err.message);
+        });
     },
     alert(msg) {
       if (this.intent.action === 'support') {

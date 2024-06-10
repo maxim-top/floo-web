@@ -52,6 +52,8 @@ export default {
    * {% lanying_code_snippet repo="lanying-im-web",class="userManage",function="getDeviceSN" %}{% endlanying_code_snippet %}
    */
   getDeviceSN,
+  asyncGetDeviceList: http.userDeviceList,
+  asyncKickDevice: http.userKick,
   /**
    * 绑定推送设备
    * @function
@@ -124,6 +126,17 @@ export default {
    * {% lanying_code_snippet repo="lanying-im-web",class="userManage",function="asyncUpdateNickName" %}{% endlanying_code_snippet %}
    */
   asyncUpdateNickName: http.userNickname,
+  /**
+   * 更新用户密码
+   * @function
+   * @param {object} params 参数
+   * @param {string} params.old_password 旧密码
+   * @param {string} params.new_password 新密码
+   * @returns {Promise.<boolean>} 是否成功
+   * @example
+   * {% lanying_code_snippet repo="lanying-im-web",class="userManage",function="asyncUserChangePassword" %}{% endlanying_code_snippet %}
+   */
+  asyncUserChangePassword: http.userChangePassword,
   /**
    * 获取用户profile
    * @function

@@ -7,17 +7,7 @@
         <span v-popover:tooltip.top="'发送文件'" @click="fileUploadClickHandler" class="ico file"></span>
       </div>
       <div>
-        <textarea
-          @blur="inputBlurHandler"
-          @focus="inputFocusHandler"
-          @keydown="textareaKeyDown"
-          class="input_text"
-          :placeholder="[[placeholder]]"
-          v-model="message"
-          wrap="hard"
-          ref="inputTextRef"
-          focus
-        ></textarea>
+        <textarea @keydown="textareaKeyDown" class="input_text" :placeholder="[[placeholder]]" v-model="message" wrap="hard" ref="inputTextRef" focus></textarea>
         <div class="button">
           <div @click="handleSendMessage" class="im_send" />
         </div>
@@ -70,6 +60,7 @@ export default {
         }
       }
     },
+
     imageUploadClickHandler() {
       this.fileType = 'image';
       this.$refs.fileRef.click();
@@ -79,20 +70,6 @@ export default {
       this.$refs.fileRef.click();
     },
 
-    locationClickHandler() {
-      const message = {
-        uid: this.getSid,
-        content: '',
-        type: 'location',
-        attachment: {
-          lat: 40.024422,
-          lon: 116.398376,
-          addr: '奥林匹克森林公园'
-        }
-      };
-      this.im.sysManage.sendRosterMessage(message);
-    },
-
     handleSendMessage() {
       if (/^\s*$/.test(this.message)) {
         this.message = this.placeholder;
@@ -100,11 +77,14 @@ export default {
       }
 
       // 如果需要自定义消息，直接使用 ext 字段即可
-      this.im.sysManage.sendRosterMessage({
+      this.im.sysManage.sendGroupMessage({
+        // type: 'text', // image , file， 默认 text， 可省略
         content: this.message,
-        uid: this.getSid
+        gid: this.getSid,
         // ext: "自定义消息字段",
+        priority: 0
       });
+
       setTimeout(() => {
         this.message = '';
       }, 200);
@@ -118,9 +98,9 @@ export default {
           fileType: this.fileType,
           to_id: this.getSid,
           toType: 'chat',
-          chatType: 'roster',
+          chatType: 'group',
           processCallback: function (res) {
-            console.log('fileChangeHandler roster chat file upload percent :' + Math.floor(100 * (res.loaded / res.total)));
+            console.log('fileChangeHandler group chat file upload percent :' + 100 * (res.loaded / res.total));
           }
         })
         .then((res) => {
@@ -131,24 +111,19 @@ export default {
             height: 0
           };
           fileInfo.url = res.url;
-          this.im.sysManage.sendRosterMessage({
+          this.im.sysManage.sendGroupMessage({
             type: this.fileType,
-            uid: this.getSid,
+            gid: this.getSid,
             content: '',
-            attachment: fileInfo
+            attachment: fileInfo,
+            //ext: '自定义消息字段',
+            priority: 0
           });
           this.$refs.fileRef.value = '';
         })
         .catch(() => {
           this.$refs.fileRef.value = '';
         });
-    },
-    inputFocusHandler() {
-      this.im.sysManage.sendInputStatusMessage(this.getSid, 'typing');
-    },
-
-    inputBlurHandler() {
-      this.im.sysManage.sendInputStatusMessage(this.getSid, 'nothing');
     },
 
     initIntentMessage() {
@@ -163,3 +138,5 @@ export default {
   }
 };
 </script>
+
+<style scoped></style>

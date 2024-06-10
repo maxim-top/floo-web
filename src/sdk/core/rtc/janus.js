@@ -1214,13 +1214,21 @@ function Janus(gatewayCallbacks) {
       let onUnbindMessage = function (event) {
         let data = {};
         if (typeof event === 'string') {
-          event = JSONBigString.parse(event);
+          try {
+            event = JSONBigString.parse(event);
+          } catch (ex) {
+            //
+          }
         }
         if (event.data) {
           if (typeof event.data === 'object') {
             data = event.data;
           } else {
-            data = JSONBigString.parse(event.data);
+            try {
+              data = JSONBigString.parse(event.data);
+            } catch (ex) {
+              //
+            }
           }
           if (data.session_id == request.session_id && data.transaction == request.transaction) {
             unbindWebSocket();

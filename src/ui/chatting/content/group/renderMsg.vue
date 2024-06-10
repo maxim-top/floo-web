@@ -16,9 +16,9 @@
             </div>
             <el-popover :placement="isSelf ? 'left' : 'right'" trigger="hover" width="70">
               <div class="messageExt">
-                <div @click="deleteMessage" class="delete item" v-if="!message.h">删除</div>
-                <div @click="forwardMessage" class="recall item">转发</div>
-                <div @click="recallMessage" class="recall item" v-if="isSelf && !message.h">撤回</div>
+                <div @click="deleteMessage" class="delete item">删除</div>
+                <div @click="forwardMessage" v-if="message.type !== 'rtc'" class="recall item">转发</div>
+                <div @click="recallMessage" class="recall item" v-if="isSelf || isAdmin || isOwner">撤回</div>
               </div>
               <div class="h_image" slot="reference">
                 <img src="/image/more.png" />
@@ -78,7 +78,6 @@ import { Marked } from '../../../third/marked.min.js';
 import { markedHighlight } from 'marked-highlight';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/atom-one-light.css';
-var JSONBigString = require('json-bigint');
 
 export default {
   name: 'GroupChat',
@@ -156,7 +155,8 @@ export default {
   },
   props: ['message'],
   computed: {
-    ...mapGetters('content', ['getSid', 'getMessageTime', 'getMemberList']),
+    ...mapGetters('content', ['getSid', 'getMessageTime', 'getMemberList', 'getGroupInfo', 'getAdminList']),
+    ...mapGetters('header', ['getUserProfile']),
     timeMessage() {
       let { timestamp } = this.message;
       timestamp = toNumber(timestamp);
@@ -188,6 +188,14 @@ export default {
       const cid = numToString(this.message.from);
       return cid + '' === uid + '';
     },
+    isAdmin() {
+      const uid = this.im.userManage.getUid();
+      return this.getAdminList.filter((x) => x.user_id === uid).length > 0;
+    },
+    isOwner() {
+      const uid = this.im.userManage.getUid();
+      return this.getGroupInfo.owner_id === uid;
+    },
     userObj() {
       const cuid = this.im.userManage.getUid();
       const umaps = this.im.rosterManage.getAllRosterDetail();
@@ -200,9 +208,10 @@ export default {
           break;
         }
       }
-      let avatar = this.getImage({ url: fromUserObj.avatar, type: 'group' });
+      let avatar = this.im.sysManage.getImage({ avatar: fromUserObj.avatar });
       if (fromUid === cuid) {
         username = '我';
+        avatar = this.im.sysManage.getImage({ avatar: this.getUserProfile.avatar });
       }
       return { username, avatar };
     },
@@ -260,7 +269,7 @@ export default {
       const attachment = this.message.attach || '{}';
       let attachObj = {};
       try {
-        attachObj = JSONBigString.parse(attachment);
+        attachObj = JSON.parse(attachment);
       } catch (ex) {
         //
       }
@@ -268,6 +277,12 @@ export default {
         return attachObj.dName;
       }
       return '文件附件';
+    }
+  },
+
+  watch: {
+    getUserProfile() {
+      this.userObj();
     }
   },
 
@@ -312,14 +327,14 @@ export default {
     //
     deleteMessage() {
       const idStr = numToString(this.message.id).toString();
-      this.im.rosterManage.deleteMessage(this.getSid, idStr);
+      this.im.groupManage.deleteMessage(this.getSid, idStr);
     },
     forwardMessage() {
       this.$store.dispatch('forward/actionRecordForwardMessage', this.message);
     },
     recallMessage() {
       const idStr = numToString(this.message.id).toString();
-      this.im.rosterManage.recallMessage(this.getSid, idStr);
+      this.im.groupManage.recallMessage(this.getSid, idStr);
     },
     unreadMessage() {
       const idStr = numToString(this.message.id).toString();
@@ -439,25 +454,38 @@ export default {
     },
 
     isAIStream(extension) {
-      let ext = JSONBigString.parse(extension);
-      if (ext && ext.ai && ext.ai.stream) {
-        return true;
-      } else {
+      try {
+        let ext = JSON.parse(extension);
+        if (ext && ext.ai && ext.ai.stream) {
+          return true;
+        } else {
+          return false;
+        }
+      } catch (ex) {
         return false;
       }
     },
 
     isAIStreamFinish(extension) {
-      let ext = JSONBigString.parse(extension);
-      if (ext && ext.ai && ext.ai.stream && !ext.ai.finish) {
-        return true;
-      } else {
+      try {
+        let ext = JSON.parse(extension);
+        if (ext && ext.ai && ext.ai.stream && !ext.ai.finish) {
+          return true;
+        } else {
+          return false;
+        }
+      } catch (ex) {
         return false;
       }
     },
 
     calculateAppend(content, extension, showAll = false) {
-      let ext = JSONBigString.parse(extension);
+      let ext = {};
+      try {
+        ext = JSON.parse(extension);
+      } catch (ex) {
+        //
+      }
       if (ext && ext.ai && ext.ai.stream && ext.ai.stream_interval) {
         this.appendTimer && clearInterval(this.appendTimer);
         //每一次计时周期增加一个字符展示。
@@ -492,7 +520,12 @@ export default {
     },
 
     calculateMarkdownAppend(content, extension, showAll = false) {
-      let ext = JSONBigString.parse(extension);
+      let ext = {};
+      try {
+        ext = JSON.parse(extension);
+      } catch (ex) {
+        //
+      }
       if (ext && ext.ai && ext.ai.stream && ext.ai.stream_interval) {
         this.appendMarkdownTimer && clearInterval(this.appendMarkdownTimer);
         //每一次计时周期增加一个字符展示。
@@ -514,7 +547,7 @@ export default {
             that.appendMarkdownTimer = null;
             that.showMarkdownContent = that.parseMarkdownContent(that.showTotalContent);
             if (showAll) {
-              that.showContent = that.content;
+              that.showContent = content;
             }
           } else {
             that.showTotalContent += that.showAppendContent.slice(0, count);

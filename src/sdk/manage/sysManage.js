@@ -136,15 +136,7 @@ const sendInputStatusMessage = (uid, status) => {
  */
 const forwardMessage = function (param) {
   //FIXME: bad style param
-  const { uid, mid, gid } = param;
-
-  let message = undefined;
-  if (uid) {
-    message = messageStore.getRosterMessageById(uid, mid);
-  } else {
-    message = messageStore.getGroupMessageById(gid, mid);
-  }
-
+  const { uid, gid, message } = param;
   const attach = message.attach;
   if (attach && attach.url) {
     let sign = attach.url.split('sign=')[1];
@@ -266,8 +258,8 @@ const getMessageStatus = (cid, mid, isGroup = false) => {
     message = messageStore.getRosterMessageById(cid, mid);
   }
 
-  if (message && message.status) {
-    const status = Object.keys(STATIC_MESSAGE_STATUS)[message.status];
+  if (message) {
+    const status = Object.keys(STATIC_MESSAGE_STATUS)[message.status || 0];
     return status ? status.toLowerCase() : undefined;
   } else {
     return undefined;
@@ -501,6 +493,10 @@ export default {
   asyncQrlogin: io.qrlogin,
   asyncQrcodeGroupsign: io.qrcodeGroupsign,
   asyncQrcodeGroupinvite: io.qrcodeGroupinvite,
+  asyncWoaQrcode: io.woaqrcode,
+  asyncWoaQrcodeStatus: io.woaqrcodestatus,
+  asyncWoaQrlogin: io.woaqrlogin,
+  asyncWoaIsBind: io.woaIsBind,
   asyncWxlogin: io.wxlogin,
   asyncWxbind: io.wxbind,
   asyncGetStaticContact: io.getStaticContact,

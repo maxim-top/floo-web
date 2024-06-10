@@ -215,7 +215,7 @@ export default {
             gid: this.getSid,
             content: '',
             attachment: fileInfo,
-            ext: '自定义消息字段',
+            //ext: '自定义消息字段',
             priority: 0
           });
           this.$refs.fileRef.value = '';

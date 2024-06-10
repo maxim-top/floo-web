@@ -5,8 +5,12 @@
         {{ qrtitle }}
         <div @click="clickJoinGroupCloseHandler" class="closer"></div>
       </div>
-      <div class="layer_content">
+      <div class="layer_content" :style="{ height: '200px' }">
         <canvas class="canvas" ref="canvas"></canvas>
+        <div v-if="wxmpShowMaskLayer" class="wxmp_mask">
+          <span class="mask_tips">二维码已过期</span>
+          <span class="mask_click" @click="requestWXMPQr">刷新</span>
+        </div>
       </div>
     </div>
   </div>
@@ -15,7 +19,6 @@
 <script>
 import { mapGetters } from 'vuex';
 import QRCode from 'qrcode';
-var JSONBigString = require('json-bigint');
 
 export default {
   data() {
@@ -24,14 +27,18 @@ export default {
       qrtimer: undefined,
       qrcode: '',
       expired: 0,
-      qrurl: ''
+      qrurl: '',
+      wxmp: false,
+      wxmpShowMaskLayer: false
     };
   },
   name: 'QRcode',
   mounted() {
     if (this.getShowing === 'qrlogin') {
+      this.wxmp = false;
       this.requestLoginQr();
     } else if (this.getShowing === 'qrprofile') {
+      this.wxmp = false;
       const info = {
         info: {
           uid: this.im.userManage.getUid()
@@ -39,10 +46,14 @@ export default {
         action: 'profile',
         source: 'web'
       };
-      QRCode.toCanvas(this.$refs.canvas, JSONBigString.stringify(info), { width: 180, margin: 0 }, function (/*err*/) {
+      QRCode.toCanvas(this.$refs.canvas, JSON.stringify(info), { width: 180, margin: 0 }, function (/*err*/) {
         //
       });
+    } else if (this.getShowing === 'qrwxmp') {
+      this.wxmp = true;
+      this.requestWXMPQr();
     } else {
+      this.wxmp = false;
       this.requestGroupQr();
     }
   },
@@ -61,12 +72,18 @@ export default {
         return '扫码登录';
       } else if (this.getShowing === 'qrprofile') {
         return '我的二维码';
+      } else if (this.getShowing === 'qrwxmp') {
+        return '微信小程序二维码';
       } else {
         return '群二维码';
       }
     }
   },
   methods: {
+    getApp() {
+      return this.$parent.$parent;
+    },
+
     clickJoinGroupCloseHandler() {
       this.$store.dispatch('layer/actionSetShowing', '');
       this.$store.dispatch('layer/actionSetShowmask', false);
@@ -95,7 +112,15 @@ export default {
         this.expired = expired;
         this.qrcode = qr_code;
         this.qrurl = url;
-        QRCode.toCanvas(this.$refs.canvas, 'L_' + qr_code, { width: 200, margin: 0 }, function (/*err*/) {});
+        const info = {
+          info: {
+            qrcode: qr_code,
+            app_id: this.appId
+          },
+          action: 'login',
+          source: 'web'
+        };
+        QRCode.toCanvas(this.$refs.canvas, JSON.stringify(info), { width: 200, margin: 0 }, function (/*err*/) {});
         this.timerLogin();
         this.expTimer();
       });
@@ -105,11 +130,53 @@ export default {
       this.im.sysManage.asyncQrcodeGroupsign({ group_id: this.getSid }).then((res) => {
         const { qr_info, expired } = res;
         this.expired = expired;
-        QRCode.toCanvas(this.$refs.canvas, 'G_' + this.getSid + '_' + qr_info, { width: 200, margin: 0 }, function (/*err*/) {
+        const info = {
+          info: {
+            info: qr_info,
+            group_id: this.getSid
+          },
+          action: 'group',
+          source: 'web'
+        };
+        QRCode.toCanvas(this.$refs.canvas, JSON.stringify(info), { width: 200, margin: 0 }, function (/*err*/) {
           //
         });
         this.expTimer();
       });
+    },
+
+    requestWXMPQr() {
+      const loginInfo = this.getApp().getLoginInfo();
+      let that = this;
+      const now = new Date().getTime();
+      this.wxmpShowMaskLayer = false;
+      this.expired = now + 60 * 1000;
+      this.im.userManage
+        .asyncGenerateSecretInfo({
+          expire_seconds: 60,
+          secret_text: JSON.stringify({
+            username: loginInfo.username,
+            password: loginInfo.password
+          })
+        })
+        .then((res) => {
+          let query = 'link=' + that.getApp().intent.link + '&code=' + res.code;
+          that.im.userManage
+            .aysncGenerateWXUrlLink({
+              path: 'pages/profile/index',
+              query: query
+            })
+            .then((res) => {
+              QRCode.toCanvas(this.$refs.canvas, res.url_link, { width: 200, margin: 0 }, function (/*err*/) {});
+              that.expTimer();
+            })
+            .catch((err) => {
+              console.log('生成微信 url link 异常: code ' + err.code + ' : ' + err.message);
+            });
+        })
+        .catch((err) => {
+          console.log('获取登录凭证 code 异常: code ' + err.code + ' : ' + err.message);
+        });
     },
 
     timerLogin() {
@@ -117,15 +184,15 @@ export default {
       this.im.sysManage
         .asyncQrlogin({ qr_code: this.qrcode })
         .then((res) => {
-          const { password, user_id } = res;
-          if (!password || !user_id) {
+          const { password, username } = res;
+          if (!password || !username) {
             console.log('没登录，继续');
             this.timer = setTimeout(function () {
               _this.timerLogin();
             }, 1000);
           } else {
             console.log('登录了....');
-            _this.im.qrlogin({ password, user_id });
+            _this.im.login({ password, name: username });
           }
         })
         .catch(() => {
@@ -155,6 +222,19 @@ export default {
           console.log('过期，请求新的。。。');
           this.clearTimer();
           this.requestGroupQr();
+        } else {
+          this.qrtimer = setTimeout(function () {
+            _this.expTimer();
+            console.log('未过期，会继续检测');
+          }, 1000);
+        }
+      }
+
+      if (this.getShowing === 'qrwxmp') {
+        if (now > this.expired) {
+          this.clearTimer();
+          this.wxmpShowMaskLayer = true;
+          console.log('过期，请手动触发刷新请求。。。');
         } else {
           this.qrtimer = setTimeout(function () {
             _this.expTimer();

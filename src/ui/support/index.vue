@@ -46,6 +46,20 @@ export default {
     initCss() {
       document.getElementById('app').style = 'width:100%; height:100%;min-width:100px;min-height:200px;margin-left:0px;';
       document.body.style = 'background-color: transparent; margin:0px !important;';
+      if (this.checkMobile()) {
+        document.getElementById('app').style.borderRadius = '0px';
+      }
+    },
+
+    checkMobile() {
+      let u = navigator.userAgent;
+      let isAndroid = u.indexOf('Android') > -1 || u.indexOf('Adr') > -1;
+      let isIOS = !!u.match(/\(i[^;]+;( U;)? CPU.+Mac OS X/);
+      if (isAndroid || isIOS || (document.body.clientHeight > document.body.clientWidth && document.body.clientWidth < 500)) {
+        return true;
+      } else {
+        return false;
+      }
     }
     // clickA() {
     //   // this.$store.dispatch("test/invokePushItems", "hello");

@@ -180,21 +180,21 @@ const changeClusterIndex = (appID) => {
 };
 
 const getDnsInfo = (appID) => {
-  return getItem(storage_id('key_dns_infos', appID), false) || {};
+  return getItem(storage_id('key_dns_infos', appID), false, -1, true) || {};
 };
 
 const saveDnsInfo = (appID, dnsInfo) => {
-  saveItem(storage_id('key_dns_infos', appID), dnsInfo, false);
+  saveItem(storage_id('key_dns_infos', appID), dnsInfo, false, -1, true);
 };
 
 const getConfig = (name) => {
   if (!name) return '';
-  return getItem(storage_id('key_dns_config', name), false);
+  return getItem(storage_id('key_dns_config', name), false, -1, true);
 };
 
 const saveConfig = (name, value) => {
   if (!name || !value) return;
-  saveItem(storage_id('key_dns_config', name), value, false);
+  saveItem(storage_id('key_dns_config', name), value, false, -1, true);
 };
 
 bind('retrieve_dns', () => {

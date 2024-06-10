@@ -70,7 +70,7 @@ module.exports = (env) => {
       // inline: true,
       hot: true,
       open: true,
-      host: 'dev.lanyingim.com',
+      host: '0.0.0.0' || 'dev.lanyingim.com',
       disableHostCheck: true,
       https: true
       // proxy: {

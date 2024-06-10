@@ -1,19 +1,14 @@
 <template>
   <div class="chat-index" @click="handleClick">
-    <MemberList />
-    <Header />
+    <tooltip />
     <Chat />
     <Inputer />
-    <Forward />
   </div>
 </template>
 
 <script>
 import Chat from './chat.vue';
 import Inputer from './inputer.vue';
-import Header from './header.vue';
-import Forward from './forward.vue';
-import MemberList from './memberList';
 
 import { mapGetters } from 'vuex';
 
@@ -35,11 +30,8 @@ export default {
     this.$store.state.im.groupManage.consumeGroupAtStatus(this.getSid);
   },
   components: {
-    Header,
     Chat,
-    Inputer,
-    Forward,
-    MemberList
+    Inputer
   },
   computed: {
     ...mapGetters('content', ['getSid', 'getMessages', 'getMessageTime'])

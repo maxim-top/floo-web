@@ -6,6 +6,7 @@ import './messageReceiver';
 import rosterManage from '../../manage/rosterManage';
 import groupManage from '../../manage/groupManage';
 import dnsManager from '../../manage/dnsManager';
+import userManage from '../../manage/userManage';
 /**
  * @module flooim
  */
@@ -13,6 +14,7 @@ let config = {};
 let loginSwap = null;
 let sdkOk = false;
 let isLogin = false;
+let stopAutoLogin = false;
 /**
  * 初始化SDK
  * @function flooim
@@ -46,6 +48,7 @@ const webim = function ({
   log.setLogLevel(logLevel);
   infoStore.saveAppid(appid);
   infoStore.saveLinkServer(linkServer);
+  stopAutoLogin = window.sessionStorage.getItem('key_stop_auto_login') || false;
   dnsManager
     .asyncGetDns(dnsServer, appid, ws)
     .then((res) => {
@@ -61,7 +64,7 @@ const webim = function ({
       config = {
         appid,
         baseUrl: ratel,
-        autoLogin,
+        autoLogin: stopAutoLogin ? false : autoLogin,
         fireplace
       };
       webim.baseUrl = config.baseUrl;
@@ -81,6 +84,7 @@ const webim = function ({
         const token = infoStore.getToken();
         const tokenAppId = infoStore.getTokenAppId();
         if (user_id && token && tokenAppId == appid) {
+          infoStore.saveUid(user_id);
           const rosterRequest = rosterManage.asyncGetRosterIdList(true);
           const groupRequet = groupManage.asyncGetJoinedGroups(true);
           Promise.all([rosterRequest, groupRequet])
@@ -444,17 +448,60 @@ webim.off = function (options, ext) {
   }
 };
 
+webim.kickAllWeb = function () {
+  userManage
+    .asyncGetDeviceList()
+    .then((device_list) => {
+      if (device_list && device_list.length) {
+        if (device_list.length === 1) {
+          webim.cleanup();
+          window.location.reload();
+        } else {
+          let arr = [];
+          device_list.forEach((device) => {
+            if (device.device_sn != userManage.getDeviceSN() && device.platform === 6) {
+              arr.push(
+                new Promise((resolve, reject) => {
+                  userManage
+                    .asyncKickDevice({ device_sn: device.device_sn })
+                    .then(() => {
+                      resolve();
+                    })
+                    .catch((ex) => {
+                      reject(ex);
+                    });
+                })
+              );
+            }
+          });
+          Promise.all(arr).then(() => {
+            webim.cleanup();
+            window.location.reload();
+          });
+        }
+      }
+    })
+    .catch((ex) => {
+      console.log('flooim asyncGetDeviceList error: ', ex);
+    });
+};
+
 /**
  * 退出账户
  * @function logout
  * @static
- * @example
+ * @example {object} opt
+ * @param {boolean} opt.quitAllWeb 是否退出所有网页 用户ID
  * {% lanying_code_snippet repo="lanying-im-web",class="im",function="logout" %}{% endlanying_code_snippet %}
  */
-webim.logout = function () {
+webim.logout = function (opt) {
   io.disConnect();
-  webim.cleanup();
-  window.location.reload();
+  window.sessionStorage.setItem('key_stop_auto_login', true);
+  if (opt && opt.quitAllWeb) {
+    webim.kickAllWeb();
+  } else {
+    window.location.reload();
+  }
 };
 
 webim.isReady = function () {

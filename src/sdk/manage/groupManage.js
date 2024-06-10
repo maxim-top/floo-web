@@ -1,9 +1,9 @@
 import http from '../core/base/io/index';
 import { fire } from '../utils/cusEvent';
 import dataLogics from '../core/base/dataLogics';
-import { groupStore, messageStore } from '../utils/store';
+import { groupStore, messageStore, recentStore } from '../utils/store';
 import { formatJson } from '../utils/tools';
-import { makeRecallMessage, makeContentAppendMessage, makeReplaceMessage } from '../core/base/messageMaker';
+import { makeRecallMessage, makeDeleteMessage, makeContentAppendMessage, makeReplaceMessage } from '../core/base/messageMaker';
 /**
  * 群管理
  * @module groupManage
@@ -209,8 +209,22 @@ const readGroupMessage = (group_id, mid) => {
  */
 const recallMessage = (uid, mid) => {
   const smessage = makeRecallMessage(uid, mid);
+  fire('swapSendMessage', formatJson(smessage));
   fire('sendMessage', smessage);
-  fire('swapSendMessage', smessage);
+};
+
+/**
+ * 删除消息
+ * @static
+ * @param {number} uid 会话ID
+ * @param {number} mid 消息ID
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="groupManage",function="deleteMessage" %}{% endlanying_code_snippet %}
+ */
+const deleteMessage = (uid, mid) => {
+  const smessage = makeDeleteMessage(uid, mid);
+  fire('swapSendMessage', formatJson(smessage));
+  fire('sendMessage', smessage);
 };
 
 /**
@@ -259,6 +273,8 @@ const replaceMessage = (uid, mid, content = '', config = null, ext = null) => {
  */
 const getUnreadCount = (gid) => messageStore.getUnreadByGroupId(gid);
 
+const consumeGroupAtStatus = (gid) => recentStore.updateRecentsAt(gid, false);
+
 export default {
   asyncGetGroupInfo,
   asyncGetJoinedGroups, // 改成 id 啊
@@ -270,9 +286,11 @@ export default {
   getGruopMessage,
   readGroupMessage,
   recallMessage,
+  deleteMessage,
   appendMessageContent,
   replaceMessage,
   getUnreadCount,
+  consumeGroupAtStatus,
 
   /**
    * 获取群管理员列表

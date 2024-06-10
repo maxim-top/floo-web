@@ -8,6 +8,7 @@
     <Qrcode v-if="getShowing == 'qrlogin'" />
     <Qrcode v-if="getShowing == 'qrprofile'" />
     <Qrcode v-if="getShowing == 'qrgroup'" />
+    <Qrcode v-if="getShowing == 'qrwxmp'" />
     <Searcher />
     <AddPop v-if="getShowing == 'addpop'" />
     <Image2 v-if="getShowing == 'image'" />
@@ -15,6 +16,7 @@
     <VideoCall v-if="getShowing == 'videocall'" />
     <Audiocall v-if="getShowing == 'audiocall'" />
     <CallInvite v-if="getShowing == 'callinvite'" />
+    <LinkLogin v-if="getShowing == 'linklogin'" />
   </div>
 </template>
 
@@ -34,6 +36,7 @@ import Video from './video';
 import VideoCall from './videocall';
 import Audiocall from './audiocall.vue';
 import CallInvite from './callinvite.vue';
+import LinkLogin from './linklogin.vue';
 
 export default {
   name: 'contentIndex',
@@ -51,7 +54,8 @@ export default {
     Video,
     VideoCall,
     Audiocall,
-    CallInvite
+    CallInvite,
+    LinkLogin
   },
   computed: {
     ...mapGetters('layer', ['getShowing'])
