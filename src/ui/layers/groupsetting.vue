@@ -55,6 +55,13 @@
               <i :class="['r', isGroupBanAll() ? 'switcher_on' : 'switcher_off']" @click="switchTouched(6)"></i>
             </span>
           </p>
+
+          <p>
+            <span class="sl">是否对成员隐藏其它成员详情</span>
+            <span class="sr">
+              <i :class="['r', groupInfo.hide_member_info ? 'switcher_on' : 'switcher_off']" @click="switchTouched(7)"></i>
+            </span>
+          </p>
         </div>
         <div class="group_setting_group">
           <div class="category">
@@ -373,6 +380,18 @@ export default {
             });
         }
       } //
+
+      if (index === 7) {
+        // 群组是否对普通成员隐藏其它群成员详情
+        this.im.groupManage
+          .asyncHideMemberInfo({
+            group_id: this.getSid,
+            value: !this.groupInfo.hide_member_info - 0
+          })
+          .then(() => {
+            this.groupInfo.hide_member_info = !this.groupInfo.hide_member_info - 0;
+          });
+      }
     },
     //////
     clickGroupsettingCloseHandler() {

@@ -855,6 +855,19 @@ token 登录
 
 ```
 
+设置群组是否对普通群成员隐藏其它群成员详细信息
+
+```
+        im.groupManage.asyncHideMemberInfo({
+          group_id,
+          value
+        })
+        .then(() => {
+          //
+        });
+
+```
+
 设置入群是否需要申请
 
 ```

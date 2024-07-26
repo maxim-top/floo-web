@@ -7,9 +7,18 @@
         <span v-popover:tooltip.top="'发送文件'" @click="fileUploadClickHandler" class="ico file"></span>
       </div>
       <div>
-        <textarea @keydown="textareaKeyDown" class="input_text" :placeholder="[[placeholder]]" v-model="message" wrap="hard" ref="inputTextRef" focus></textarea>
+        <textarea
+          @keydown="textareaKeyDown"
+          @keyup="textareaKeyUp"
+          class="input_text"
+          :placeholder="[[placeholder]]"
+          v-model="message"
+          wrap="hard"
+          ref="inputTextRef"
+          focus
+        ></textarea>
         <div class="button">
-          <div @click="handleSendMessage" class="im_send" />
+          <div id="group_send_button" @click="handleSendMessage" class="im_send_empty" />
         </div>
       </div>
     </div>
@@ -32,7 +41,8 @@ export default {
     return {
       placeholder: '',
       message: '',
-      fileType: ''
+      fileType: '',
+      button: null
     };
   },
   components: {},
@@ -59,6 +69,10 @@ export default {
           return false;
         }
       }
+    },
+
+    textareaKeyUp() {
+      this.changeSendButtonBackground();
     },
 
     imageUploadClickHandler() {
@@ -132,6 +146,15 @@ export default {
         this.$nextTick(() => {
           this.$refs.inputTextRef.focus();
         });
+      }
+      this.button = document.getElementById('group_send_button');
+    },
+
+    changeSendButtonBackground() {
+      if (/^\s*$/.test(this.message)) {
+        this.button.className = 'im_send_empty';
+      } else {
+        this.button.className = 'im_send_full';
       }
     }
     //methods finish

@@ -14,7 +14,7 @@
       <div class="gm_scroll_list" ref="imgContainer">
         <div @click="touchRoster(roster.user_id)" class="item" v-bind:key="roster.user_id" v-for="roster in getMemberList">
           <img :src="rImage(roster.avatar)" class="avatar" />
-          <div class="name">{{ roster.display_name || roster.user_name }}</div>
+          <div class="name">{{ displayName(roster) }}</div>
         </div>
       </div>
     </div>
@@ -23,6 +23,7 @@
 
 <script>
 import { mapGetters } from 'vuex';
+import CryptoJS from 'crypto-js';
 
 export default {
   data() {
@@ -61,20 +62,63 @@ export default {
         alert('只有群主或管理员才可设置');
       }
     },
-    touchRoster(sid) {
-      const uid = this.$store.getters.im.userManage.getUid();
-      if (uid + '' === sid + '') {
-        return;
+
+    checkHideMemberInfo(user_id) {
+      let hide = true;
+      let hide_member_info = this.getGroupInfo.hide_member_info;
+      let app_hide_member_info = false;
+      let appConfig = this.im.sysManage.getAppConfig(this.im.userManage.getAppid());
+      if (appConfig) {
+        app_hide_member_info = appConfig.hide_member_info;
       }
-      this.$store.dispatch('content/actionSetType', {
-        sid,
-        type: 'rosterinfo'
-      });
+      const uid = this.$store.getters.im.userManage.getUid();
+
+      if (app_hide_member_info) {
+        if (this.isOwner || this.isAdmin || uid === user_id || !hide_member_info) {
+          hide = false;
+        }
+      } else {
+        hide = false;
+      }
+
+      return hide;
     },
+
+    touchRoster(sid) {
+      if (!this.checkHideMemberInfo(sid)) {
+        const uid = this.$store.getters.im.userManage.getUid();
+        if (uid + '' === sid + '') {
+          return;
+        }
+        this.$store.dispatch('content/actionSetType', {
+          sid,
+          type: 'rosterinfo'
+        });
+      }
+    },
+
     rImage(avatar) {
       return this.im.sysManage.getImage({
         avatar
       });
+    },
+
+    calucateHideMemberName(roster) {
+      let original = roster.display_name + roster.user_id;
+      const md5hash = CryptoJS.MD5(original);
+      let output = md5hash.toString(CryptoJS.enc.Base64);
+      if (output.length > 12) {
+        output = output.substring(0, 12);
+      }
+      return output;
+    },
+
+    displayName(roster) {
+      if (this.checkHideMemberInfo(roster.user_id)) {
+        return this.calucateHideMemberName(roster);
+      } else {
+        return roster.display_name;
+      }
     }
   }
 };

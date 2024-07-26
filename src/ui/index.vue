@@ -7,6 +7,8 @@
     <Support v-else-if="getAppStatus == 'support'" />
     <Loading v-else-if="getAppStatus == 'loading'" />
     <Skipping v-else-if="getAppStatus == 'skipping'" />
+    <Navigation v-else-if="getAppStatus == 'navigation'" />
+    <Minimize v-else-if="getAppStatus == 'minimize'" />
     <Login :appid="appid" :sdkok="sdkok" v-else />
     <Layers />
   </div>
@@ -18,6 +20,8 @@ import Chatting from './chatting/index.vue';
 import Support from './support/index.vue';
 import Loading from './support/loading/index.vue';
 import Skipping from './support/skipping/index.vue';
+import Navigation from './support/navigation/index.vue';
+import Minimize from './support/minimize/index.vue';
 import Layers from './layers/index.vue';
 import { mapGetters } from 'vuex';
 
@@ -43,6 +47,8 @@ export default {
     Support,
     Loading,
     Skipping,
+    Navigation,
+    Minimize,
     Layers
   },
   data() {
@@ -71,6 +77,19 @@ export default {
             that.officialUser = true;
           } catch (ex) {
             console.error('Can not parse info in lanying_link_support_user');
+          }
+        } else if (data.type === 'lanying_link_toggle_chat' && data.size) {
+          switch (data.size) {
+            case 'minimize':
+              that.$store.dispatch('login/actionChangeAppStatus', 'minimize');
+              parent.postMessage(
+                JSON.stringify({
+                  type: 'lanying_toggle_chat',
+                  size: 'minimize'
+                }),
+                '*'
+              );
+              break;
           }
         }
       }
@@ -196,10 +215,33 @@ export default {
       let that = this;
       this.getIM().on({
         loginSuccess: () => {
-          that.$store.dispatch('login/actionChangeAppStatus', that.intent.action === 'support' ? 'support' : 'chatting');
+          that.$store.dispatch('login/actionChangeLoginStatus', true);
+          if (that.intent.action === 'support') {
+            if (that.checkMobile()) {
+              that.$store.dispatch('login/actionChangeAppStatus', 'minimize');
+              parent.postMessage(
+                JSON.stringify({
+                  type: 'lanying_toggle_chat',
+                  size: 'minimize'
+                }),
+                '*'
+              );
+            } else {
+              that.$store.dispatch('login/actionChangeAppStatus', 'navigation');
+              parent.postMessage(
+                JSON.stringify({
+                  type: 'lanying_toggle_chat',
+                  size: 'navigation'
+                }),
+                '*'
+              );
+            }
+          } else {
+            that.$store.dispatch('login/actionChangeAppStatus', 'chatting');
+          }
           that.maybeRedirectToIntentPage();
           that.maybeFeedbackLoginUser();
-          that.maybeLaunchWXMP();
+          //that.maybeLaunchWXMP();
           let info = that.getLoginInfo();
           info.user_id = that.getIM().userManage.getUid();
           that.saveLoginInfoList(info);
@@ -554,7 +596,14 @@ export default {
         this.intent.action = this.intent.action ? this.intent.action : 'support';
       }
       if (this.intent.action === 'support') {
-        this.$store.dispatch('login/actionChangeAppStatus', 'loading');
+        this.$store.dispatch('login/actionChangeAppStatus', 'minimize');
+        parent.postMessage(
+          JSON.stringify({
+            type: 'lanying_toggle_chat',
+            size: 'minimize'
+          }),
+          '*'
+        );
       }
       if (params.get('action') !== 'chat') {
         parent.postMessage(
@@ -591,6 +640,16 @@ export default {
         );
       }
     },
+    checkMobile() {
+      let u = navigator.userAgent;
+      let isAndroid = u.indexOf('Android') > -1 || u.indexOf('Adr') > -1;
+      let isIOS = !!u.match(/\(i[^;]+;( U;)? CPU.+Mac OS X/);
+      if (isAndroid || isIOS || (document.body.clientHeight > document.body.clientWidth && document.body.clientWidth < 500)) {
+        return true;
+      } else {
+        return false;
+      }
+    },
     needLaunch() {
       /*
       if (/(Mobi|iPhone|iPod|iPad|Android|MicroMessenger)/i.test(navigator.userAgent)) {
@@ -603,7 +662,9 @@ export default {
         bLaunch = true;
       }*/
 
-      return /microMessenger/i.test(navigator.userAgent.toLowerCase()) || typeof navigator.wxuserAgent !== 'undefined';
+      let isWechat = /microMessenger/i.test(navigator.userAgent.toLowerCase()) || typeof navigator.wxuserAgent !== 'undefined';
+      let isMobile = /mobile/i.test(navigator.userAgent.toLowerCase());
+      return isWechat && isMobile;
     },
     maybeLaunchWXMP() {
       if (this.needLaunch() && this.autoSkip && parent) {
@@ -613,6 +674,10 @@ export default {
 
     setAutoSkip(auto) {
       this.autoSkip = auto;
+    },
+
+    getLinkUid() {
+      return this.intent.uid;
     },
 
     linkLaunchWXMP() {

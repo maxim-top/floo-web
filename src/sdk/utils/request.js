@@ -49,7 +49,8 @@ const noTokenUrls = [
   'token/id',
   'token/user',
   'user/register',
-  '/app/secret_info'
+  '/app/secret_info',
+  '/app/config'
 ];
 
 const isTokenRequired = (url) => {

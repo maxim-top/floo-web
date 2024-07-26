@@ -3,6 +3,7 @@
 const state = {
   // appStatus: 'login',  //初始化一个colects数组
   appStatus: 'login', //初始化一个colects数组
+  login: false,
   loginLog: ['这里是登录日志..'],
   mobileSign: '',
   signMobile: '',
@@ -13,6 +14,9 @@ const state = {
 const getters = {
   getAppStatus(state) {
     return state.appStatus;
+  },
+  getLoginInStatus(state) {
+    return state.login;
   },
   getLoginLog(state) {
     return state.loginLog;
@@ -35,6 +39,11 @@ const mutations = {
   changeAppStatus(state, status) {
     //如何变化collects,插入items
     state.appStatus = status;
+  },
+
+  changeLoginStatus(state, status) {
+    //如何变化collects,插入items
+    state.login = status;
   },
 
   addLoginLog(state, log) {
@@ -63,6 +72,10 @@ const actions = {
   actionChangeAppStatus(context, status) {
     //触发mutations里面的pushCollects ,传入数据形参item 对应到items
     context.commit('changeAppStatus', status);
+  },
+
+  actionChangeLoginStatus(context, status) {
+    context.commit('changeLoginStatus', status);
   },
 
   actionAddLoginLog(context, log) {

@@ -42,9 +42,7 @@ export default {
         let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
         if (msg) {
           msg.messageReplace(message);
-          setTimeout(() => {
-            this.calculateScroll(message, msg.getLastSliceStreamTime());
-          }, 200);
+          this.scroll();
         }
       }
     });
@@ -241,7 +239,7 @@ export default {
       }, 200);
     },
 
-    calculateScroll(message, maxInterval = 0) {
+    calculateScroll(message) {
       if (message.ext) {
         let ext = {};
         try {
@@ -251,10 +249,8 @@ export default {
         }
         if (ext && ext.ai && ext.ai.stream) {
           this.scrollTimer && clearInterval(this.scrollTimer);
-          let count = ext.ai.stream_interval * 5;
-          if (maxInterval > ext.ai.stream_interval) {
-            count = maxInterval * 5;
-          }
+          let interval = ext.ai.stream_interval ? ext.ai.stream_interval : 20;
+          let count = interval * 5;
           if (count) {
             let that = this;
             this.scrollTimer = setInterval(() => {

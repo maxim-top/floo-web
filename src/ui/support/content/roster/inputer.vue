@@ -11,6 +11,7 @@
           @blur="inputBlurHandler"
           @focus="inputFocusHandler"
           @keydown="textareaKeyDown"
+          @keyup="textareaKeyUp"
           class="input_text"
           :placeholder="[[placeholder]]"
           v-model="message"
@@ -19,7 +20,7 @@
           focus
         ></textarea>
         <div class="button">
-          <div @click="handleSendMessage" class="im_send" />
+          <div id="roster_send_button" @click="handleSendMessage" class="im_send_empty" />
         </div>
       </div>
     </div>
@@ -42,7 +43,8 @@ export default {
     return {
       placeholder: '',
       message: '',
-      fileType: ''
+      fileType: '',
+      button: null
     };
   },
   components: {},
@@ -69,6 +71,9 @@ export default {
           return false;
         }
       }
+    },
+    textareaKeyUp() {
+      this.changeSendButtonBackground();
     },
     imageUploadClickHandler() {
       this.fileType = 'image';
@@ -145,10 +150,12 @@ export default {
     },
     inputFocusHandler() {
       this.im.sysManage.sendInputStatusMessage(this.getSid, 'typing');
+      this.changeSendButtonBackground();
     },
 
     inputBlurHandler() {
       this.im.sysManage.sendInputStatusMessage(this.getSid, 'nothing');
+      this.changeSendButtonBackground();
     },
 
     initIntentMessage() {
@@ -157,6 +164,15 @@ export default {
         this.$nextTick(() => {
           this.$refs.inputTextRef.focus();
         });
+      }
+      this.button = document.getElementById('roster_send_button');
+    },
+
+    changeSendButtonBackground() {
+      if (/^\s*$/.test(this.message)) {
+        this.button.className = 'im_send_empty';
+      } else {
+        this.button.className = 'im_send_full';
       }
     }
     //methods finish

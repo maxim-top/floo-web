@@ -533,6 +533,19 @@ export default {
    * {% lanying_code_snippet repo="lanying-im-web",class="groupManage",function="asyncUpdateHistoryVisible" %}{% endlanying_code_snippet %}
    */
   asyncUpdateHistoryVisible: http.groupSettingsHistoryvisible,
+
+  /**
+   * 设置群组是否对普通群成员隐藏其它群成员详
+   * @function
+   * @param {object} params 参数
+   * @param {number} params.group_id 群组ID
+   * @param {boolean} params.value 设置群组是否对普通群成员隐藏群成员详细信息:  false - 不隐藏, true - 隐藏
+   * @returns {Promise.<boolean>} 是否成功
+   * @example
+   * {% lanying_code_snippet repo="lanying-im-web",class="groupManage",function="asyncHideMemberInfo" %}{% endlanying_code_snippet %}
+   */
+  asyncHideMemberInfo: http.groupSettingsHideMemberInfo,
+
   /**
    * 设置入群是否需要申请
    * @function

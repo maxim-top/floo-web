@@ -1,25 +1,20 @@
 <template>
-  <div class="chat-index support-content-chat-index">
-    <Header />
-    <div class="loading-ui">加载中...</div>
+  <div class="chat-index support-content-chat-index" @click="clickLoading">
+    <div class="loading-ui"></div>
   </div>
 </template>
 
 <script>
-import Header from '../header';
-
 export default {
   name: 'Loading',
-  components: {
-    Header
-  },
+  components: {},
   mounted() {
     this.initCss();
   },
   computed: {},
   methods: {
     initCss() {
-      document.getElementById('app').style = 'width:100%; height:100%;min-width:100px;min-height:200px;margin-left:0px;';
+      document.getElementById('app').style = 'width:100%; height:100%;min-width:100px;min-height:200px;margin-left:0px;background-color: transparent;';
       document.body.style = 'background-color: transparent; margin:0px !important;';
       if (this.checkMobile()) {
         document.getElementById('app').style.borderRadius = '0px';
@@ -34,6 +29,21 @@ export default {
       } else {
         return false;
       }
+    },
+
+    clickLoading() {
+      if (this.checkMobile()) {
+        this.$store.dispatch('login/actionChangeAppStatus', 'navigation');
+        parent.postMessage(
+          JSON.stringify({
+            type: 'lanying_toggle_chat',
+            size: 'navigation'
+          }),
+          '*'
+        );
+      } else {
+        // do nothing.
+      }
     }
   }
 };
@@ -41,9 +51,11 @@ export default {
 
 <style scoped>
 .loading-ui {
-  font-size: 20px;
-  text-align: center;
   height: 100%;
-  vertical-align: middle;
+  background: rgb(43, 46, 204);
+  background-image: url(/image/splash.png);
+  background-size: 50px;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 </style>

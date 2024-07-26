@@ -197,6 +197,16 @@ const saveConfig = (name, value) => {
   saveItem(storage_id('key_dns_config', name), value, false, -1, true);
 };
 
+const saveAppConfig = (appID, appConfig) => {
+  if (!appID) return {};
+  saveItem(storage_id('key_app_config', appID), appConfig, false, -1, true);
+};
+
+const getAppConfig = (appID) => {
+  if (!appID) return '';
+  return getItem(storage_id('key_app_config', appID), false, -1, true);
+};
+
 bind('retrieve_dns', () => {
   const dnsServer = getConfig('dns_server');
   const appID = getConfig('app_id');
@@ -213,6 +223,22 @@ const asyncGetDns = (dnsServer, appID, ws) => {
 
   const sret = getServers(appID);
   if (sret.ratel) {
+    http
+      .getServers(dnsServer, {
+        app_id: appID
+      })
+      .then((res) => {
+        log.info('DNS SUCCESS: ', res);
+        saveServers(appID, res);
+        http
+          .getAppConfig(getServers(appID).ratel, {
+            platform: 6
+          })
+          .then((res) => {
+            log.info('APP CONFIG SUCCESS: ', res);
+            saveAppConfig(appID, res);
+          });
+      });
     return Promise.resolve(sret);
   }
 
@@ -223,13 +249,23 @@ const asyncGetDns = (dnsServer, appID, ws) => {
     .then((res) => {
       log.info('DNS SUCCESS: ', res);
       saveServers(appID, res);
+      getServers(appID);
+      http
+        .getAppConfig(getServers(appID).ratel, {
+          platform: 6
+        })
+        .then((res) => {
+          log.info('APP CONFIG SUCCESS: ', res);
+          saveAppConfig(appID, res);
+        });
       return getServers(appID);
     });
 };
 
 const dnsManager = {
   asyncGetDns,
-  getServers
+  getServers,
+  getAppConfig
 };
 
 export default dnsManager;

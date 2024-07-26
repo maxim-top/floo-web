@@ -3,6 +3,9 @@ import { request } from '../../../utils/request';
 // dns
 const getServers = (url, params) => request(url, 'get', params, ['app_id'], true);
 
+// app config
+const getAppConfig = (url, params) => request(url + '/app/config', 'get', params, ['platform']);
+
 // link
 const parseLink = (url, params) => request(url, 'get', params, ['link'], true);
 
@@ -70,6 +73,7 @@ const groupSettingsAllowmemberinvitation = (params) => request('/group/settings/
 const groupSettingsAllowmembermodify = (params) => request('/group/settings/allow_member_modify', 'post', params, ['group_id', 'value']);
 const groupSettingsEnablereadack = (params) => request('/group/settings/enable_read_ack', 'post', params, ['group_id', 'value']);
 const groupSettingsHistoryvisible = (params) => request('/group/settings/history_visible', 'post', params, ['group_id', 'value']);
+const groupSettingsHideMemberInfo = (params) => request('/group/settings/hide_member_info', 'post', params, ['group_id', 'value']);
 const groupSettingsRequireadminapproval = (params) => request('/group/settings/require_admin_approval', 'post', params, ['group_id', 'apply_approval']);
 const groupSettingsBanAll = (params) => request('/group/settings/ban_all', 'post', params, ['group_id', 'duration']);
 const groupSettingsUnBanAll = (params) => request('/group/settings/unban_all', 'post', params, ['group_id']);
@@ -157,6 +161,7 @@ const wechatBind = (params) => request('/app/wechat/bind', 'post', params, ['ope
 
 export {
   getServers,
+  getAppConfig,
   parseLink,
   tokenUser,
   tokenId,
@@ -214,6 +219,7 @@ export {
   groupSettingsAllowmembermodify,
   groupSettingsEnablereadack,
   groupSettingsHistoryvisible,
+  groupSettingsHideMemberInfo,
   groupSettingsRequireadminapproval,
   groupSettingsBanAll,
   groupSettingsUnBanAll,

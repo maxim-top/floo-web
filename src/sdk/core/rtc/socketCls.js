@@ -34,15 +34,33 @@ socketCls.prototype.send = function (data) {
     if (data.handle_id) {
       data.handle_id = '###' + data.handle_id + '###';
     }
+    if (data.sender) {
+      data.sender = '###' + data.sender + '###';
+    }
+    if (data.id) {
+      data.id = '###' + data.id + '###';
+    }
+    if (data.body && data.body.id) {
+      data.body.id = '###' + data.body.id + '###';
+    }
     if (data.body && data.body.room) {
       data.body.room = '###' + data.body.room + '###';
     }
+    if (data.body && data.body.publishers) {
+      data.body.publishers = data.body.publishers.map((publisher) => {
+        if (publisher.id) {
+          publisher.id = '###' + publisher.id + '###';
+        }
+        return publisher;
+      });
+    }
     if (data.body && data.body.streams) {
-      for (let stream in data.body.streams) {
-        if (stream && stream.feed) {
+      data.body.streams = data.body.streams.map((stream) => {
+        if (stream.feed) {
           stream.feed = '###' + stream.feed + '###';
         }
-      }
+        return stream;
+      });
     }
 
     let content = JSON.stringify(data);

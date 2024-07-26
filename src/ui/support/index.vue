@@ -40,11 +40,13 @@ export default {
     this.initCss();
 
     this.$store.dispatch('content/actionUpdateRoster');
+
+    this.getApp().maybeLaunchWXMP();
   },
   computed: {},
   methods: {
     initCss() {
-      document.getElementById('app').style = 'width:100%; height:100%;min-width:100px;min-height:200px;margin-left:0px;';
+      document.getElementById('app').style = 'width:100%; height:100%;min-width:100px;min-height:200px;margin-left:0px;background-color: transparent;';
       document.body.style = 'background-color: transparent; margin:0px !important;';
       if (this.checkMobile()) {
         document.getElementById('app').style.borderRadius = '0px';
@@ -60,6 +62,10 @@ export default {
       } else {
         return false;
       }
+    },
+
+    getApp() {
+      return this.$parent;
     }
     // clickA() {
     //   // this.$store.dispatch("test/invokePushItems", "hello");

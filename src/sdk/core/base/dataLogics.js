@@ -165,7 +165,7 @@ const groupAddMemberLogic = (group_id, uids, isNotice, replace) => {
         } else {
           item.display_name = item.display_name || allRosterInfos[item.user_id].nick_name || allRosterInfos[item.user_id].username || allRosterInfos[item.user_id].user_id;
         }
-
+        item.username = allRosterInfos[item.user_id].username;
         item.avatar = allRosterInfos[item.user_id].avatar;
       }
     });
@@ -189,7 +189,7 @@ const groupAddMemberLogic = (group_id, uids, isNotice, replace) => {
               sitem.display_name = sitem.display_name || allRosterInfos[sitem.user_id].nick_name || allRosterInfos[sitem.user_id].username || allRosterInfos[sitem.user_id].user_id;
             }
           }
-
+          sitem.username = allRosterInfos[sitem.user_id].username;
           sitem.avatar = allRosterInfos[sitem.user_id].avatar;
           return sitem;
         });

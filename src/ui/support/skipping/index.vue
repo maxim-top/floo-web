@@ -1,13 +1,11 @@
 <template>
   <div class="chat-index support-content-chat-index">
     <div class="skipping-ui">
-      <img class="logo4" src="/image/logo4.png" />
       <div class="show">
+        <img class="logo4" src="/image/splash.png" />
         <div class="tips">
-          <img class="logo" src="/image/roster.png" />
-          <div>即将跳转到小程序&nbsp;</div>
-          <div>{{ count }}</div>
-          <div>s...</div>
+          <div>即将跳转到小程序</div>
+          <div>{{ count }}s...</div>
         </div>
         <div class="button" @click="cancleSkip">取消</div>
       </div>
@@ -28,7 +26,7 @@ export default {
   mounted() {
     this.initCss();
     this.timer = setInterval(() => {
-      if (this.count > 0) {
+      if (this.count > 1) {
         this.count--;
       } else {
         this.timer && clearInterval(this.timer);
@@ -40,7 +38,7 @@ export default {
   computed: {},
   methods: {
     initCss() {
-      document.getElementById('app').style = 'width:100%; height:100%;min-width:100px;min-height:200px;margin-left:0px;';
+      document.getElementById('app').style = 'width:100%; height:100%;min-width:100px;min-height:200px;margin-left:0px;background-color: transparent;';
       document.body.style = 'background-color: transparent; margin:0px !important;';
       if (this.checkMobile()) {
         document.getElementById('app').style.borderRadius = '0px';
@@ -89,34 +87,26 @@ export default {
 
 .tips {
   font-size: 16px;
+  line-height: 30px;
   text-align: center;
   color: white;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
+  padding-top: 20px;
 }
 
 .button {
   text-align: center;
   border: 0.5px solid gray;
   border-radius: 5px;
-  width: 40px;
+  width: 45px;
   color: #fff;
-  margin-top: 5px;
+  margin-top: 8px;
 }
 
 .logo4 {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  height: 20px;
-  filter: brightness(0) invert(1);
-}
-
-.logo {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  filter: brightness(0) invert(1);
+  height: 40px;
+  padding-bottom: 10px;
 }
 </style>

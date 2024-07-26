@@ -5,15 +5,14 @@
     <div :class="{ messageFrame: true, self: isSelf, roster: !isSelf }">
       <div class="rosterInfo">
         <div v-if="isSelf">
-          <el-popover placement="left-start" trigger="click" width="170" :visible-arrow="false" :append-to-body="false">
+          <el-popover placement="left-start" trigger="hover" width="170" :visible-arrow="false" :append-to-body="false">
             <div class="profile-name">{{ this.getUserProfile.nick_name || this.getUserProfile.username }}</div>
-            <div class="profile-bio">昵称：{{ this.getUserProfile.nick_name }}</div>
+            <div class="profile-bio" v-if="this.getUserProfile.nick_name">昵称：{{ this.getUserProfile.nick_name }}</div>
             <div class="profile-bio">用户名：{{ this.getUserProfile.username }}</div>
             <div class="profile-bio">ID: {{ this.getUserProfile.user_id }}</div>
-            <hr />
-            <div>
-              <span class="profile-tip">公开信息：</span>
-              <span class="profile-bio">{{ this.getUserProfile.public_info }}</span>
+            <hr v-if="this.getUserProfile.description" />
+            <div v-if="this.getUserProfile.description">
+              <span class="profile-bio">{{ this.getUserProfile.description }}</span>
             </div>
             <div slot="reference">
               <img :src="userObj.avatar" />
@@ -108,8 +107,7 @@ export default {
       showMarkdownContent: '',
       showTotalContent: '',
       showAppendContent: '',
-      appendMarkdownTimer: null,
-      lastMarkdownSliceStreamTime: 0
+      appendMarkdownTimer: null
     };
   },
   mounted() {
@@ -147,6 +145,19 @@ export default {
       this.showMarkdownContent = this.markContent;
       this.showContent = this.message.content;
     }
+
+    window.addEventListener('copy', function (event) {
+      if (navigator.userAgent.indexOf('Safari') > -1 && navigator.userAgent.indexOf('Chrome') == -1) {
+        const selection = window.getSelection();
+        const range = selection.getRangeAt(0);
+        const div = document.createElement('div');
+        div.appendChild(range.cloneContents());
+        const text = div.innerHTML.replace('<br>', /\n/g).replace(/<[^>]*>/g, '');
+        event.clipboardData.setData('text/html', text);
+        event.clipboardData.setData('text/plain', text);
+        event.preventDefault();
+      }
+    });
   },
   components: {
     // Chat,
@@ -274,7 +285,7 @@ export default {
 
   watch: {
     getUserProfile() {
-      this.userObj();
+      this.userObj;
     }
   },
 
@@ -501,7 +512,7 @@ export default {
       }
     },
 
-    calculateAppend(content, extension, showAll = false) {
+    calculateAppend(content, extension) {
       let ext = {};
       try {
         ext = JSON.parse(extension);
@@ -510,17 +521,12 @@ export default {
       }
       if (ext && ext.ai && ext.ai.stream && ext.ai.stream_interval) {
         this.appendTimer && clearInterval(this.appendTimer);
-        //每一次计时周期增加一个字符展示。
+        //每40毫秒是一个显示周期，每次展示count指定个数的字符。
         let count = 1;
-        let period = (ext.ai.stream_interval * 1000) / this.appendContent.length;
-        if (period < 40) {
-          period = 40;
-          if (showAll && period * this.showAppendContent.length > 20 * 1000) {
-            count = Math.ceil(this.showAppendContent.length / 500);
-          }
-        }
-        if (showAll) {
-          this.lastSliceStreamTime = Math.ceil((period * this.showAppendContent.length) / (1000 * count));
+        let period = 40;
+        let duration = this.showAppendContent.length * period;
+        if (duration > 20000) {
+          count = Math.ceil(duration / 20000);
         }
         let that = this;
         this.appendTimer = setInterval(() => {
@@ -528,11 +534,11 @@ export default {
             clearInterval(that.appendTimer);
             that.appendTimer = null;
             that.showContent = content;
-            if (showAll) {
-              that.showMarkdownContent = that.markContent;
-            }
           } else {
-            that.showContent += that.appendContent.slice(0, count);
+            if (that.showContent.length && that.showContent.charAt(that.showContent.length - 1) === '｜') {
+              that.showContent = that.showContent.slice(0, that.showContent.length - 1);
+            }
+            that.showContent += that.appendContent.slice(0, count) + '｜';
             that.appendContent = that.appendContent.slice(count);
           }
         }, period);
@@ -541,7 +547,7 @@ export default {
       }
     },
 
-    calculateMarkdownAppend(content, extension, showAll = false) {
+    calculateMarkdownAppend(content, extension) {
       let ext = {};
       try {
         ext = JSON.parse(extension);
@@ -550,17 +556,12 @@ export default {
       }
       if (ext && ext.ai && ext.ai.stream && ext.ai.stream_interval) {
         this.appendMarkdownTimer && clearInterval(this.appendMarkdownTimer);
-        //每一次计时周期增加一个字符展示。
+        //每40毫秒是一个显示周期，每次展示count指定个数的字符。
         let count = 1;
-        let period = (ext.ai.stream_interval * 1000) / this.showAppendContent.length;
-        if (period < 40) {
-          period = 40;
-          if (showAll && period * this.showAppendContent.length > 20 * 1000) {
-            count = Math.ceil(this.showAppendContent.length / 500);
-          }
-        }
-        if (showAll) {
-          this.lastMarkdownSliceStreamTime = Math.ceil((period * this.showAppendContent.length) / (1000 * count));
+        let period = 40;
+        let duration = this.showAppendContent.length * period;
+        if (duration > 20000) {
+          count = Math.ceil(duration / 20000);
         }
         let that = this;
         this.appendMarkdownTimer = setInterval(() => {
@@ -568,22 +569,15 @@ export default {
             clearInterval(that.appendMarkdownTimer);
             that.appendMarkdownTimer = null;
             that.showMarkdownContent = that.parseMarkdownContent(that.showTotalContent);
-            if (showAll) {
-              that.showContent = content;
-            }
           } else {
             that.showTotalContent += that.showAppendContent.slice(0, count);
             that.showAppendContent = that.showAppendContent.slice(count);
-            that.showMarkdownContent = that.parseMarkdownContent(that.showTotalContent);
+            that.showMarkdownContent = that.parseMarkdownContent(that.showTotalContent + '｜');
           }
         }, period);
       } else {
         this.showMarkdownContent = this.markContent;
       }
-    },
-
-    getLastSliceStreamTime() {
-      return Math.max(this.lastSliceStreamTime, this.lastMarkdownSliceStreamTime);
     },
 
     messageContentAppend(message) {
@@ -609,25 +603,19 @@ export default {
     },
 
     messageReplace(message) {
-      let oldFlag = this.isMarkdown;
       this.calculateContent(message.content);
-      if (false == oldFlag && true == this.isMarkdown) {
-        this.showTotalContent = this.showContent;
-        this.showMarkdownContent = this.parseMarkdownContent(this.showContent);
-      }
-      if (!message.isHistory && message.ext && message.ext.length && this.isAIStream(message.ext)) {
-        if (this.isMarkdown) {
-          this.showAppendContent = message.content.slice(this.showTotalContent.length);
-          this.calculateMarkdownAppend(message.content, message.ext, true);
-        }
-        this.appendContent = message.content.slice(this.showContent.length);
-        this.calculateAppend(message.content, message.ext, true);
-      } else {
-        if (this.isMarkdown) {
+      if (this.isMarkdown) {
+        clearInterval(this.appendMarkdownTimer);
+        this.appendMarkdownTimer = null;
+        setTimeout(() => {
           this.showMarkdownContent = this.markContent;
-        }
-        this.showContent = this.content;
+        }, 200);
       }
+      clearInterval(this.appendTimer);
+      this.appendTimer = null;
+      setTimeout(() => {
+        this.showContent = this.content;
+      }, 200);
     }
   }
 };
@@ -639,6 +627,6 @@ export default {
 }
 
 /deep/ .el-popper[x-placement^='left'] {
-  margin-right: 2px;
+  margin-right: 5px;
 }
 </style>

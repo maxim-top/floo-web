@@ -506,6 +506,7 @@ export default {
   downloadAudio,
   getServers: dnsManager.getServers,
   getLinkServer: infoStore.getLinkServer,
+  getAppConfig: dnsManager.getAppConfig,
   asyncWechatUnbind: io.wechatUnbind,
   asyncWechatIsbind: io.wechatIsbind,
   asyncWechatBind: io.wechatBind,

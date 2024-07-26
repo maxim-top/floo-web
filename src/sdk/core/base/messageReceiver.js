@@ -338,14 +338,20 @@ const receiveUserNotice = (meta) => {
     type === STATIC_USERNOTICE_TYPE.FROZEN ||
     type === STATIC_USERNOTICE_TYPE.REMOVED ||
     type === STATIC_USERNOTICE_TYPE.KICKED_BY_OTHER_DEVICE ||
-    type === STATIC_USERNOTICE_TYPE.DEVICE_REMOVED ||
-    type === STATIC_USERNOTICE_TYPE.CLUSTER_CHANGED ||
-    type === STATIC_USERNOTICE_TYPE.DNS_UPDATE
+    type === STATIC_USERNOTICE_TYPE.DEVICE_REMOVED
   ) {
     // 这些都需要重新登录，或退出
     infoStore.deleteToken();
     infoStore.deleteDeviceSN();
     fire('flooNotice', { category: 'action', desc: 'relogin_manually' });
+  }
+
+  if (type === STATIC_USERNOTICE_TYPE.CLUSTER_CHANGED || type === STATIC_USERNOTICE_TYPE.DNS_UPDATE) {
+    infoStore.deleteToken();
+    fire('retrieve_dns');
+    setTimeout(() => {
+      fire('flooNotice', { category: 'action', desc: 'relogin' });
+    }, 2000);
   }
 
   if (type === STATIC_USERNOTICE_TYPE.UNKNOWN) {

@@ -2,66 +2,71 @@
   <div class="header" :style="{ 'border-radius': checkMobile ? '0px' : '10px 10px 0 0' }">
     <!-- <div class="header_title">{{ rosterName }}</div> -->
     <div class="profile-container">
-      <el-popover placement="right" trigger="click" width="170" :visible-arrow="false" :append-to-body="false">
+      <el-popover placement="right" trigger="hover" width="170" :visible-arrow="false" :append-to-body="false">
         <div class="profile-name">{{ rosterName }}</div>
-        <div v-if="!isGroup" class="profile-bio">昵称：{{ this.getRosterInfo.nick_name }}</div>
-        <div v-if="!isGroup" class="profile-bio">用户名：{{ this.getRosterInfo.username }}</div>
-        <div v-if="!isGroup" class="profile-bio">ID: {{ this.getRosterInfo.user_id }}</div>
-        <div v-if="isGroup" class="profile-bio">群id: {{ this.getGroupInfo.group_id }}</div>
-        <div v-if="isGroup" class="profile-bio">群主id: {{ this.getGroupInfo.owner_id }}</div>
-        <hr />
-        <div>
-          <span class="profile-tip">公开信息：</span>
-          <span v-if="!isGroup" class="profile-bio">{{ this.getRosterInfo.public_info }}</span>
-          <span v-if="isGroup" class="profile-bio">{{ this.getGroupInfo.description }}</span>
+        <div v-if="isGroup">
+          <div class="profile-bio">群id: {{ this.getGroupInfo.group_id }}</div>
+          <div class="profile-bio" v-if="cardName">群名片: {{ cardName }}</div>
+          <hr v-if="this.getGroupInfo.description" />
+          <div v-if="this.getGroupInfo.description" class="profile-bio">{{ this.getGroupInfo.description }}</div>
+        </div>
+        <div v-else>
+          <div v-if="this.getRosterInfo.nick_name" class="profile-bio">昵称: {{ this.getRosterInfo.nick_name }}</div>
+          <div class="profile-bio">用户名: {{ this.getRosterInfo.username }}</div>
+          <div class="profile-bio">ID: {{ this.getRosterInfo.user_id }}</div>
+          <hr v-if="this.getRosterInfo.description" />
+          <div v-if="this.getRosterInfo.description">{{ this.getRosterInfo.description }}</div>
         </div>
         <div slot="reference">
           <img :src="getRosterAvatar" class="profile-picture" :style="{ filter: useDefaultAvatar ? 'brightness(0) invert(1)' : 'none' }" />
         </div>
       </el-popover>
       <div class="profile-info">
-        <el-popover v-model="clVisible" placement="left" trigger="click" width="140" :visible-arrow="false" :append-to-body="false">
-          <div
-            :class="{ sel: getSid == conversation.sid }"
-            @click="touchConversation(index)"
-            class="conversation-item"
-            v-bind:key="index"
-            v-for="(conversation, index) in getConversationList"
-          >
-            <img class="conversation-avatar" :src="conversation.avatar" />
-            <div class="conversation-name">{{ conversation.name }}</div>
-          </div>
-          <div slot="reference">
-            <div class="name">{{ rosterName }}</div>
-          </div>
-        </el-popover>
+        <div class="name">{{ rosterName }}</div>
         <div class="bio">{{ rosterDescription }}</div>
       </div>
     </div>
     <div class="im_wechat" @click="touchWechat"></div>
-    <el-popover v-model="popVisible" placement="bottom-end" trigger="click" width="100" :visible-arrow="false" :append-to-body="false">
+    <el-popover v-model="popVisible" placement="bottom-end" trigger="click" width="120" :visible-arrow="false" :append-to-body="false">
+      <div
+        :class="{ sel: getSid == conversation.sid }"
+        @click="touchConversation(index)"
+        class="conversation-item"
+        v-bind:key="index"
+        v-for="(conversation, index) in getConversationList"
+      >
+        <img class="conversation-avatar" :src="conversation.avatar" />
+        <div class="conversation-name">{{ conversation.name }}</div>
+        <div class="conversation-unread" v-if="conversation.unread">{{ conversation.unread }}</div>
+      </div>
+      <hr />
       <div v-if="checkMicroMessenger">
         <div @click="touchChoice(index, 'weixin')" class="conversation-item" v-bind:key="index" v-for="(item, index) in weixinItemList">
-          <div class="conversation-name">{{ item }}</div>
+          <div class="item-name">{{ item }}</div>
         </div>
       </div>
       <div v-else-if="checkMobile">
         <div @click="touchChoice(index, 'mobile')" class="conversation-item" v-bind:key="index" v-for="(item, index) in mobileItemList">
-          <div class="conversation-name">{{ item }}</div>
+          <div class="item-name">{{ item }}</div>
         </div>
       </div>
       <div v-else>
         <div @click="touchChoice(index, 'pc')" class="conversation-item" v-bind:key="index" v-for="(item, index) in pcItemList">
-          <div class="conversation-name">{{ item }}</div>
+          <div class="item-name">{{ item }}</div>
         </div>
       </div>
       <div slot="reference">
-        <div class="im_popover">
-          <span class="unread_number_right">{{ getTotalUnread }}</span>
-        </div>
+        <el-popover v-model="showPop" placement="left-start" trigger="manual" width="120" :visible-arrow="true" :append-to-body="false">
+          <div @click="clickNewMessageConversation" v-if="unreadConversation">
+            <p class="show-pop-title">{{ unreadConversation.name }}</p>
+            <p class="show-pop-content">点击查看新消息</p>
+          </div>
+          <div slot="reference" class="im_popover">
+            <span class="unread_number_right" :style="{ 'background-color': blinkBackgroundColor }">{{ getTotalUnread }}</span>
+          </div>
+        </el-popover>
       </div>
     </el-popover>
-
     <div @click="clickClose" class="im_closer" />
   </div>
 </template>
@@ -74,6 +79,23 @@ export default {
     if (this.getApp().isIMLogin()) {
       this.$store.dispatch('header/actionLazyGetHeaderProfile');
       this.changeStabImage(this.getHeaderStatus);
+      this.startBlink();
+    }
+  },
+
+  updated() {
+    let that = this;
+    if (this.getTotalUnread > 0 && this.autoShowPop && !this.showPop) {
+      setTimeout(() => {
+        if (that.getConversationList.length > 1) {
+          that.showPop = true;
+          let item = that.getConversationList.find((item) => item.unread > 0);
+          that.unreadConversation = item ? item : null;
+          that.unreadConversationList = that.getConversationList.filter((item) => item.unread > 0);
+        }
+      }, 200);
+      this.clearPopTimer();
+      this.startBlink();
     }
   },
 
@@ -86,8 +108,17 @@ export default {
       rosterAvatar: '',
       isGroup: false,
       useDefaultAvatar: false,
-      clVisible: false,
       popVisible: false,
+      autoShowPop: true,
+      showPop: false,
+      showPopTimer: null,
+      showPopTimeout: 5000,
+      blinkTimeout: 500,
+      blinkStopTimeout: 5000,
+      blinkTimer: null,
+      blinkBackgroundColor: 'red',
+      unreadConversation: null,
+      unreadConversationList: [],
       weixinItemList: ['已有账号登录', '打开完整版'],
       mobileItemList: ['已有账号登录', '打开完整版', '打开客户端'],
       pcItemList: ['已有账号登录', '打开完整版', '打开客户端']
@@ -120,10 +151,26 @@ export default {
       } else {
         this.useDefaultAvatar = false;
       }
+    },
+    getTotalUnread() {
+      let that = this;
+      if (this.getTotalUnread > 0) {
+        if (this.showPop === false) {
+          that.setShowPopTimer();
+        } else {
+          let item = that.getConversationList.find((item) => item.unread > 0);
+          that.unreadConversation = item ? item : null;
+          that.clearPopTimer();
+        }
+        that.unreadConversationList = that.getConversationList.filter((item) => item.unread > 0);
+        that.startBlink();
+      } else {
+        this.showPop = false;
+      }
     }
   },
   computed: {
-    ...mapGetters('content', ['getRosterInfo', 'getGroupInfo', 'getSid']),
+    ...mapGetters('content', ['getRosterInfo', 'getGroupInfo', 'getSid', 'getMemberList']),
     ...mapGetters('header', ['getHeaderStatus', 'getUserProfile']),
     ...mapGetters('contact', ['getTotalUnread']),
     ...mapGetters('contact', ['getConversationList']),
@@ -138,6 +185,16 @@ export default {
           name = name.substring(0, 20) + '...';
         }
         return name || this.getRosterInfo.user_id;
+      }
+    },
+
+    cardName() {
+      if (this.isGroup) {
+        const uid = this.$store.getters.im.userManage.getUid();
+        const user = this.getMemberList.find((x) => x.user_id === uid);
+        return user && user.display_name ? user.display_name.trim() : '';
+      } else {
+        return '';
       }
     },
 
@@ -170,6 +227,10 @@ export default {
 
     checkMicroMessenger() {
       return /microMessenger/i.test(navigator.userAgent.toLowerCase()) || typeof navigator.wxuserAgent !== 'undefined';
+    },
+
+    checkMobileMicroMessenger() {
+      return /mobile/i.test(navigator.userAgent.toLowerCase());
     }
   },
 
@@ -218,7 +279,25 @@ export default {
     },
 
     clickClose() {
-      parent.postMessage('lanying_toggle_chat', '*');
+      if (this.checkMobile) {
+        this.$store.dispatch('login/actionChangeAppStatus', 'minimize');
+        parent.postMessage(
+          JSON.stringify({
+            type: 'lanying_toggle_chat',
+            size: 'minimize'
+          }),
+          '*'
+        );
+      } else {
+        this.$store.dispatch('login/actionChangeAppStatus', 'navigation');
+        parent.postMessage(
+          JSON.stringify({
+            type: 'lanying_toggle_chat',
+            size: 'navigation'
+          }),
+          '*'
+        );
+      }
     },
     handleSearch(e) {
       const kw = e.target.value;
@@ -272,9 +351,13 @@ export default {
         });
     },
 
-    touchConversation(index) {
-      let conversation = this.getConversationList[index];
-      if (this.getSid !== conversation.sid) {
+    switchAccount() {
+      this.$store.dispatch('layer/actionSetShowing', 'linklogin');
+      this.$store.dispatch('layer/actionSetShowmask', 'true');
+    },
+
+    openConversation(conversation) {
+      if (conversation && this.getSid !== conversation.sid) {
         this.$store.dispatch('header/actionChangeHeaderStatus', 'conversation');
         this.$store.dispatch('content/actionSetType', {
           sid: conversation.sid,
@@ -289,8 +372,62 @@ export default {
           this.isGroup = false;
         }
       }
+    },
+
+    setShowPopTimer() {
+      let that = this;
+      setTimeout(() => {
+        if (that.getConversationList.length > 1) {
+          that.showPop = true;
+          that.autoShowPop = true;
+          let item = that.getConversationList.find((item) => item.unread > 0);
+          that.unreadConversation = item ? item : null;
+        }
+      }, 200);
+      this.clearPopTimer();
+    },
+
+    clearPopTimer() {
+      let that = this;
+      clearTimeout(this.showPopTimer);
+      this.showPopTimer = setTimeout(() => {
+        that.autoShowPop = false;
+        that.showPop = false;
+      }, this.showPopTimeout);
+    },
+
+    clickNewMessageConversation() {
+      this.openConversation(this.unreadConversation);
+      this.clearPopTimer();
+    },
+
+    startBlink() {
+      let that = this;
+      if (that.getTotalUnread) {
+        clearTimeout(that.blinkTimer);
+        that.blinkTimer = setInterval(() => {
+          if (that.blinkBackgroundColor === 'red') {
+            that.blinkBackgroundColor = '';
+          } else {
+            that.blinkBackgroundColor = 'red';
+          }
+        }, that.blinkTimeout);
+        setTimeout(() => {
+          clearTimeout(that.blinkTimer);
+          that.blinkTimer = null;
+          that.blinkBackgroundColor = 'red';
+        }, that.blinkStopTimeout);
+      } else {
+        clearTimeout(that.blinkTimer);
+        that.blinkTimer = null;
+      }
+    },
+
+    touchConversation(index) {
+      let conversation = this.getConversationList[index];
+      this.openConversation(conversation);
       this.$nextTick(() => {
-        this.clVisible = false;
+        this.popVisible = false;
       });
     },
 
@@ -368,7 +505,11 @@ export default {
 
     touchWechat() {
       if (this.checkMicroMessenger) {
-        this.getApp().linkLaunchWXMP();
+        if (this.checkMobileMicroMessenger) {
+          this.getApp().linkLaunchWXMP();
+        } else {
+          this.getApp().alert('微信PC端不支持URL link');
+        }
       } else if (this.checkMobile) {
         this.getApp().linkLaunchWXMP();
       } else {
@@ -380,14 +521,14 @@ export default {
       switch (type) {
         case 'weixin':
           if (index === 0) {
-            this.openMax();
+            this.switchAccount();
           } else if (index === 1) {
             this.openH5NewChatWindows();
           }
           break;
         case 'mobile':
           if (index === 0) {
-            this.openMax();
+            this.switchAccount();
           } else if (index === 1) {
             this.openH5NewChatWindows();
           } else if (index === 2) {
@@ -396,7 +537,7 @@ export default {
           break;
         case 'pc':
           if (index === 0) {
-            this.openMax();
+            this.switchAccount();
           } else if (index === 1) {
             this.openNewChatWindow();
           } else if (index === 2) {
@@ -628,27 +769,11 @@ export default {
   margin-top: 10px;
 }
 
-.unread_number_left {
-  position: absolute;
-  top: -10px;
-  left: -10px;
-  color: white;
-  background: red;
-  font-size: 10px;
-  font-weight: bold;
-  padding: 0 5px;
-  border-radius: 10px;
-  line-height: 14px;
-  min-width: 6px;
-  text-align: center;
-}
-
 .unread_number_right {
   position: absolute;
   top: -10px;
   right: -10px;
   color: white;
-  background: red;
   font-size: 10px;
   font-weight: bold;
   padding: 0 5px;
@@ -703,6 +828,10 @@ export default {
 
 /deep/ .el-popper[x-placement^='bottom'] {
   margin-top: 0px;
+  margin-right: 15px;
+  max-height: 200px;
+  overflow: auto;
+  scrollbar-width: none;
 }
 
 .profile-name {
@@ -732,19 +861,40 @@ export default {
 
 .conversation-avatar {
   width: 26px;
-  height: 24px;
   overflow: hidden;
-  padding-left: 3px;
+  margin-left: 3px;
   border-radius: 3px;
-  background-size: 24px 24px;
+  background-size: 26px 26px;
 }
 
 .conversation-name {
-  padding-left: 10px;
-  width: 135px;
+  margin-left: 5px;
+  width: 65%;
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
+}
+
+.conversation-unread {
+  width: 14px;
+  color: white;
+  background-color: red;
+  margin-left: 2px;
+  font-size: 10px;
+  border-radius: 10px;
+  line-height: 14px;
+  text-align: center;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.item-name {
+  width: 100%;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: center;
 }
 
 .name {
@@ -768,5 +918,20 @@ export default {
   overflow: hidden;
   white-space: nowrap;
   max-width: calc(100% - 20px);
+}
+
+.show-pop-title {
+  font-size: 14px;
+  font-weight: bold;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  margin-block: auto;
+}
+
+.show-pop-content {
+  font-size: 12px;
+  margin-block-start: 5px;
+  margin-block-end: 5px;
 }
 </style>

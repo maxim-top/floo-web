@@ -64,7 +64,7 @@
 
 .support-content .list {
   width: auto;
-  height: calc(100% - 99px);
+  height: calc(100% - 120px);
   overflow-y: auto;
   background-color: #f6f6f6;
 }
@@ -350,6 +350,7 @@
 .support-content .inputer_frame .support_link {
   height: 22px;
   width: 100%;
+  margin-top: 2px;
   /*opacity: 0.3;*/
   background-color: #f6f6f6;
   border-radius: 0px 0px 10px 10px;
@@ -418,7 +419,7 @@
 }
 
 .support-content .inputer_frame .input .input_text {
-  height: 40px;
+  height: 60px;
   background-color: #f6f6f6;
   width: calc(100% - 60px);
 }
@@ -557,23 +558,31 @@
 }
 
 .support-content .chat-index .inputer_frame .button {
-  width: 40px;
-  height: 40px;
-  margin-top: 6px;
-  margin-right: 10px;
+  width: 32px;
+  height: 32px;
+  margin-top: 32px;
+  margin-right: 8px;
   float: right;
   border-radius: 2px;
   transform: translate(0, -18px); /* 逆时针旋转45度 */
 }
 
-.im_send {
-  width: 40px;
-  height: 40px;
+.im_send_full {
+  width: 32px;
+  height: 32px;
   cursor: pointer;
-  background-image: url(/image/im_send.png);
-  background-size: 40px 40px;
-  transform: rotate(-45deg); /* 逆时针旋转45度 */
-  transform-origin: center; /* 旋转中心点为容器中心 */
+  background-image: url(/image/im_send_full.png);
+  background-size: 32px 32px;
+}
+
+.im_send_empty {
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  background-image: url(/image/im_send_empty.png);
+  background-size: 32px 32px;
+  /*transform: rotate(-45deg); /* 逆时针旋转45度 */
+  /*transform-origin: center; /* 旋转中心点为容器中心 */
   /*filter: brightness(0) invert(0.9);*/
 }
 

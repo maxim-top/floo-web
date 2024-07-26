@@ -91,6 +91,7 @@
  * @property {string} ext - 群扩展信息
  * @property {number} group_id - 群id,int64
  * @property {boolean} history_visible - 新成员可见历史聊天记录设置
+ * @property {boolean} hide_member_info - 群组是否对普通群成员隐藏其它群成员详细信息
  * @property {boolean} member_invite - 群成员邀请设置: false - 不允许邀请, true - 允许邀请(默认)
  * @property {boolean} member_modify - 群成员修改群信息设置:  false - 群成员不能修改群信息(默认), true - 群成员可以修改群信息
  * @property {number} msg_mute_mode - 群消息屏蔽模式: 0 - 表示不屏蔽, 1 - 表示屏蔽本地消息通知, 2 - 表示屏蔽消息，不接收消息
