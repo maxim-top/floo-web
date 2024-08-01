@@ -70,13 +70,28 @@ export default {
         } catch (ex) {
           //
         }
-        if (data.type === 'lanying_link_support_user' && data.data) {
-          try {
-            let info = JSON.parse(data.data);
-            that.saveLoginInfo({ username: info.username, password: info.password }, info.appid);
-            that.officialUser = true;
-          } catch (ex) {
-            console.error('Can not parse info in lanying_link_support_user');
+        if (data.type === 'lanying_link_support_user') {
+          if (data.link_mode === 'lanying-support') {
+            that.intent.linkMode = 'lanying-support';
+          } else {
+            that.intent.linkMode = 'lanying-link';
+            that.$store.dispatch('login/actionChangeAppStatus', 'loading');
+            parent.postMessage(
+              JSON.stringify({
+                type: 'lanying_toggle_chat',
+                size: 'large'
+              }),
+              '*'
+            );
+          }
+          if (data.data) {
+            try {
+              let info = JSON.parse(data.data);
+              that.saveLoginInfo({ username: info.username, password: info.password }, info.appid);
+              that.officialUser = true;
+            } catch (ex) {
+              console.error('Can not parse info in lanying_link_support_user');
+            }
           }
         } else if (data.type === 'lanying_link_toggle_chat' && data.size) {
           switch (data.size) {
@@ -217,21 +232,32 @@ export default {
         loginSuccess: () => {
           that.$store.dispatch('login/actionChangeLoginStatus', true);
           if (that.intent.action === 'support') {
-            if (that.checkMobile()) {
-              that.$store.dispatch('login/actionChangeAppStatus', 'minimize');
-              parent.postMessage(
-                JSON.stringify({
-                  type: 'lanying_toggle_chat',
-                  size: 'minimize'
-                }),
-                '*'
-              );
+            if (that.intent.linkMode === 'lanying-support') {
+              if (that.checkMobile()) {
+                that.$store.dispatch('login/actionChangeAppStatus', 'minimize');
+                parent.postMessage(
+                  JSON.stringify({
+                    type: 'lanying_toggle_chat',
+                    size: 'minimize'
+                  }),
+                  '*'
+                );
+              } else {
+                that.$store.dispatch('login/actionChangeAppStatus', 'navigation');
+                parent.postMessage(
+                  JSON.stringify({
+                    type: 'lanying_toggle_chat',
+                    size: 'navigation'
+                  }),
+                  '*'
+                );
+              }
             } else {
-              that.$store.dispatch('login/actionChangeAppStatus', 'navigation');
+              that.$store.dispatch('login/actionChangeAppStatus', 'support');
               parent.postMessage(
                 JSON.stringify({
                   type: 'lanying_toggle_chat',
-                  size: 'navigation'
+                  size: 'large'
                 }),
                 '*'
               );
@@ -490,7 +516,13 @@ export default {
       let info = {};
       const encryptInfo = window.sessionStorage.getItem('lanying_im_logininfo') || window.localStorage.getItem('lanying_im_logininfo') || '';
       if (encryptInfo) {
-        const info_str = this.cryptoDecrypt(encryptInfo);
+        let info_str = '';
+        try {
+          info_str = this.cryptoDecrypt(encryptInfo);
+        } catch (ex) {
+          info_str = encryptInfo;
+        }
+
         try {
           info = JSON.parse(info_str);
         } catch (ex) {
@@ -515,7 +547,6 @@ export default {
           }
           infoList.unshift(info);
           let data = this.cryptoEncrypt(JSON.stringify(infoList));
-          console.log(data);
           window.localStorage.setItem('lanying_im_logininfo_list', data);
         }
       } catch (ex) {
@@ -527,7 +558,12 @@ export default {
       let infoList = [];
       const encryptInfo = window.localStorage.getItem('lanying_im_logininfo_list') || '';
       if (encryptInfo) {
-        const list = this.cryptoDecrypt(encryptInfo);
+        let list = '';
+        try {
+          list = this.cryptoDecrypt(encryptInfo);
+        } catch (ex) {
+          list = encryptInfo;
+        }
         try {
           if (list.length) {
             infoList = JSON.parse(list);

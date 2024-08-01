@@ -415,7 +415,9 @@ body {
 }
 
 .packup {
-  /* padding-right: 3px; */
+  padding-right: 0.5px;
+  max-width: 85%;
+  max-height: 85%;
 }
 
 .wechat .icon img {

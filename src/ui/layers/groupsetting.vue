@@ -81,6 +81,7 @@
               </span>
               <input :checked="selIdList.indexOf(p.user_id) >= 0" @click="touchMemberCheck(p.user_id)" type="checkbox" />
             </div>
+            <p v-if="this.memberList.length"></p>
             <div class="category">
               <a @click="kickMember">踢出群</a>
               <a @click="addBlockList">拉黑</a>
@@ -88,17 +89,26 @@
               <a @click="addAdminMember" v-if="userLevel === 3">提升管理</a>
             </div>
           </div>
-
           <div class="setting_lists" v-if="listTab === 1">
             <p>请选择禁言的成员</p>
             <div :key="p.user_id" class="item" v-for="p in this.banList">
-              <span>{{ p.user_name }} {{ p.duration }}</span>
+              <span v-if="p.duration" style="color: red">
+                {{ p.user_name }}
+                {{ adminList.indexOf(p.user_id) >= 0 ? '(管理员)' : '' }}
+                <br />
+                {{ p.duration }}
+              </span>
+              <span v-else>
+                {{ p.user_name }}
+                {{ adminList.indexOf(p.user_id) >= 0 ? '(管理员)' : '' }}
+              </span>
               <input :checked="selIdList.indexOf(p.user_id) >= 0" @click="touchMemberCheck(p.user_id)" type="checkbox" />
             </div>
+            <p v-if="this.banList.length"></p>
             <div class="category">
               <a @click="addMute">禁言</a>
               <a @click="removeMute">解除禁言</a>
-              <input placeholder="输入分钟数" type="text" v-model="banDuration" />
+              <input placeholder="输入分钟数" type="text" style="width: 120px; margin-left: 5px" v-model="banDuration" />
               分钟(-1永久)
             </div>
           </div>
@@ -109,36 +119,55 @@
               <span>{{ p.user_name }}</span>
               <input :checked="selIdList.indexOf(p.user_id) >= 0" @click="touchMemberCheck(p.user_id)" type="checkbox" />
             </div>
+            <p v-if="this.blockList.length"></p>
             <div class="category"><a @click="removeBlock">移除黑名单</a></div>
           </div>
 
           <div class="setting_lists" v-if="listTab === 3">
             <p>请添加或选择要删除的公告</p>
-            <a @click="addPublic">添加</a>
-            <input placeHolder="title" type="text" v-model="public_title" />
-            <input placeHolder="content" type="text" v-model="public_content" />
-            <div :key="p.id" class="item" v-for="p in this.publicList">
-              <span>title:{{ p.title }}</span>
-              <br />
-              <span>content:{{ p.content }}</span>
-              <a @click="removePublic(p.id)" class="r">删除</a>
+            <div class="category">
+              <a @click="addPublic">添加</a>
+              <input placeHolder="标题" type="text" style="width: 120px; margin-left: 5px" v-model="public_title" />
+              <input placeHolder="内容" type="text" style="width: 140px; margin-left: 5px" v-model="public_content" />
+            </div>
+            <p v-if="this.publicList.length"></p>
+            <div :key="p.id" class="item item_list" v-for="p in this.publicList">
+              <el-tooltip placement="bottom-start" effect="light" :visible-arrow="false">
+                <div slot="content">
+                  <span>title:{{ p.title }}</span>
+                  <br />
+                  <span>content:{{ p.content }}</span>
+                </div>
+                <div>
+                  <span>title:{{ p.title }}</span>
+                  <br />
+                  <span>content:{{ p.content }}</span>
+                </div>
+              </el-tooltip>
+              <div class="category r">
+                <a @click="removePublic(p.id)" class="r">删除</a>
+              </div>
             </div>
           </div>
 
           <div class="setting_lists" v-if="listTab === 4">
             <p>请选择上传的文件</p>
-            <input ref="fileRef" style="width: 150px; height: 28px; visibility: visible; position: static" type="file" />
-            <a @click="uploadFile" class="ml10">上传</a>
-            <a @click="removeFile" class="r">批量删除</a>
-
-            <div :key="d.file_id" class="item p5 bprder" style="width: 400px" v-for="d in this.fileList">
-              <p>
-                <a @click="downloadImage(d.url)" class="r">下载</a>
+            <div class="setting_lists_bars">
+              <input ref="fileRef" style="margin-left: 10px; width: 280px; height: 28px; visibility: visible; position: static" type="file" />
+              <div class="category"><a @click="uploadFile">上传</a></div>
+            </div>
+            <p></p>
+            <div :key="d.file_id" class="item item_list" v-for="d in this.fileList">
+              <span class="file_span">
                 文件名:{{ d.name }}
                 <br />
                 大小:{{ d.size }}
-                <input :checked="selIdList.indexOf(d.file_id) >= 0" @click="touchMemberCheck(d.file_id)" type="checkbox" />
-              </p>
+              </span>
+              <input :checked="selIdList.indexOf(d.file_id) >= 0" @click="touchMemberCheck(d.file_id)" type="checkbox" />
+            </div>
+            <div class="category">
+              <a @click="downFile">批量下载</a>
+              <a @click="removeFile">批量删除</a>
             </div>
           </div>
 
@@ -148,6 +177,7 @@
               <span>{{ p.user_name }}</span>
               <input :checked="selIdList.indexOf(p.user_id) >= 0" @click="touchMemberCheck(p.user_id)" type="checkbox" />
             </div>
+            <p v-if="this.rosterList.length"></p>
             <div class="category"><a @click="inviteRoster">邀请好友</a></div>
           </div>
         </div>
@@ -221,7 +251,7 @@ export default {
       arr.forEach((x) => {
         const sxuid = x.user_id || x;
         const mapUser = allMaps[sxuid] || {};
-        const user_name = x.display_name || mapUser.alias || mapUser.username || x.user_id;
+        const user_name = x.display_name || mapUser.alias || mapUser.nick_name || mapUser.username || x.user_id;
         ret.push({
           user_id: sxuid,
           user_name
@@ -235,7 +265,7 @@ export default {
       this.memberList.forEach((x) => {
         const user_id = x.user_id || x;
         const mapUser = allMaps[user_id] || {};
-        const user_name = x.display_name || mapUser.alias || mapUser.username || x.user_id;
+        const user_name = x.user_name || mapUser.alias || mapUser.nick_name || mapUser.username || x.user_id;
         const durItem = this.bans.find((i) => i.user_id === x.user_id);
         let duration = '';
         if (durItem) {
@@ -255,7 +285,7 @@ export default {
       this.blocks.forEach((x) => {
         const user_id = x.user_id || x;
         const mapUser = allMaps[user_id] || {};
-        const user_name = x.display_name || mapUser.alias || mapUser.username || x.user_id;
+        const user_name = x.display_name || mapUser.alias || mapUser.nick_name || mapUser.username || x.user_id;
         ret.push({
           user_name,
           user_id
@@ -272,7 +302,7 @@ export default {
       arr.forEach((x) => {
         const user_id = x;
         const mapUser = allMaps[user_id] || {};
-        const user_name = mapUser.alias || mapUser.username || x;
+        const user_name = mapUser.alias || mapUser.nick_name || mapUser.username || x;
         ret.push({
           user_id,
           user_name
@@ -435,8 +465,9 @@ export default {
         this.im.groupManage.asyncAdminRemove({ group_id: this.getSid, user_list }).then(() => {
           alert('已经删除管理员');
           this.im.groupManage.asyncGetAdminList({ group_id: this.getSid }).then((r) => {
-            this.adminList = (r || []).map((i) => i.user_id);
+            this.admins = (r || []).map((i) => i.user_id);
           });
+          this.selIdList = [];
         });
       }
     },
@@ -453,13 +484,19 @@ export default {
           })
           .then(() => {
             alert('已经添加管理员');
-            this.adminList = this.adminList.concat(user_list);
+            this.admins = this.adminList.concat(user_list);
+            this.requireMember();
+            this.selIdList = [];
           });
       }
     },
     kickMember() {
       let user_list = this.selIdList;
       const group_id = this.getSid;
+      if (!user_list.length) {
+        alert('您没有选择群成员');
+        return;
+      }
       this.im.groupManage.asyncKick({ group_id, user_list }).then(() => {
         alert('已t人');
         this.selIdList = [];
@@ -503,6 +540,7 @@ export default {
       this.im.groupManage.asyncGroupBab({ group_id, duration, user_list }).then(() => {
         alert('禁言设置成功');
         this.requireBanList();
+        this.selIdList = [];
       });
     },
 
@@ -517,6 +555,7 @@ export default {
       this.im.groupManage.asyncGroupUnban({ group_id, user_list }).then(() => {
         alert('解除禁言成功');
         this.requireBanList();
+        this.selIdList = [];
       });
     },
     requireBanList() {
@@ -550,7 +589,7 @@ export default {
     requirePublicList() {
       const group_id = this.getSid;
       this.im.groupManage.asyncGetAnnouncementList({ group_id }).then((res = []) => {
-        this.publicList = [].concat(res);
+        this.publicList = [].concat(res).reverse();
       });
     },
     addPublic() {
@@ -614,6 +653,7 @@ export default {
               .asyncFileUpload({ name, size, type, group_id, url })
               .then(() => {
                 this.requireFileList();
+                this.$refs.fileRef.value = null;
               })
               .catch(function (err) {
                 alert('error:' + err.message);
@@ -624,13 +664,20 @@ export default {
     removeFile() {
       let file_list = this.selIdList;
       const group_id = this.getSid;
-      this.im.groupManage.asyncFileDelete({ file_list, group_id }).then(() => {
-        this.requireFileList();
-      });
+      if (file_list.length) {
+        this.im.groupManage.asyncFileDelete({ file_list, group_id }).then(() => {
+          this.requireFileList();
+        });
+      }
     },
-    downloadImage(d) {
-      const url = d + '&access-token=' + this.im.userManage.getToken() + '&app_id=' + this.im.userManage.getAppid();
-      window.open(url);
+    downFile() {
+      let file_list = this.selIdList;
+      this.fileList.forEach((item) => {
+        if (file_list.includes(item.file_id)) {
+          const url = item.url + '&access-token=' + this.im.userManage.getToken() + '&app_id=' + this.im.userManage.getAppid();
+          window.open(url);
+        }
+      });
     },
     /********** add roster
      */

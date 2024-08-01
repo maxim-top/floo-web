@@ -596,4 +596,6 @@
 
 .el-tooltip__popper {
   border: none !important;
+  max-width: 260px !important;
+  font-size: 12px;
 }

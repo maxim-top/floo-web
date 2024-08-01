@@ -91,7 +91,8 @@ const groupStore = {
       const index = savedMembers.findIndex((x) => x === uid);
       index >= 0 && savedMembers.splice(index, 1);
     });
-    saveItem('key_group_members', savedMembers);
+    allMap[gid] = savedMembers;
+    saveItem('key_group_members', allMap);
   },
 
   getGroupMembers: (gid) => {

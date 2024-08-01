@@ -549,6 +549,13 @@
 
 .group_setting_layer .group_setting_group .setting_lists {
   margin: 10px 0px 10px 0px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.group_setting_layer .group_setting_group .setting_lists .setting_lists_bars {
+  display: flex;
+  flex-direction: row;
 }
 
 .group_setting_layer .group_setting_group .setting_lists .item {
@@ -557,8 +564,21 @@
   overflow: hidden;
 }
 
+.group_setting_layer .group_setting_group .setting_lists .item_list {
+  border-bottom: 1px solid #ececec;
+  margin: 6px;
+}
+
 .group_setting_layer .group_setting_group .setting_lists .item span {
   float: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 66.6%;
+  white-space: nowrap;
+}
+
+.group_setting_layer .group_setting_group .setting_lists .item .file_span {
+  max-width: 90%;
 }
 
 .group_setting_layer .group_setting_group .setting_lists .item input {
