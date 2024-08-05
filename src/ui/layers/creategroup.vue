@@ -44,7 +44,6 @@ export default {
       avatar: '',
       description: '',
       name: '',
-      alias: '',
       type: 0,
       selectedList: [],
       roster_list: []

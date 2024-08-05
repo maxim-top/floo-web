@@ -49,7 +49,7 @@ const actions = {
           const retObj = res.map((i) => {
             const rosterInfo = allMaps[i] || { user_id: i };
             return {
-              name: rosterInfo.alias || rosterInfo.nick_name || rosterInfo.username || rosterInfo.user_id,
+              name: rosterInfo.nick_name || rosterInfo.username || rosterInfo.user_id,
               id: rosterInfo.user_id,
               avatar: rootState.im.sysManage.getImage({
                 avatar: rosterInfo.avatar

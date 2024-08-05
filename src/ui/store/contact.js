@@ -135,7 +135,7 @@ const actions = {
       if (item.type === 'roster') {
         //roster
         const sroster = allRosterMap[id] || {};
-        name = sroster.alias || sroster.nick_name || sroster.username || id;
+        name = sroster.nick_name || sroster.username || id;
         avatar = sroster.avatar;
       } else if (item.type === 'group') {
         //group

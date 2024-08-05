@@ -41,7 +41,7 @@ export default {
   computed: {
     ...mapGetters('content', ['getRosterInfo', 'getSid']),
     rosterName() {
-      let name = this.getRosterInfo.alias || this.getRosterInfo.nick_name || this.getRosterInfo.username;
+      let name = this.getRosterInfo.nick_name || this.getRosterInfo.username;
       if (!name) {
         this.$store.dispatch('content/actionUpdateRoster');
       }

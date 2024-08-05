@@ -155,13 +155,12 @@ const groupAddMemberLogic = (group_id, uids, isNotice, replace) => {
       if (!allRosterInfos[item.user_id] || !allRosterInfos[item.user_id].username) {
         arr.push(item.user_id);
       } else {
+        item.has_nick = false;
         if (item.user_id != uid) {
-          item.display_name =
-            allRosterInfos[item.user_id].alias ||
-            item.display_name ||
-            allRosterInfos[item.user_id].nick_name ||
-            allRosterInfos[item.user_id].username ||
-            allRosterInfos[item.user_id].user_id;
+          if (item.display_name || allRosterInfos[item.user_id].nick_name) {
+            item.has_nick = true;
+          }
+          item.display_name = item.display_name || allRosterInfos[item.user_id].nick_name || allRosterInfos[item.user_id].username || allRosterInfos[item.user_id].user_id;
         } else {
           item.display_name = item.display_name || allRosterInfos[item.user_id].nick_name || allRosterInfos[item.user_id].username || allRosterInfos[item.user_id].user_id;
         }
@@ -178,13 +177,12 @@ const groupAddMemberLogic = (group_id, uids, isNotice, replace) => {
         const allRosterInfos = rosterStore.getAllRosterInfos();
         res = res.map((sitem) => {
           if (!sitem.display_name) {
+            sitem.has_nick = false;
             if (sitem.user_id != uid) {
-              sitem.display_name =
-                allRosterInfos[sitem.user_id].alias ||
-                sitem.display_name ||
-                allRosterInfos[sitem.user_id].nick_name ||
-                allRosterInfos[sitem.user_id].username ||
-                allRosterInfos[sitem.user_id].user_id;
+              if (sitem.display_name || allRosterInfos[sitem.user_id].nick_name) {
+                sitem.has_nick = true;
+              }
+              sitem.display_name = sitem.display_name || allRosterInfos[sitem.user_id].nick_name || allRosterInfos[sitem.user_id].username || allRosterInfos[sitem.user_id].user_id;
             } else {
               sitem.display_name = sitem.display_name || allRosterInfos[sitem.user_id].nick_name || allRosterInfos[sitem.user_id].username || allRosterInfos[sitem.user_id].user_id;
             }
@@ -895,6 +893,13 @@ bind('imGroupMuted', (meta) => {
   // messageStore.saveGroupMessage(meta);
   fire('onGroupMuted', meta);
 });
+
+bind('imGroupUnmuted', (meta) => {
+  // 不收消息，from 只能是自己
+  // messageStore.saveGroupMessage(meta);
+  fire('onGroupUnmuted', meta);
+});
+
 bind('imGroupUnblocked', (meta) => {
   // messageStore.saveGroupMessage(meta);
   fire('onGroupUnblocked', meta);
@@ -902,11 +907,25 @@ bind('imGroupUnblocked', (meta) => {
 bind('imGroupBaned', (meta) => {
   // 不能发消息， 管理员设置的
   // messageStore.saveGroupMessage(meta);
-  fire('onGroupBaned', meta);
+  const { payload } = meta;
+  const { gid, to = [], content } = payload;
+  const groupId = toNumber(gid.uid);
+  const toUids = [];
+  to.forEach((item) => {
+    toUids.push(toNumber(item.uid));
+  });
+  fire('onGroupBaned', { groupId, toUids, content });
 });
 bind('imGroupUnbaned', (meta) => {
   // messageStore.saveGroupMessage(meta);
-  fire('onGroupUnbaned', meta);
+  const { payload } = meta;
+  const { gid, to = [] } = payload;
+  const groupId = toNumber(gid.uid);
+  const toUids = [];
+  to.forEach((item) => {
+    toUids.push(toNumber(item.uid));
+  });
+  fire('onGroupUnbaned', { groupId, toUids });
 });
 bind('imGroupInfoUpdated', (meta) => {
   const { payload } = meta;

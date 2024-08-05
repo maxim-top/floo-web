@@ -75,7 +75,7 @@ export default {
       const sret = applicationlist.map((item) => {
         const { status, group_id, applicant_id, expired_time, reason } = item;
         const suser = rmap[applicant_id] || {};
-        const user_name = suser.alias || suser.username || item.inviter_id;
+        const user_name = suser.nick_name || suser.username || item.inviter_id;
         const sgroup = gmap[group_id] || {};
         const group_name = sgroup.name || item.group_id;
         return {

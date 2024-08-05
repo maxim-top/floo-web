@@ -196,7 +196,7 @@ export default {
       const umaps = this.im.rosterManage.getAllRosterDetail() || {};
       const fromUid = toNumber(this.message.from);
       const fromUserObj = umaps[fromUid] || {};
-      let username = fromUserObj.alias || fromUserObj.nick_name || fromUserObj.username || fromUserObj.user_id;
+      let username = fromUserObj.nick_name || fromUserObj.username || fromUserObj.user_id;
       let avatar = this.im.sysManage.getImage({ avatar: fromUserObj.avatar });
 
       if (fromUid === cuid) {

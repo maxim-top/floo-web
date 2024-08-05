@@ -52,8 +52,16 @@ export default {
       return this.$parent.$parent;
     },
     submit() {
-      this.getApp().saveLoginInfo(this.user, this.appid);
-      this.getApp().imLogin();
+      if (this.sdkok) {
+        this.getApp().saveLoginInfo(this.user, this.appid);
+        this.getApp().imLogin();
+      } else {
+        this.$message({
+          message: '初始化异常,请检查 appid 是否正确！',
+          type: 'warning',
+          duration: 2000
+        });
+      }
     },
 
     changeAppID(presentAppID) {

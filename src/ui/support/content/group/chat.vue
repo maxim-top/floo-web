@@ -134,7 +134,7 @@ export default {
           // }
 
           config.mentionList.forEach((sx) => {
-            content = content.replace('{' + sx + '}', umaps[sx].alias || umaps[sx].username);
+            content = content.replace('{' + sx + '}', umaps[sx].nick_name || umaps[sx].username);
           });
           x.mentionStr = content;
         }

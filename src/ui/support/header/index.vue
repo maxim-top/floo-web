@@ -179,7 +179,7 @@ export default {
       if (this.isGroup) {
         return this.getGroupInfo.name;
       } else {
-        let name = this.getRosterInfo.alias || this.getRosterInfo.nick_name;
+        let name = this.getRosterInfo.nick_name;
         name = this.isEmpty(name) ? this.getRosterInfo.username : name;
         if (name && name.length > 20) {
           name = name.substring(0, 20) + '...';

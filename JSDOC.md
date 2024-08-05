@@ -776,7 +776,7 @@ token 登录
 
 ```
 
-获取群黑名单
+获取群禁言列表
 
 ```
         im.groupManage.asyncGroupBannedList({ group_id }).then(res => {
@@ -794,7 +794,7 @@ token 登录
 
 ```
 
-解除成员
+解除成员禁言
 
 ```
         im.groupManage.asyncGroupUnban({ group_id, user_list }).then(() => {

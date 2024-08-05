@@ -71,10 +71,8 @@ export default {
       if (appConfig) {
         app_hide_member_info = appConfig.hide_member_info;
       }
-      const uid = this.$store.getters.im.userManage.getUid();
-
       if (app_hide_member_info) {
-        if (this.isOwner || this.isAdmin || uid === user_id || !hide_member_info) {
+        if (!hide_member_info) {
           hide = false;
         }
       } else {
@@ -114,7 +112,7 @@ export default {
     },
 
     displayName(roster) {
-      if (this.checkHideMemberInfo(roster.user_id)) {
+      if (this.checkHideMemberInfo(roster.user_id) && !roster.has_nick) {
         return this.calucateHideMemberName(roster);
       } else {
         return roster.display_name;

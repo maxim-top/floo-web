@@ -57,7 +57,7 @@
           </p>
 
           <p>
-            <span class="sl">是否对成员隐藏其它成员详情</span>
+            <span class="sl">隐藏群成员信息</span>
             <span class="sr">
               <i :class="['r', groupInfo.hide_member_info ? 'switcher_on' : 'switcher_off']" @click="switchTouched(7)"></i>
             </span>
@@ -189,6 +189,7 @@
 <script>
 import { mapGetters } from 'vuex';
 import moment from 'moment';
+import CryptoJS from 'crypto-js';
 
 export default {
   name: 'contentIndex',
@@ -222,7 +223,7 @@ export default {
   components: {},
   computed: {
     ...mapGetters('chat', ['getViewType']),
-    ...mapGetters('content', ['getSid']),
+    ...mapGetters('content', ['getSid', 'getMemberList']),
     im() {
       return this.$store.state.im;
     },
@@ -247,15 +248,28 @@ export default {
       if (this.userLevel === 2) {
         arr = arr.filter((x) => this.adminList.indexOf(x.user_id) === -1);
       }
+      let memberArray = [];
+      for (let i = 0; i < arr.length; i++) {
+        if (arr[i] && arr[i].user_id) {
+          if (this.getMemberList.findIndex((y) => y.user_id === arr[i].user_id) != -1) {
+            memberArray.push(this.getMemberList[this.getMemberList.findIndex((y) => y.user_id === arr[i].user_id)]);
+          } else {
+            let mapUser = allMaps[arr[i].user_id] || {};
+            mapUser.display_name = mapUser.nick_name || mapUser.username || arr[i].user_id;
+            memberArray.push(mapUser);
+          }
+        }
+      }
       let ret = [];
-      arr.forEach((x) => {
-        const sxuid = x.user_id || x;
-        const mapUser = allMaps[sxuid] || {};
-        const user_name = x.display_name || mapUser.alias || mapUser.nick_name || mapUser.username || x.user_id;
-        ret.push({
-          user_id: sxuid,
-          user_name
-        });
+      memberArray.forEach((x) => {
+        if (x && x.user_id) {
+          const sxuid = x.user_id || x;
+          const user_name = this.displayName(x);
+          ret.push({
+            user_id: sxuid,
+            user_name
+          });
+        }
       });
       return [].concat(ret);
     },
@@ -265,7 +279,7 @@ export default {
       this.memberList.forEach((x) => {
         const user_id = x.user_id || x;
         const mapUser = allMaps[user_id] || {};
-        const user_name = x.user_name || mapUser.alias || mapUser.nick_name || mapUser.username || x.user_id;
+        const user_name = x.user_name || mapUser.nick_name || mapUser.username || x.user_id;
         const durItem = this.bans.find((i) => i.user_id === x.user_id);
         let duration = '';
         if (durItem) {
@@ -284,8 +298,9 @@ export default {
       const allMaps = this.im.rosterManage.getAllRosterDetail() || {};
       this.blocks.forEach((x) => {
         const user_id = x.user_id || x;
-        const mapUser = allMaps[user_id] || {};
-        const user_name = x.display_name || mapUser.alias || mapUser.nick_name || mapUser.username || x.user_id;
+        let mapUser = allMaps[user_id] || {};
+        mapUser.display_name = mapUser.nick_name || mapUser.username || x;
+        const user_name = this.displayRosterName(mapUser);
         ret.push({
           user_name,
           user_id
@@ -301,8 +316,9 @@ export default {
       let ret = [];
       arr.forEach((x) => {
         const user_id = x;
-        const mapUser = allMaps[user_id] || {};
-        const user_name = mapUser.alias || mapUser.nick_name || mapUser.username || x;
+        let mapUser = allMaps[user_id] || {};
+        mapUser.display_name = mapUser.nick_name || mapUser.username || x;
+        const user_name = this.displayRosterName(mapUser);
         ret.push({
           user_id,
           user_name
@@ -451,6 +467,7 @@ export default {
     },
 
     requireMember() {
+      this.$store.dispatch('content/actionUpdateMemberList');
       this.im.groupManage.asyncGetMemberList(this.getSid, true).then((res) => {
         this.members = res;
       });
@@ -500,7 +517,8 @@ export default {
       this.im.groupManage.asyncKick({ group_id, user_list }).then(() => {
         alert('已t人');
         this.selIdList = [];
-        this.im.groupManage.asyncGetGroupMembers(group_id, true).then((res) => {
+        this.requireMember();
+        this.im.groupManage.asyncGetMemberList(group_id, true).then((res) => {
           this.members = res;
         });
       });
@@ -703,6 +721,55 @@ export default {
         return false;
       }
       return banExpireTime < 0 || new Date().getTime() < banExpireTime;
+    },
+
+    checkHideMemberInfo(user_id) {
+      let hide = true;
+      let hide_member_info = this.groupInfo.hide_member_info;
+      let app_hide_member_info = false;
+      let appConfig = this.im.sysManage.getAppConfig(this.im.userManage.getAppid());
+      if (appConfig) {
+        app_hide_member_info = appConfig.hide_member_info;
+      }
+      if (app_hide_member_info) {
+        if (!hide_member_info) {
+          hide = false;
+        }
+      } else {
+        hide = false;
+      }
+
+      return hide;
+    },
+
+    calucateHideMemberName(roster) {
+      let original = roster.display_name + roster.user_id;
+      const md5hash = CryptoJS.MD5(original);
+      let output = md5hash.toString(CryptoJS.enc.Base64);
+      if (output.length > 12) {
+        output = output.substring(0, 12);
+      }
+      return output;
+    },
+
+    displayName(roster) {
+      if (this.checkHideMemberInfo(roster.user_id) && !roster.has_nick) {
+        return this.calucateHideMemberName(roster);
+      } else {
+        return roster.display_name;
+      }
+    },
+
+    displayRosterName(roster) {
+      if (this.checkHideMemberInfo(roster.user_id)) {
+        if (roster.nick_name) {
+          return roster.nick_name;
+        } else {
+          return this.calucateHideMemberName(roster);
+        }
+      } else {
+        return roster.display_name;
+      }
     }
 
     //methods finish

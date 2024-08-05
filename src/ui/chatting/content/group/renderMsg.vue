@@ -215,9 +215,11 @@ export default {
       const fromUid = toNumber(this.message.from);
       const fromUserObj = umaps[fromUid] || {};
       let username = '';
+      let has_nick = false;
       for (let i = 0; i < this.getMemberList.length; i++) {
         if (this.getMemberList[i].user_id === fromUid) {
           username = this.getMemberList[i].display_name;
+          has_nick = this.getMemberList[i].has_nick;
           break;
         }
       }
@@ -225,7 +227,7 @@ export default {
       if (fromUid === cuid) {
         username = '我';
         avatar = this.im.sysManage.getImage({ avatar: this.getUserProfile.avatar });
-      } else if (this.checkHideMemberInfo(fromUid)) {
+      } else if (this.checkHideMemberInfo(fromUid) && !has_nick) {
         let original = username + fromUid;
         const md5hash = CryptoJS.MD5(original);
         let output = md5hash.toString(CryptoJS.enc.Base64);
@@ -614,9 +616,8 @@ export default {
       if (appConfig) {
         app_hide_member_info = appConfig.hide_member_info;
       }
-      const uid = this.$store.getters.im.userManage.getUid();
       if (app_hide_member_info) {
-        if (this.isOwner || this.isAdmin || !hide_member_info) {
+        if (!hide_member_info) {
           hide = false;
         }
       } else {

@@ -12,8 +12,9 @@
       <span v-popover:tooltip.top="'发送文件'" @click="fileUploadClickHandler" class="ico file"></span>
       <span v-popover:tooltip.top="'发送位置'" @click="locationClickHandler" class="ico location"></span>
     </div>
+    <el-alert v-if="hasBan" title="您已被禁言，请联系管理员" type="info" center :closable="false"></el-alert>
     <div class="input">
-      <textarea @keydown="textareaKeyDown" @keyup="textKeyUp" class="input_text" v-model="message" wrap="hard"></textarea>
+      <textarea v-if="!this.hasBan" @keydown="textareaKeyDown" @keyup="textKeyUp" class="input_text" v-model="message" wrap="hard"></textarea>
     </div>
   </div>
 </template>
@@ -29,7 +30,10 @@ export default {
       fileType: '',
       mentionSelectedUids: [],
       willsendMessage: '',
-      filteredMentionRosters: []
+      filteredMentionRosters: [],
+      hasBan: false,
+      expired_time: 0,
+      banCheckTimer: null
     };
   },
   components: {},
@@ -37,6 +41,51 @@ export default {
     ...mapGetters('content', ['getSid', 'getMemberList']),
     im() {
       return this.$store.state.im;
+    }
+  },
+  mounted() {
+    let that = this;
+    this.hasBan = false;
+    this.chechBan(this.getSid);
+
+    this.$store.getters.im.on('onGroupBaned', (meta) => {
+      const { groupId, toUids, content } = meta;
+      if (that.getSid === groupId) {
+        if (Array.isArray(toUids) && toUids.length && parseInt(content)) {
+          toUids.forEach((id) => {
+            if (id === this.im.userManage.getUid()) {
+              that.hasBan = true;
+              that.expired_time = Date.now() + parseInt(content) * 60 * 1000;
+              console.log('SSSS onGroupBaned work here.');
+              console.log('SSSS onGroupBaned that.expired_time : ' + that.expired_time);
+              console.log('SSSS onGroupBaned Date.now() : ' + Date.now());
+              that.startBanCheck();
+            }
+          });
+        }
+      }
+    });
+
+    this.$store.getters.im.on('onGroupUnbaned', (meta) => {
+      const { groupId, toUids } = meta;
+      if (that.getSid === groupId) {
+        if (Array.isArray(toUids) && toUids.length) {
+          toUids.forEach((id) => {
+            if (id === this.im.userManage.getUid()) {
+              that.stopBanCheck();
+            }
+          });
+        }
+      }
+    });
+  },
+  destroyed() {
+    this.stopBanCheck();
+  },
+  watch: {
+    getSid(newSid) {
+      this.hasBan = false;
+      this.chechBan(newSid);
     }
   },
   methods: {
@@ -236,6 +285,43 @@ export default {
         this.message = sarr.join('@') + ' ';
         this.textKeyUp();
       }
+    },
+    chechBan(newSid) {
+      let that = this;
+      this.im.groupManage.asyncGroupBannedList({ group_id: newSid }).then((res) => {
+        if (Array.isArray(res) && res.length) {
+          res.forEach((item) => {
+            if (item.user_id === this.im.userManage.getUid() && item.expired_time > Date.now()) {
+              that.hasBan = true;
+              that.expired_time = item.expired_time;
+              console.log('SSSS chechBan work here.');
+              console.log('SSSS chechBan expired_time :' + item.expired_time);
+              console.log('SSSS chechBan Date.now() : ' + Date.now());
+              that.startBanCheck();
+            }
+          });
+        }
+      });
+    },
+
+    startBanCheck() {
+      this.banCheckTimer = setInterval(() => {
+        console.log('SSSS banCheckTimer timer work here.');
+        console.log('SSSS banCheckTimer expired_time : ' + this.expired_time);
+        console.log('SSSS banCheckTimer Date.now() : ' + Date.now());
+        if (this.expired_time > Date.now()) {
+          // do nothing.
+        } else {
+          this.stopBanCheck();
+        }
+      }, 5000);
+    },
+
+    stopBanCheck() {
+      console.log('SSSS banCheckTimer timer stop here.');
+      clearInterval(this.banCheckTimer);
+      this.banCheckTimer = null;
+      this.hasBan = false;
     }
     //methods finish
   }
