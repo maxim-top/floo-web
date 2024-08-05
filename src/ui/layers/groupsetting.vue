@@ -727,12 +727,13 @@ export default {
       let hide = true;
       let hide_member_info = this.groupInfo.hide_member_info;
       let app_hide_member_info = false;
+      const uid = this.im.userManage.getUid();
       let appConfig = this.im.sysManage.getAppConfig(this.im.userManage.getAppid());
       if (appConfig) {
         app_hide_member_info = appConfig.hide_member_info;
       }
       if (app_hide_member_info) {
-        if (!hide_member_info) {
+        if (uid === user_id || !hide_member_info) {
           hide = false;
         }
       } else {
