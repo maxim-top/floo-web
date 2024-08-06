@@ -139,7 +139,7 @@ const actions = {
   actionOpenGroup(context) {
     const { rootState, state } = context;
     rootState.im.groupManage.openGroup(state.sid);
-    rootState.im.groupManage.readGroupMessage(state.sid);
+    //rootState.im.groupManage.readGroupMessage(state.sid);
 
     rootState.im.groupManage
       .asyncGetAdminList({ group_id: state.sid })
@@ -163,7 +163,7 @@ const actions = {
   actionPreOpenGroup(context, x) {
     const { rootState } = context;
     rootState.im.groupManage.openGroup(x.sid);
-    rootState.im.groupManage.readGroupMessage(x.sid);
+    //rootState.im.groupManage.readGroupMessage(x.sid);
 
     rootState.im.groupManage
       .asyncGetAdminList({ group_id: x.sid })

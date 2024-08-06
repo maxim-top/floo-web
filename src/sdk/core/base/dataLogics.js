@@ -1158,12 +1158,15 @@ bind('imReadGroupMessage', (param) => {
   if (mid) {
     // read one message
     const meta = messageStore.getGroupMessageById(group_id, mid);
-    const needAck = changeGroupMessageStatusRead(meta);
+    const { needAck, changed } = changeGroupMessageStatusRead(meta);
     if (needAck && !isReceived) {
       unread_changed = true;
       const groupMemberUid = numToString(meta.from);
       const sframe = makeReadMessageAck(groupMemberUid, mid);
       fire('sendMessage', sframe);
+    }
+    if (!unread_changed) {
+      unread_changed = changed;
     }
   } else {
     // read all messages
@@ -1171,7 +1174,7 @@ bind('imReadGroupMessage', (param) => {
     let mid_read;
 
     allMsgs.forEach((meta) => {
-      const needAck = changeGroupMessageStatusRead(meta);
+      const { needAck, changed } = changeGroupMessageStatusRead(meta);
       if (needAck && !isReceived) {
         unread_changed = true;
         const groupMemberUid = numToString(meta.from);
@@ -1179,6 +1182,9 @@ bind('imReadGroupMessage', (param) => {
         fire('sendMessage', sframe);
       }
       mid_read = meta.id;
+      if (!unread_changed) {
+        unread_changed = changed;
+      }
     });
     messageStore.saveFormatedGroupMessage(group_id, allMsgs);
 
@@ -1270,7 +1276,7 @@ const changeGroupMessageStatusRead = (meta) => {
       }
     }
   }
-  return needAck;
+  return { needAck, changed };
 };
 
 const changeGroupMessageStatus = (meta, status) => {

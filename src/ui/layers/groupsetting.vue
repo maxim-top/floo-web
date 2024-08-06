@@ -733,7 +733,7 @@ export default {
         app_hide_member_info = appConfig.hide_member_info;
       }
       if (app_hide_member_info) {
-        if (uid === user_id || !hide_member_info) {
+        if (!hide_member_info) {
           hide = false;
         }
       } else {

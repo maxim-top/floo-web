@@ -498,8 +498,14 @@ webim.kickAllWeb = function () {
 webim.logout = function (opt) {
   io.disConnect();
   window.sessionStorage.setItem('key_stop_auto_login', true);
-  if (opt && opt.quitAllWeb) {
-    webim.kickAllWeb();
+  isLogin = false;
+  if (opt) {
+    if (opt.quitAllWeb) {
+      webim.kickAllWeb();
+    }
+    if (!opt.linkLogin) {
+      window.location.reload();
+    }
   } else {
     window.location.reload();
   }

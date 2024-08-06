@@ -57,7 +57,8 @@ export default {
       sdkok: false,
       intent: {},
       autoSkip: true,
-      officialUser: false
+      officialUser: false,
+      linkChangeAccount: false
     };
   },
   mounted() {
@@ -233,21 +234,32 @@ export default {
           that.$store.dispatch('login/actionChangeLoginStatus', true);
           if (that.intent.action === 'support') {
             if (that.intent.linkMode === 'lanying-support') {
-              if (that.checkMobile()) {
-                that.$store.dispatch('login/actionChangeAppStatus', 'minimize');
-                parent.postMessage(
-                  JSON.stringify({
-                    type: 'lanying_toggle_chat',
-                    size: 'minimize'
-                  }),
-                  '*'
-                );
+              if (!that.linkChangeAccount) {
+                if (that.checkMobile()) {
+                  that.$store.dispatch('login/actionChangeAppStatus', 'minimize');
+                  parent.postMessage(
+                    JSON.stringify({
+                      type: 'lanying_toggle_chat',
+                      size: 'minimize'
+                    }),
+                    '*'
+                  );
+                } else {
+                  that.$store.dispatch('login/actionChangeAppStatus', 'navigation');
+                  parent.postMessage(
+                    JSON.stringify({
+                      type: 'lanying_toggle_chat',
+                      size: 'navigation'
+                    }),
+                    '*'
+                  );
+                }
               } else {
-                that.$store.dispatch('login/actionChangeAppStatus', 'navigation');
+                that.$store.dispatch('login/actionChangeAppStatus', 'support');
                 parent.postMessage(
                   JSON.stringify({
                     type: 'lanying_toggle_chat',
-                    size: 'navigation'
+                    size: 'large'
                   }),
                   '*'
                 );
@@ -306,13 +318,20 @@ export default {
                   }, autoLoginTimes * AUTO_LOGIN_DELAY);
                   autoLoginTimes++;
                 } else {
-                  console.log('自动登录失败次数过多，请手工登录。');
                   autoLoginTimes = 0;
-                  setTimeout(() => {
-                    that.alert('自动登录失败次数过多,请重新手工登录');
-                  }, 500);
+                  if (!that.linkChangeAccount) {
+                    console.log('自动登录失败次数过多，请手工登录。');
+                    setTimeout(() => {
+                      that.alert('自动登录失败次数过多,请重新手工登录');
+                    }, 500);
+                  }
                   if (that.intent.action === 'support') {
                     that.imLogout(true);
+                    if (that.linkChangeAccount) {
+                      setTimeout(() => {
+                        that.imLogin();
+                      }, 500);
+                    }
                   } else {
                     that.imLogout();
                   }
@@ -493,7 +512,8 @@ export default {
         },
         info.app_id
       );
-      this.$store.dispatch('actionChangeAppID', info.app_id);
+      //this.$store.dispatch('actionChangeAppID', info.app_id);
+      this.imLogin();
     },
 
     imLogout(linkLogin = false, quitAllWeb = false) {
@@ -502,9 +522,16 @@ export default {
         currentUrl.search = '';
         window.history.replaceState({}, document.title, currentUrl.toString());
       }
-      this.getIM().logout({ quitAllWeb });
+      this.getIM().logout({ quitAllWeb, linkLogin });
       this.removeLoginInfo();
-      this.$store.dispatch('login/actionChangeAppStatus', 'login');
+      if (!linkLogin) {
+        this.$store.dispatch('login/actionChangeAppStatus', 'login');
+      } else {
+        this.linkChangeAccount = true;
+        this.$store.dispatch('layer/actionSetShowing', '');
+        this.$store.dispatch('layer/actionSetShowmask', false);
+        this.$store.dispatch('login/actionChangeAppStatus', 'loading');
+      }
     },
 
     isIMLogin() {

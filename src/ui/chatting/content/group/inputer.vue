@@ -4,7 +4,7 @@
       <div class="mentionList" v-if="this.filteredMentionRosters.length > 0">
         <div :key="roster.user_id" @click="clickMemberListHander(roster.user_id)" class="mentionItem" v-for="roster in this.filteredMentionRosters">
           <img :src="rImage(roster.avatar)" class="avatar" />
-          <span class="name">{{ roster.display_name }}</span>
+          <span class="name">{{ displayName(roster) }}</span>
         </div>
       </div>
       <input @change="fileChangeHandler" ref="fileRef" type="file" />
@@ -21,6 +21,7 @@
 
 <script>
 import { mapGetters } from 'vuex';
+import CryptoJS from 'crypto-js';
 
 export default {
   name: 'rosterInputer',
@@ -38,7 +39,7 @@ export default {
   },
   components: {},
   computed: {
-    ...mapGetters('content', ['getSid', 'getMemberList']),
+    ...mapGetters('content', ['getSid', 'getGroupInfo', 'getMemberList']),
     im() {
       return this.$store.state.im;
     }
@@ -56,9 +57,6 @@ export default {
             if (id === this.im.userManage.getUid()) {
               that.hasBan = true;
               that.expired_time = Date.now() + parseInt(content) * 60 * 1000;
-              console.log('SSSS onGroupBaned work here.');
-              console.log('SSSS onGroupBaned that.expired_time : ' + that.expired_time);
-              console.log('SSSS onGroupBaned Date.now() : ' + Date.now());
               that.startBanCheck();
             }
           });
@@ -119,15 +117,20 @@ export default {
     filterMemberList(str) {
       let ret = [];
       if (!str) {
-        ret = [].concat(this.getMemberList);
+        ret = [].concat(
+          this.getMemberList.filter((x) => {
+            return x.user_id != this.im.userManage.getUid();
+          })
+        );
       } else {
+        let that = this;
         ret = this.getMemberList.filter((x) => {
-          return x.display_name.indexOf(str) >= 0;
+          if (x.user_id != that.im.userManage.getUid()) {
+            return x.display_name.indexOf(str) >= 0;
+          }
         });
       }
       this.filteredMentionRosters = [].concat(ret);
-      console.log('filterMemberList');
-      console.log(this.filteredMentionRosters);
     },
     rImage(avatar) {
       return this.im.sysManage.getImage({
@@ -148,7 +151,7 @@ export default {
         } else {
           const marr = mention.split('@');
           const nickName = marr[marr.length - 1];
-          const rosters = this.getMemberList.filter((x) => x.display_name === nickName);
+          const rosters = this.getMemberList.filter((x) => this.displayName(x) === nickName);
           if (!rosters || rosters.length <= 0) {
             retStr += mention + ' ';
           } else {
@@ -281,7 +284,7 @@ export default {
         this.mentionSelectedUids = [].concat(arr);
         const roster = this.getMemberList.find((x) => x.user_id + '' === uid + '');
         const sarr = (this.message.split && this.message.split('@')) || [];
-        sarr[sarr.length - 1] = roster.display_name;
+        sarr[sarr.length - 1] = this.displayName(roster);
         this.message = sarr.join('@') + ' ';
         this.textKeyUp();
       }
@@ -294,9 +297,6 @@ export default {
             if (item.user_id === this.im.userManage.getUid() && item.expired_time > Date.now()) {
               that.hasBan = true;
               that.expired_time = item.expired_time;
-              console.log('SSSS chechBan work here.');
-              console.log('SSSS chechBan expired_time :' + item.expired_time);
-              console.log('SSSS chechBan Date.now() : ' + Date.now());
               that.startBanCheck();
             }
           });
@@ -306,9 +306,6 @@ export default {
 
     startBanCheck() {
       this.banCheckTimer = setInterval(() => {
-        console.log('SSSS banCheckTimer timer work here.');
-        console.log('SSSS banCheckTimer expired_time : ' + this.expired_time);
-        console.log('SSSS banCheckTimer Date.now() : ' + Date.now());
         if (this.expired_time > Date.now()) {
           // do nothing.
         } else {
@@ -318,10 +315,47 @@ export default {
     },
 
     stopBanCheck() {
-      console.log('SSSS banCheckTimer timer stop here.');
       clearInterval(this.banCheckTimer);
       this.banCheckTimer = null;
       this.hasBan = false;
+    },
+
+    checkHideMemberInfo(user_id) {
+      let hide = true;
+      let hide_member_info = this.getGroupInfo.hide_member_info;
+      let app_hide_member_info = false;
+      const uid = this.im.userManage.getUid();
+      let appConfig = this.im.sysManage.getAppConfig(this.im.userManage.getAppid());
+      if (appConfig) {
+        app_hide_member_info = appConfig.hide_member_info;
+      }
+      if (app_hide_member_info) {
+        if (!hide_member_info) {
+          hide = false;
+        }
+      } else {
+        hide = false;
+      }
+
+      return hide;
+    },
+
+    calucateHideMemberName(roster) {
+      let original = roster.display_name + roster.user_id;
+      const md5hash = CryptoJS.MD5(original);
+      let output = md5hash.toString(CryptoJS.enc.Base64);
+      if (output.length > 12) {
+        output = output.substring(0, 12);
+      }
+      return output;
+    },
+
+    displayName(roster) {
+      if (this.checkHideMemberInfo(roster.user_id) && !roster.has_nick) {
+        return this.calucateHideMemberName(roster);
+      } else {
+        return roster.display_name;
+      }
     }
     //methods finish
   }

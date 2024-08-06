@@ -839,6 +839,9 @@ export default {
   font-weight: bold;
   line-height: 24px;
   color: black;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .profile-bio {
