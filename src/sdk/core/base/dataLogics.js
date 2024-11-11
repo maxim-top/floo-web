@@ -376,7 +376,7 @@ const dealRosterUnread = (uids) => {
           list: subArray
         }).then((res) => {
           rosterStore.saveRosterInfo(res);
-          rosterStore.saveUnreadRecent(subArray, 'roster');
+          recentStore.saveUnreadRecent(subArray, 'roster');
         });
       }, (count += 1) * 1000);
     });
