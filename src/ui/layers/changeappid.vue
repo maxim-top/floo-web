@@ -42,6 +42,7 @@ export default {
   methods: {
     changeAppID() {
       console.log('changeAppID to', this.appID);
+      this.appID = this.appID.replace(/\s*/g, '');
       this.$store.dispatch('actionChangeAppID', this.appID);
       // this.$emit("appid-changed", this.appID);
       this.close();

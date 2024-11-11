@@ -91,7 +91,7 @@ export default {
 
   mounted() {
     this.initCss();
-    this.parseManufacturer();
+    this.updateConversationRosterInfo();
   },
   computed: {
     ...mapGetters('login', ['getLoginInStatus']),
@@ -112,6 +112,11 @@ export default {
     }
   },
   methods: {
+    updateConversationRosterInfo() {
+      this.$store.getters.im.rosterManage.asyncGetRosterInfo(this.getApp().getLinkUid(), true).then((res) => {
+        this.parseManufacturer();
+      });
+    },
     initCss() {
       document.getElementById('app').style = 'width:100%; height:100%;min-width:75px;min-height:200px;margin-left:0px;background-color: transparent;';
       document.body.style = 'background-color: transparent; margin:0px !important;';
@@ -157,13 +162,24 @@ export default {
     parseManufacturer() {
       if (!this.hasParseManufacturer && this.getApp().isIMLogin() && this.getApp().getLinkUid()) {
         let info = this.$store.getters.im.rosterManage.getRosterInfo(this.getApp().getLinkUid());
-        if (info && info.public_info && info.public_info.manufacturer) {
-          let jManufacturer = {};
+        if (info && info.public_info) {
           try {
-            jManufacturer = JSON.parse(info.public_info.manufacturer);
-            this.manufacturer = this.mergeJson(this.manufacturer, jManufacturer);
-            this.initAvatar();
-            this.hasParseManufacturer = true;
+            let public_info = JSON.parse(info.public_info);
+            if (!public_info.manufacturer) {
+              this.initAvatar();
+            } else {
+              //console.log('Use manufacturer:', JSON.stringify(public_info.manufacturer));
+              this.manufacturer = this.mergeJson(this.manufacturer, public_info.manufacturer);
+              if (!public_info.manufacturer.bussiness) {
+                this.manufacturer.bussiness = {};
+              }
+              if (!public_info.manufacturer.wechat) {
+                this.manufacturer.wechat = {};
+              }
+              //console.log('mergeJson finish:', JSON.stringify(this.manufacturer));
+              this.initAvatar();
+              this.hasParseManufacturer = true;
+            }
           } catch (ex) {
             this.initAvatar();
           }
@@ -236,10 +252,14 @@ export default {
     },
 
     clickPhone() {
+      var phone_number = this.manufacturer.bussiness.phone_number;
+      if (!phone_number && this.manufacturer.bussiness.description.detail_list.length > 0) {
+        phone_number = this.manufacturer.bussiness.description.detail_list[1];
+      }
       parent.postMessage(
         JSON.stringify({
           type: 'phone',
-          number: this.manufacturer.bussiness.description.detail_list[1].replace('-', '')
+          number: phone_number.replaceAll('-', '')
         }),
         '*'
       );

@@ -184,3 +184,55 @@
   font-size: 12px;
   cursor: pointer;
 }
+
+.login .verify {
+  display: flex;
+  -ms-flex-direction: row;
+  flex-direction: row;
+  justify-content: center;
+}
+
+.login .verify_info {
+  color: #62749c;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 75%;
+}
+
+.login .verify_img {
+  width: 20px;
+  height: 20px;
+  padding-left: 5px;
+}
+
+.login .verify_detail {
+  line-height: 2.5;
+  max-width: 85%;
+  padding-left: 8%;
+  padding-top: 20px;
+}
+
+.login .verify_detail img {
+  width: 20px;
+  height: 20px;
+  padding-top: 7px;
+}
+
+.login .verify_detail .ll {
+  float: left;
+}
+
+.login .verify_detail .lastl {
+  margin-top: -25px;
+}
+
+.login .span-lines {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

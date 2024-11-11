@@ -71,6 +71,8 @@ export default {
   },
   methods: {
     submit() {
+      this.user.code = this.user.code.replace(/\s*/g, '');
+      this.user.mobile = this.user.mobile.replace(/\s*/g, '');
       if (!this.user.code || !this.user.mobile) {
         alert('请输入手机号和验证码');
         return;

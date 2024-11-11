@@ -136,7 +136,8 @@ const messageStore = {
     fire('onSendingMessageStatusChanged', {
       status: 'sending',
       uid: to.uid,
-      mid: id
+      mid: id,
+      message: metaToCustomer(meta)
     });
   },
 
@@ -221,7 +222,8 @@ const messageStore = {
       if (!isAutoSent(meta_cus)) {
         fire('onSendingMessageStatusChanged', {
           status: 'sent',
-          mid: toNumber(client_mid)
+          mid: toNumber(client_mid),
+          message: meta_cus
         });
       }
     }
@@ -318,7 +320,8 @@ const messageStore = {
     fire('onSendingMessageStatusChanged', {
       status: 'sending',
       uid: to.uid,
-      mid: id
+      mid: id,
+      message: metaToCustomer(meta)
     });
   },
 
@@ -343,7 +346,8 @@ const messageStore = {
       if (!isAutoSent(meta_cus)) {
         fire('onSendingMessageStatusChanged', {
           status: 'sent',
-          mid: toNumber(client_mid)
+          mid: toNumber(client_mid),
+          message: meta_cus
         });
       }
     }

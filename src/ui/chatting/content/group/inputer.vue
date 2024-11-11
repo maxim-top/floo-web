@@ -1,5 +1,5 @@
 <template>
-  <div class="inputer_frame">
+  <div class="inputer_frame" ref="groupInputer">
     <div class="attach">
       <div class="mentionList" v-if="this.filteredMentionRosters.length > 0">
         <div :key="roster.user_id" @click="clickMemberListHander(roster.user_id)" class="mentionItem" v-for="roster in this.filteredMentionRosters">
@@ -12,9 +12,9 @@
       <span v-popover:tooltip.top="'发送文件'" @click="fileUploadClickHandler" class="ico file"></span>
       <span v-popover:tooltip.top="'发送位置'" @click="locationClickHandler" class="ico location"></span>
     </div>
-    <el-alert v-if="hasBan" title="您已被禁言，请联系管理员" type="info" center :closable="false"></el-alert>
+    <el-alert v-if="hasBan || hasAllBan" title="您已被禁言，请联系管理员" type="info" center :closable="false"></el-alert>
     <div class="input">
-      <textarea v-if="!this.hasBan" @keydown="textareaKeyDown" @keyup="textKeyUp" class="input_text" v-model="message" wrap="hard"></textarea>
+      <textarea v-if="!(this.hasBan || this.hasAllBan)" @keydown="textareaKeyDown" @keyup="textKeyUp" class="input_text" v-model="message" wrap="hard"></textarea>
     </div>
   </div>
 </template>
@@ -24,7 +24,7 @@ import { mapGetters } from 'vuex';
 import CryptoJS from 'crypto-js';
 
 export default {
-  name: 'rosterInputer',
+  name: 'groupInputer',
   data() {
     return {
       message: '',
@@ -34,30 +34,39 @@ export default {
       filteredMentionRosters: [],
       hasBan: false,
       expired_time: 0,
+      hasAllBan: false,
       banCheckTimer: null
     };
   },
   components: {},
   computed: {
-    ...mapGetters('content', ['getSid', 'getGroupInfo', 'getMemberList']),
+    ...mapGetters('content', ['getSid', 'getGroupInfo', 'getMemberList', 'getAdminList']),
+    isAdmin() {
+      const uid = this.$store.getters.im.userManage.getUid();
+      return this.getAdminList.filter((x) => x.user_id === uid).length > 0;
+    },
     im() {
       return this.$store.state.im;
     }
   },
   mounted() {
-    let that = this;
-    this.hasBan = false;
+    let _this = this;
+
+    //todo later. need ban fix.
+    /*
     this.chechBan(this.getSid);
 
     this.$store.getters.im.on('onGroupBaned', (meta) => {
-      const { groupId, toUids, content } = meta;
-      if (that.getSid === groupId) {
-        if (Array.isArray(toUids) && toUids.length && parseInt(content)) {
+      const { groupId, toUids, content, all = false } = meta;
+      if (_this.getSid === groupId && !this.isAdmin) {
+        if (all) {
+          _this.hasAllBan = true;
+        } else if (Array.isArray(toUids) && toUids.length && parseInt(content)) {
           toUids.forEach((id) => {
             if (id === this.im.userManage.getUid()) {
-              that.hasBan = true;
-              that.expired_time = Date.now() + parseInt(content) * 60 * 1000;
-              that.startBanCheck();
+              _this.hasBan = true;
+              _this.expired_time = Date.now() + parseInt(content) * 60 * 1000;
+              _this.startBanCheck();
             }
           });
         }
@@ -65,25 +74,73 @@ export default {
     });
 
     this.$store.getters.im.on('onGroupUnbaned', (meta) => {
-      const { groupId, toUids } = meta;
-      if (that.getSid === groupId) {
-        if (Array.isArray(toUids) && toUids.length) {
+      const { groupId, toUids, all = false } = meta;
+      if (_this.getSid === groupId && !this.isAdmin) {
+        if (all) {
+          _this.hasAllBan = false;
+        } else if (Array.isArray(toUids) && toUids.length) {
           toUids.forEach((id) => {
             if (id === this.im.userManage.getUid()) {
-              that.stopBanCheck();
+              _this.stopBanCheck();
             }
           });
         }
       }
     });
+    */
+
+    // paste
+    this.$refs.groupInputer.addEventListener('paste', function (event) {
+      const clipboardData = event.clipboardData || window.clipboardData;
+      const items = clipboardData.items;
+      if (items && items.length) {
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          if (item.kind === 'file') {
+            event.preventDefault();
+            const blob = item.getAsFile();
+            const file = new File([blob], blob.name, {
+              type: blob.type
+            });
+            _this.fileType = 'file';
+            if (item.type.indexOf('image') >= 0) {
+              _this.fileType = 'image';
+            }
+            _this.sendFileInBackground(file);
+          }
+        }
+      }
+    });
+
+    // drop
+    this.$refs.groupInputer.addEventListener('drop', function (event) {
+      event.preventDefault();
+      const items = event.dataTransfer.files;
+      if (items && items.length) {
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          _this.fileType = 'file';
+          if (item.type.indexOf('image') >= 0) {
+            _this.fileType = 'image';
+          }
+          _this.sendFileInBackground(item);
+        }
+      }
+    });
+
+    // dragover
+    this.$refs.groupInputer.addEventListener('dragover', function (event) {
+      event.preventDefault();
+    });
   },
   destroyed() {
-    this.stopBanCheck();
+    //todo later. need ban fix.
+    //this.stopBanCheck();
   },
   watch: {
     getSid(newSid) {
-      this.hasBan = false;
-      this.chechBan(newSid);
+      //todo later. need ban fix.
+      //this.chechBan(newSid);
     }
   },
   methods: {
@@ -243,6 +300,10 @@ export default {
 
     fileChangeHandler(e) {
       const file = e.target.files[0];
+      this.sendFileInBackground(file);
+    },
+
+    sendFileInBackground(file) {
       this.im.sysManage
         .asyncFileUpload({
           file,
@@ -276,6 +337,7 @@ export default {
           this.$refs.fileRef.value = '';
         });
     },
+
     clickMemberListHander(uid) {
       const set = new Set(this.mentionSelectedUids);
       set.add(uid);
@@ -289,15 +351,24 @@ export default {
         this.textKeyUp();
       }
     },
+    //todo later. need ban fix.
+    /*
     chechBan(newSid) {
       let that = this;
-      this.im.groupManage.asyncGroupBannedList({ group_id: newSid }).then((res) => {
+      that.hasBan = false;
+      that.hasAllBan = this.getGroupInfo.ban_expire_time && this.getGroupInfo.ban_expire_time === -1 ? true : false;
+      that.im.groupManage.asyncGroupBannedList({ group_id: newSid }).then((res) => {
         if (Array.isArray(res) && res.length) {
           res.forEach((item) => {
-            if (item.user_id === this.im.userManage.getUid() && item.expired_time > Date.now()) {
-              that.hasBan = true;
-              that.expired_time = item.expired_time;
-              that.startBanCheck();
+            if (item.user_id === this.im.userManage.getUid()) {
+              if (item.expired_time === -1) {
+                that.hasBan = true;
+                that.expired_time = -1;
+              } else if (item.expired_time > Date.now()) {
+                that.hasBan = true;
+                that.expired_time = item.expired_time;
+                that.startBanCheck();
+              }
             }
           });
         }
@@ -319,6 +390,7 @@ export default {
       this.banCheckTimer = null;
       this.hasBan = false;
     },
+    */
 
     checkHideMemberInfo(user_id) {
       let hide = true;

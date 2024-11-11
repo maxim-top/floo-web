@@ -3,63 +3,67 @@
     <!-- <div v-if="messageType===1"> -->
     <div class="timeline" v-if="timeMessage != ''">{{ timeMessage }}</div>
     <div :class="{ messageFrame: true, self: isSelf, roster: !isSelf }">
-      <div class="rosterInfo">
-        <img :src="userObj.avatar" />
+      <div class="multiSelect" v-if="showMultiForward">
+        <input :checked="false" @change="multiForwardChangeCheck" @click.stop="touchMultiMessagesSelect" type="checkbox" />
       </div>
-      <div class="contentFrame">
-        <!--        <p class="username" v-if="!isSelf">{{ userObj.username }}</p>-->
-        <div :class="{ user_content: true, self: isSelf, roster: !isSelf }">
-          <div class="c_content_more">
-            <div class="c_content_text_more" v-if="message.type === 'text'">
-              <span class="c_ext_title" v-if="isMarkdown" @click="changeShowMarkdownFormat">{{ showMarkdownTitle }}</span>
-              <span class="c_ext_title" v-if="message.ext" @click="changeShowExt">{{ showExtTitle }}</span>
-            </div>
-            <el-popover :placement="isSelf ? 'left' : 'right'" trigger="hover" width="70">
-              <div class="messageExt">
-                <div @click="deleteMessage" class="item delete">删除</div>
-                <div @click="forwardMessage" v-if="message.type !== 'rtc'" class="recall item">转发</div>
-                <div @click="recallMessage" class="recall item" v-if="isSelf">撤回</div>
+      <div :class="{ multiForwardRoster: !isSelf && showMultiForward }" :style="{ width: '100%' }">
+        <div class="rosterInfo">
+          <img :src="userObj.avatar" />
+        </div>
+        <div class="contentFrame">
+          <!--        <p class="username" v-if="!isSelf">{{ userObj.username }}</p>-->
+          <div :class="{ user_content: true, self: isSelf, roster: !isSelf }">
+            <div class="c_content_more">
+              <div class="c_content_text_more" v-if="message.type === 'text'">
+                <span class="c_ext_title" v-if="isMarkdown" @click="changeShowMarkdownFormat">{{ showMarkdownTitle }}</span>
+                <span class="c_ext_title" v-if="message.ext" @click="changeShowExt">{{ showExtTitle }}</span>
+              </div>
+              <el-popover :placement="isSelf ? 'left' : 'right'" trigger="hover" width="70">
+                <div class="messageExt">
+                  <div @click="deleteMessage" class="item delete">删除</div>
+                  <div @click="recallMessage" class="recall item" v-if="isSelf">撤回</div>
 
-                <div class="msgStatus item item" v-if="isSelf && messageStatus === 'unread'">未读</div>
-                <div class="msgStatus item" v-if="isSelf && messageStatus === 'delivered'">送达</div>
-                <div class="msgStatus item" v-if="isSelf && messageStatus === 'read'">已读</div>
+                  <div class="msgStatus item item" v-if="isSelf && messageStatus === 'unread'">未读</div>
+                  <div class="msgStatus item" v-if="isSelf && messageStatus === 'delivered'">送达</div>
+                  <div class="msgStatus item" v-if="isSelf && messageStatus === 'read'">已读</div>
 
-                <div class="unread item" v-if="messageStatus === 'unread' && !isSelf">未读</div>
-                <div @click="unreadMessage" class="set_unread item" v-if="messageStatus !== 'unread' && !isSelf">设置未读</div>
+                  <div class="unread item" v-if="messageStatus === 'unread' && !isSelf">未读</div>
+                  <div @click="unreadMessage" class="set_unread item" v-if="messageStatus !== 'unread' && !isSelf">设置未读</div>
+                </div>
+                <div class="h_image" slot="reference">
+                  <img src="/image/more.png" />
+                </div>
+              </el-popover>
+            </div>
+            <div class="c_content" :style="{ 'padding-bottom': showMarkdown ? '0px' : '' }">
+              <div v-if="message.type === 'text'">
+                <div v-if="showMarkdown" v-html="showMarkdownContent" class="c_markdown" />
+                <div v-else>
+                  {{ showContent }}
+                </div>
+                <div class="c_content_ext" v-if="showExt">ext: {{ message.ext }}</div>
               </div>
-              <div class="h_image" slot="reference">
-                <img src="/image/more.png" />
+              <div v-if="message.type === 'rtc'">
+                {{ message.content }}
               </div>
-            </el-popover>
-          </div>
-          <div class="c_content" :style="{ 'padding-bottom': showMarkdown ? '0px' : '' }">
-            <div v-if="message.type === 'text'">
-              <div v-if="showMarkdown" v-html="showMarkdownContent" class="c_markdown" />
-              <div v-else>
-                {{ showContent }}
+              <div v-if="message.type === 'image'">
+                <img class="c_image" :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
               </div>
-              <div class="c_content_ext" v-if="showExt">ext: {{ message.ext }}</div>
-            </div>
-            <div v-if="message.type === 'rtc'">
-              {{ message.content }}
-            </div>
-            <div v-if="message.type === 'image'">
-              <img class="c_image" :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
-            </div>
-            <div @click="playAudio" class="audio_frame" v-if="message.type === 'audio'">
-              <img class="audio" src="/image/audio.png" />
-            </div>
-            <div @click="playVideo" class="video_frame" v-if="message.type === 'video'">
-              <img :src="videoImage" class="preview c_image" />
-              <img class="play" src="/image/play.png" />
-            </div>
-            <div class="loc_frame" v-if="message.type === 'file'">
-              <img class="loc" src="/image/file2.png" />
-              <span @click="downloadFile" class="loc_txt">{{ attachName }}</span>
-            </div>
-            <div @click="openLocation" class="loc_frame" v-if="message.type === 'location'">
-              <img class="loc" src="/image/loc.png" />
-              <span class="loc_txt">{{ attachLocation.addr }}</span>
+              <div @click="playAudio" class="audio_frame" v-if="message.type === 'audio'">
+                <img class="audio" src="/image/audio.png" />
+              </div>
+              <div @click="playVideo" class="video_frame" v-if="message.type === 'video'">
+                <img :src="videoImage" class="preview c_image" />
+                <img class="play" src="/image/play.png" />
+              </div>
+              <div class="loc_frame" v-if="message.type === 'file'">
+                <img class="loc" src="/image/file2.png" />
+                <span @click="downloadFile" class="loc_txt">{{ attachName }}</span>
+              </div>
+              <div @click="openLocation" class="loc_frame" v-if="message.type === 'location'">
+                <img class="loc" src="/image/loc.png" />
+                <span class="loc_txt">{{ attachLocation.addr }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -171,7 +175,11 @@ export default {
   props: ['message'],
   computed: {
     ...mapGetters('content', ['getSid', 'getMessageTime']),
+    ...mapGetters('forward', ['getShowMultiForwardStatus', 'getMultiForwardMessages', 'getMessageForwardMaxMessageNum']),
     ...mapGetters('header', ['getUserProfile']),
+    showMultiForward() {
+      return this.getShowMultiForwardStatus;
+    },
     timeMessage() {
       let { timestamp } = this.message;
       timestamp = toNumber(timestamp);
@@ -617,6 +625,22 @@ export default {
       setTimeout(() => {
         this.showContent = this.content;
       }, 200);
+    },
+
+    touchMultiMessagesSelect() {
+      this.$store.dispatch('forward/actionMultiForwardMessageSelect', this.message);
+    },
+
+    multiForwardChangeCheck(e) {
+      if (this.getMultiForwardMessages.length > this.getMessageForwardMaxMessageNum) {
+        e.target.checked = false;
+        this.$message({
+          message: '单个会话转发消息数量超过限制',
+          type: 'warning',
+          duration: 2500
+        });
+        this.$store.dispatch('forward/actionMultiForwardMessageSelect', this.message);
+      }
     }
   }
 };

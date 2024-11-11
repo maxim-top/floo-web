@@ -9,7 +9,7 @@
 import { bind, fire } from '../../utils/cusEvent';
 import { groupStore, infoStore, messageStore, noticeStore, recentStore, rosterStore } from '../../utils/store';
 import * as io from './io/httpIo';
-import { metaToCustomer, numToString, toNumber, metaToRtcSignalCustomer } from '../../utils/tools';
+import { metaToCustomer, numToString, toNumber, metaToRtcSignalCustomer, intoSubArrays } from '../../utils/tools';
 import { makeReadAllMessage, makeReadMessageAck, makeRosterRTCMessage } from './messageMaker';
 import { STATIC_MESSAGE_OPTYPE, STATIC_MESSAGE_TYPE, STATIC_MESSAGE_STATUS } from '../../utils/static';
 
@@ -176,6 +176,9 @@ const groupAddMemberLogic = (group_id, uids, isNotice, replace) => {
         rosterStore.saveRosterInfo(details);
         const allRosterInfos = rosterStore.getAllRosterInfos();
         res = res.map((sitem) => {
+          if (!allRosterInfos[sitem.user_id]) {
+            allRosterInfos[sitem.user_id] = { user_id: sitem.user_id };
+          }
           if (!sitem.display_name) {
             sitem.has_nick = false;
             if (sitem.user_id != uid) {
@@ -345,7 +348,7 @@ bind('imReceivedUnread', (unread) => {
   const rosterIds = unread.filter((x) => x.type === 1).map((f) => toNumber(f.xid.uid));
   const gids = unread.filter((x) => x.type === 2).map((f) => toNumber(f.xid.uid));
   dealRosterUnread(rosterIds);
-  rostersInfoLogic(rosterIds);
+  // rostersInfoLogic(rosterIds);
   dealGroupUnread(gids);
   groupsInfoLogic(gids);
 });
@@ -365,12 +368,22 @@ const dealRosterUnread = (uids) => {
   });
 
   if (ret.length) {
-    io.rosterListPost({
-      list: ret
-    }).then((res) => {
-      rosterStore.saveRosterInfo(res);
-      recentStore.saveUnreadRecent(uids, 'roster');
+    let subArrays = intoSubArrays(ret, 100); // default max is 100
+    let count = 0;
+    subArrays.forEach((subArray) => {
+      setTimeout(() => {
+        io.rosterListPost({
+          list: subArray
+        }).then((res) => {
+          rosterStore.saveRosterInfo(res);
+          rosterStore.saveUnreadRecent(subArray, 'roster');
+        });
+      }, (count += 1) * 1000);
     });
+    let local = uids.filter((x) => !ret.includes(x));
+    if (Array.isArray(local) && local.length) {
+      recentStore.saveUnreadRecent(local, 'roster');
+    }
   } else {
     recentStore.saveUnreadRecent(uids, 'roster');
   }
@@ -391,13 +404,23 @@ const dealGroupUnread = (gids) => {
   });
 
   if (ret.length) {
-    io.groupInfoBatch({
-      group_list: ret
-    }).then((res) => {
-      groupStore.saveGroupInfo(res);
-      fire('onGroupListUpdate');
-      recentStore.saveUnreadRecent(gids, 'group');
+    let subArrays = intoSubArrays(ret, 20); // default max is 20
+    let count = 0;
+    subArrays.forEach((subArray) => {
+      setTimeout(() => {
+        io.groupInfoBatch({
+          group_list: subArray
+        }).then((res) => {
+          groupStore.saveGroupInfo(res);
+          fire('onGroupListUpdate');
+          recentStore.saveUnreadRecent(subArray, 'group');
+        });
+      }, (count += 1) * 1000);
     });
+    let local = gids.filter((x) => !ret.includes(x));
+    if (Array.isArray(local) && local.length) {
+      recentStore.saveUnreadRecent(local, 'group');
+    }
   } else {
     recentStore.saveUnreadRecent(gids, 'group');
   }
@@ -941,6 +964,15 @@ bind('imGroupInfoUpdated', (meta) => {
   if (Object.keys(info).length) {
     if (info.property === 'display_name' && info.display_name) {
       groupAddMemberLogic(groupId, memberId, false);
+    } else if (info.property === 'ban_expire_time') {
+      let sinfo = Object.assign({}, groupStore.getGroupInfo(groupId), info);
+      groupStore.saveGroupInfo([sinfo]);
+      fire('onGroupListUpdate');
+      if (info.ban_expire_time === -1) {
+        fire('onGroupBaned', { groupId, toUids: [], content: info.ban_expire_time, all: true });
+      } else if (info.ban_expire_time === 0) {
+        fire('onGroupUnbaned', { groupId, toUids: [], all: true });
+      }
     } else {
       let sinfo = Object.assign({}, groupStore.getGroupInfo(groupId), info);
       groupStore.saveGroupInfo([sinfo]);

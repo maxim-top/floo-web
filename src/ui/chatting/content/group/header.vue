@@ -3,6 +3,7 @@
     <div class="header_items">
       <span class="name" @click="touchUserNameHandler">{{ groupName }}</span>
       <span class="typing" style="padding-left: 20px; color: #ddd"></span>
+      <div class="multi_forward_button" @click="multiMessagesForward()">批量转发</div>
       <div class="delete_button" @click="deleteConversation(getSid)">删除会话</div>
     </div>
   </div>
@@ -20,6 +21,7 @@ export default {
   components: {},
   computed: {
     ...mapGetters('content', ['getGroupInfo', 'getSid']),
+    ...mapGetters('forward', ['getShowMultiForwardStatus']),
     groupName() {
       let name = this.getGroupInfo.name;
       if (!name) {
@@ -46,6 +48,11 @@ export default {
       this.$store.dispatch('content/actionSetType', {
         sid: undefined
       });
+    },
+
+    multiMessagesForward() {
+      let status = !this.getShowMultiForwardStatus;
+      this.$store.dispatch('forward/actionShowMultiForwardStatus', status);
     }
 
     //finish

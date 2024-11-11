@@ -48,6 +48,8 @@ export default {
       return this.$parent.$parent;
     },
     submit() {
+      this.user.username = this.user.username.replace(/\s*/g, '');
+      this.user.password = this.user.password.replace(/\s*/g, '');
       if (!this.user.username || !this.user.password) {
         this.$message.error('请输入用户名或密码');
         return;

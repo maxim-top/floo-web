@@ -549,6 +549,8 @@ export default {
     saveLoginInfo(info, appid) {
       // const {name, password} = info;
       info.app_id = appid;
+      info.username = info.username.replace(/\s*/g, '');
+      info.password = info.password.replace(/\s*/g, '');
       let data = this.cryptoEncrypt(JSON.stringify(info));
       window.localStorage.setItem('lanying_im_logininfo', data);
       window.sessionStorage.setItem('lanying_im_logininfo', data);

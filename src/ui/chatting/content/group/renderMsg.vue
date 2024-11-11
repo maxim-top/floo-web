@@ -3,56 +3,60 @@
     <!-- <div v-if="messageType===1"> -->
     <div class="timeline" v-if="timeMessage != ''">{{ timeMessage }}</div>
     <div :class="{ messageFrame: true, self: isSelf, roster: !isSelf }">
-      <div class="rosterInfo">
-        <img :src="userObj.avatar" />
+      <div class="multiSelect" v-if="showMultiForward">
+        <input :checked="false" @change="multiForwardChangeCheck" @click.stop="touchMultiMessagesSelect" type="checkbox" />
       </div>
-      <div class="contentFrame">
-        <p class="username" v-if="!isSelf">{{ userObj.username }}</p>
-        <div :class="{ user_content: true, self: isSelf, roster: !isSelf }">
-          <div class="c_content_more">
-            <div class="c_content_text_more" v-if="message.type === 'text'">
-              <span class="c_ext_title" v-if="isMarkdown" @click="changeShowMarkdownFormat">{{ showMarkdownTitle }}</span>
-              <span class="c_ext_title" v-if="message.ext" @click="changeShowExt">{{ showExtTitle }}</span>
-            </div>
-            <el-popover :placement="isSelf ? 'left' : 'right'" trigger="hover" width="70">
-              <div class="messageExt">
-                <div @click="deleteMessage" class="delete item">删除</div>
-                <div @click="forwardMessage" v-if="message.type !== 'rtc'" class="recall item">转发</div>
-                <div @click="recallMessage" class="recall item" v-if="isSelf || isAdmin || isOwner">撤回</div>
+      <div :class="{ multiForwardRoster: !isSelf && showMultiForward }">
+        <div class="rosterInfo">
+          <img :src="userObj.avatar" />
+        </div>
+        <div class="contentFrame" :style="{ 'min-width': hasCode ? 'max(66.6%, 202px)' : 'max(66.6%, 252px)' }">
+          <p class="username" v-if="!isSelf">{{ userObj.username }}</p>
+          <div :class="{ user_content: true, self: isSelf, roster: !isSelf }">
+            <div class="c_content_more">
+              <div class="c_content_text_more" v-if="message.type === 'text'">
+                <span class="c_ext_title" v-if="isMarkdown" @click="changeShowMarkdownFormat">{{ showMarkdownTitle }}</span>
+                <span class="c_ext_title" v-if="message.ext" @click="changeShowExt">{{ showExtTitle }}</span>
               </div>
-              <div class="h_image" slot="reference">
-                <img src="/image/more.png" />
+              <el-popover :placement="isSelf ? 'left' : 'right'" trigger="hover" width="70">
+                <div class="messageExt">
+                  <div @click="deleteMessage" class="delete item">删除</div>
+                  <div @click="recallMessage" class="recall item" v-if="isSelf || isAdmin || isOwner">撤回</div>
+                </div>
+                <div class="h_image" slot="reference">
+                  <img src="/image/more.png" />
+                </div>
+              </el-popover>
+            </div>
+            <div class="c_content" :style="{ 'padding-bottom': showMarkdown ? '0px' : '' }">
+              <div v-if="message.type === 'text'">
+                <div v-if="showMarkdown" v-html="showMarkdownContent" class="c_markdown" />
+                <div v-else>
+                  {{ showContent }}
+                </div>
+                <div class="c_content_ext" v-if="showExt">ext: {{ message.ext }}</div>
               </div>
-            </el-popover>
-          </div>
-          <div class="c_content" :style="{ 'padding-bottom': showMarkdown ? '0px' : '' }">
-            <div v-if="message.type === 'text'">
-              <div v-if="showMarkdown" v-html="showMarkdownContent" class="c_markdown" />
-              <div v-else>
-                {{ showContent }}
+              <div v-if="message.type === 'rtc'">
+                {{ message.content }}
               </div>
-              <div class="c_content_ext" v-if="showExt">ext: {{ message.ext }}</div>
-            </div>
-            <div v-if="message.type === 'rtc'">
-              {{ message.content }}
-            </div>
-            <div v-if="message.type === 'image'">
-              <img class="c_image" :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
-            </div>
-            <div @click="playAudio" class="audio_frame" v-if="message.type === 'audio'">
-              <img class="audio" src="/image/audio.png" />
-            </div>
-            <div @click="playVideo" class="video_frame" v-if="message.type === 'video'">
-              <img :src="videoImage" class="preview c_image" />
-              <img class="play" src="/image/play.png" />
-            </div>
-            <div class="loc_frame" v-if="message.type === 'file'">
-              <img class="loc" src="/image/file2.png" />
-              <span @click="downloadFile" class="loc_txt">{{ attachName }}</span>
-            </div>
-            <div @click="openLocation" class="loc_frame" v-if="message.type === 'location'">
-              <img class="loc" src="/image/loc.png" />
-              <span class="loc_txt">{{ attachLocation.addr }}</span>
+              <div v-if="message.type === 'image'">
+                <img class="c_image" :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
+              </div>
+              <div @click="playAudio" class="audio_frame" v-if="message.type === 'audio'">
+                <img class="audio" src="/image/audio.png" />
+              </div>
+              <div @click="playVideo" class="video_frame" v-if="message.type === 'video'">
+                <img :src="videoImage" class="preview c_image" />
+                <img class="play" src="/image/play.png" />
+              </div>
+              <div class="loc_frame" v-if="message.type === 'file'">
+                <img class="loc" src="/image/file2.png" />
+                <span @click="downloadFile" class="loc_txt">{{ attachName }}</span>
+              </div>
+              <div @click="openLocation" class="loc_frame" v-if="message.type === 'location'">
+                <img class="loc" src="/image/loc.png" />
+                <span class="loc_txt">{{ attachLocation.addr }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -91,6 +95,7 @@ export default {
       showMarkdown: false,
       marked: null,
       addHlgs: false,
+      hasCode: false,
       content: '',
       markContent: '',
 
@@ -169,7 +174,11 @@ export default {
   props: ['message'],
   computed: {
     ...mapGetters('content', ['getSid', 'getMessageTime', 'getMemberList', 'getGroupInfo', 'getAdminList']),
+    ...mapGetters('forward', ['getShowMultiForwardStatus', 'getMultiForwardMessages', 'getMessageForwardMaxMessageNum']),
     ...mapGetters('header', ['getUserProfile']),
+    showMultiForward() {
+      return this.getShowMultiForwardStatus;
+    },
     timeMessage() {
       let { timestamp } = this.message;
       timestamp = toNumber(timestamp);
@@ -447,8 +456,8 @@ export default {
           // already generate markded object. do nothing.
           this.markContent = this.parseMarkdownContent(content);
         } else {
-          let hasCode = this.hasCodeBlock(content);
-          if (hasCode) {
+          this.hasCode = this.hasCodeBlock(content);
+          if (this.hasCode) {
             let that = this;
             this.marked = new Marked(
               markedHighlight({
@@ -624,6 +633,22 @@ export default {
         hide = false;
       }
       return hide;
+    },
+
+    touchMultiMessagesSelect() {
+      this.$store.dispatch('forward/actionMultiForwardMessageSelect', this.message);
+    },
+
+    multiForwardChangeCheck(e) {
+      if (this.getMultiForwardMessages.length > this.getMessageForwardMaxMessageNum) {
+        e.target.checked = false;
+        this.$message({
+          message: '单个会话转发消息数量超过限制',
+          type: 'warning',
+          duration: 2500
+        });
+        this.$store.dispatch('forward/actionMultiForwardMessageSelect', this.message);
+      }
     }
   }
 };

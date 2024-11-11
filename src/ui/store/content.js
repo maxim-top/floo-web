@@ -260,6 +260,7 @@ const actions = {
 
   actionAppendMessage(context, data = {}) {
     const newMessages = data.messages || [];
+    const sendingMessages = data.sendingMessages || [];
     const isHistory = data.history;
     if (isHistory) {
       this.queryHistoryMessageId = data.next;
@@ -319,10 +320,33 @@ const actions = {
     if (j < oldMessages.length) {
       allMessages = allMessages.concat(oldMessages.slice(i, oldMessages.length));
     }
+
+    if (sendingMessages.length) {
+      allMessages = allMessages.concat(sendingMessages);
+    }
+
     context.commit('setMessage', allMessages);
     if (!isHistory && allMessages.length !== oldMessages.length) {
       state.scroll = state.scroll + 1;
     }
+  },
+
+  actionUpdateMessage(context, data = {}) {
+    const mid = data.mid;
+    const message = data.message;
+    const { state } = context;
+    const oldMessages = state.messages || [];
+    let allMessages = [];
+
+    let i = 0;
+    for (i = 0; i < oldMessages.length; i++) {
+      if (oldMessages[i].id == mid) {
+        allMessages.push(message);
+      } else {
+        allMessages.push(oldMessages[i]);
+      }
+    }
+    context.commit('setMessage', allMessages);
   },
 
   actionDeleteMessage(context, mid) {

@@ -282,7 +282,9 @@ export default {
         const user_name = x.user_name || mapUser.nick_name || mapUser.username || x.user_id;
         const durItem = this.bans.find((i) => i.user_id === x.user_id);
         let duration = '';
-        if (durItem) {
+        if (this.groupInfo.ban_expire_time && this.groupInfo.ban_expire_time === -1) {
+          duration = ' 全员禁言 ';
+        } else if (durItem) {
           duration = durItem.expired_time === -1 ? ' 永久 ' : moment(durItem.expired_time).format('YYYY-MM-DD HH:mm:ss');
         }
         ret.push({

@@ -10,6 +10,7 @@
     <GroupChat v-if="getViewType == 'groupchat'" />
 
     <Setting v-if="getViewType == 'setting'" />
+    <Verification v-if="getViewType == 'verification'" />
 
     <RosterNotice v-if="getViewType == 'rosterNotice'" />
     <GroupInviteNotice v-if="getViewType == 'groupInviteNotice'" />
@@ -25,6 +26,7 @@ import GroupInfo from './group/info';
 import RosterChat from './roster/index';
 import GroupChat from './group/index';
 import Setting from './setting/index';
+import Verification from './verification/index';
 import RosterNotice from './notice/rosterNotice';
 import GroupInviteNotice from './notice/groupInvitationNotice';
 import GroupApplyNotice from './notice/groupApplyNotice';
@@ -37,6 +39,7 @@ export default {
     RosterChat,
     GroupChat,
     Setting,
+    Verification,
     RosterNotice,
     GroupInviteNotice,
     GroupApplyNotice

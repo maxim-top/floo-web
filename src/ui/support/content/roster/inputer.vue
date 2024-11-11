@@ -1,5 +1,5 @@
 <template>
-  <div class="inputer_frame">
+  <div class="inputer_frame" ref="rosterInputer">
     <div class="input">
       <div class="attach">
         <input @change="fileChangeHandler" ref="fileRef" type="file" />
@@ -26,7 +26,11 @@
     </div>
     <div class="support_link">
       <el-tooltip placement="top" effect="light" :visible-arrow="false">
-        <div slot="content">AppID:{{ appid }}</div>
+        <div slot="content">
+          <span>AppID:{{ appid }}</span>
+          <br />
+          <span>{{ verifyInfo }}</span>
+        </div>
         <span class="im_tips"></span>
       </el-tooltip>
       <a href="https://www.lanyingim.com" target="_blank">打造你的智能聊天APP，使用蓝莺IM SDK</a>
@@ -44,7 +48,8 @@ export default {
       placeholder: '',
       message: '',
       fileType: '',
-      button: null
+      button: null,
+      verifyInfo: ''
     };
   },
   components: {},
@@ -59,6 +64,77 @@ export default {
   },
   mounted() {
     this.initIntentMessage();
+    let _this = this;
+
+    // paste
+    this.$refs.rosterInputer.addEventListener('paste', function (event) {
+      const clipboardData = event.clipboardData || window.clipboardData;
+      const items = clipboardData.items;
+      if (items && items.length) {
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          if (item.kind === 'file') {
+            event.preventDefault();
+            const blob = item.getAsFile();
+            const file = new File([blob], blob.name, {
+              type: blob.type
+            });
+            _this.fileType = 'file';
+            if (item.type.indexOf('image') >= 0) {
+              _this.fileType = 'image';
+            }
+            _this.sendFileInBackground(file);
+          }
+        }
+      }
+    });
+
+    // drop
+    this.$refs.rosterInputer.addEventListener('drop', function (event) {
+      event.preventDefault();
+      const items = event.dataTransfer.files;
+      if (items && items.length) {
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          _this.fileType = 'file';
+          if (item.type.indexOf('image') >= 0) {
+            _this.fileType = 'image';
+          }
+          _this.sendFileInBackground(item);
+        }
+      }
+    });
+
+    // dragover
+    this.$refs.rosterInputer.addEventListener('dragover', function (event) {
+      event.preventDefault();
+    });
+
+    let appConfig = this.im.sysManage.getAppConfig(this.im.userManage.getAppid());
+    if (appConfig) {
+      if (appConfig.account_verification_status) {
+        switch (appConfig.account_verification_status) {
+          case 'unverified':
+            this.verifyInfo += '未认证开发者：';
+            break;
+          case 'verified':
+            this.verifyInfo += '已认证：';
+            break;
+          case 'expired':
+            this.verifyInfo += '认证失败：';
+            break;
+          default:
+            this.verifyInfo += '未认证开发者：';
+            break;
+        }
+      }
+      if (appConfig.account_verification_type && appConfig.account_verification_type == 'enterprise') {
+        //
+      } else {
+        this.verifyInfo += '个人开发者 ';
+      }
+      this.verifyInfo += appConfig.account_verification_name;
+    }
   },
   methods: {
     textareaKeyDown(evt) {
@@ -117,6 +193,10 @@ export default {
 
     fileChangeHandler(e) {
       const file = e.target.files[0];
+      this.sendFileInBackground(file);
+    },
+
+    sendFileInBackground(file) {
       this.im.sysManage
         .asyncFileUpload({
           file,
@@ -148,6 +228,7 @@ export default {
           this.$refs.fileRef.value = '';
         });
     },
+
     inputFocusHandler() {
       this.im.sysManage.sendInputStatusMessage(this.getSid, 'typing');
       this.changeSendButtonBackground();

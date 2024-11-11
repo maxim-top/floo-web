@@ -11,6 +11,7 @@
       </div>
       <div @click="touchContact" class="stab"><img :src="contactImage" /></div>
       <div @click="touchSetting" class="stab"><img :src="settingImage" /></div>
+      <div @click="touchAboutUs" class="stab"><img :src="aboutUsImage" /></div>
       <div @click="touchSafariAudioSupport" class="stab" v-if="checkSafari">
         <img :src="audioImage" />
         <span class="supportname">点击获取振铃权限</span>
@@ -41,6 +42,7 @@ export default {
       convImage: '',
       contactImage: '',
       settingImage: '',
+      aboutUsImage: '',
       audioImage: '',
       name: '',
       avatar: '',
@@ -89,6 +91,7 @@ export default {
       this.convImage = '/image/conv.png';
       this.contactImage = '/image/contact.png';
       this.settingImage = '/image/setting.png';
+      this.aboutUsImage = '/image/about_us.png';
       this.audioImage = '/image/speaker_off.png';
 
       if (selected === 'contact') {
@@ -97,6 +100,8 @@ export default {
         this.convImage = '/image/conv-s.png';
       } else if (selected === 'setting') {
         this.settingImage = '/image/setting-s.png';
+      } else if (selected === 'about_us') {
+        this.aboutUsImage = '/image/about_us-s.png';
       } else if (selected === 'audio') {
         this.audioImage = '/image/speaker_on.png';
       } else {
@@ -117,6 +122,11 @@ export default {
     touchSetting() {
       this.$store.dispatch('header/actionChangeHeaderStatus', 'setting');
       this.$store.dispatch('chat/actionSetType', { type: 'setting' });
+      this.closeOtherLayers();
+    },
+    touchAboutUs() {
+      this.$store.dispatch('header/actionChangeHeaderStatus', 'about_us');
+      this.$store.dispatch('chat/actionSetType', { type: 'verification' });
       this.closeOtherLayers();
     },
     touchSafariAudioSupport() {

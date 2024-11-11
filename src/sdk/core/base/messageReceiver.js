@@ -4,7 +4,7 @@
 import log from '../../utils/log';
 import { fire } from '../../utils/cusEvent';
 import { infoStore, messageStore } from '../../utils/store';
-import { toLong, toNumber } from '../../utils/tools';
+import { metaToCustomer, toLong, toNumber } from '../../utils/tools';
 import {
   STATIC_CONVERSATION_OPTYPE,
   STATIC_CONVERSATION_TYPE,
@@ -78,7 +78,8 @@ const checkSuccess = (messageObj) => {
     // failed to send message
     fire('onSendingMessageStatusChanged', {
       status: 'failed',
-      mid: toNumber(client_mid)
+      mid: toNumber(client_mid),
+      message: metaToCustomer(messageObj)
     });
   }
 
@@ -98,17 +99,20 @@ const receiveMessage = (message) => {
 const receiveUnread = (unreadMb) => {
   const { unread = [] } = unreadMb;
   fire('imReceivedUnread', unread);
+  let count = 0;
   unread.forEach((conversationUnread) => {
     const { xid, n } = conversationUnread;
     if (n > 0) {
       // fire('sendMessage', makeUnreadUl(xid)); //发一个unread ul
-      fire(
-        'sendMessage',
-        makeSyncul({
-          xid,
-          next_key: 0
-        })
-      ); // 有nextkey，接着sync
+      setTimeout(() => {
+        fire(
+          'sendMessage',
+          makeSyncul({
+            xid,
+            next_key: 0
+          })
+        ); // 有nextkey，接着sync
+      }, 1000 * Math.ceil(count++ / 20)); // 每秒钟处理20个上行未读会话请求。
     }
   });
 };

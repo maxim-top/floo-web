@@ -61,9 +61,22 @@ export default {
       this.requireMessage();
     });
 
-    this.$store.getters.im.on('onSendingMessageStatusChanged', ({ status, mid }) => {
+    this.$store.getters.im.on('onSendingMessageStatusChanged', ({ status, mid, message }) => {
       console.log('Sending Message status changed to ', status, ' mid: ', mid);
       // this.requireMessage();
+      if (status === 'sending') {
+        this.$store.dispatch('content/actionAppendMessage', {
+          sendingMessages: [message]
+        });
+      } else if (status === 'sent') {
+        this.$store.dispatch('content/actionUpdateMessage', {
+          message,
+          mid
+        });
+      } else if (status === 'failed') {
+        // do nothing
+        this.deleteMessage(mid);
+      }
     });
 
     this.$store.getters.im.on('onMessageRecalled', ({ mid }) => {

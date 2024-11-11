@@ -2,6 +2,7 @@
   <div>
     <Login :appid="appid" :sdkok="sdkok" v-if="sappStatus == 'login'" />
     <Regedit :appid="appid" :sdkok="sdkok" v-if="sappStatus == 'regedit'" />
+    <VerifyInfo :appid="appid" :sdkok="sdkok" v-if="sappStatus == 'verifyinfo'" />
 
     <Bindacc :appid="appid" :sdkok="sdkok" v-if="sappStatus == 'bindacc'" />
     <Bindreg :appid="appid" :sdkok="sdkok" v-if="sappStatus == 'bindreg'" />
@@ -14,6 +15,7 @@
 <script>
 import Login from './login.vue';
 import Regedit from './regedit.vue';
+import VerifyInfo from './verifyinfo.vue';
 
 import Bindacc from './bindacc.vue';
 import Bindreg from './bindreg.vue';
@@ -32,6 +34,7 @@ export default {
   components: {
     Login,
     Regedit,
+    VerifyInfo,
     Bindacc,
     Bindreg,
     Codelogin,
