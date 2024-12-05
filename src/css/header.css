@@ -95,6 +95,9 @@
   margin-top: 14px;
   font-size: 16px;
   color: white;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  max-width: 155px;
 }
 
 .header .supportname {

@@ -322,7 +322,11 @@ const actions = {
     }
 
     if (sendingMessages.length) {
-      allMessages = allMessages.concat(sendingMessages);
+      sendingMessages.forEach((msg) => {
+        if (allMessages.filter((m) => m.id === msg.id).length === 0) {
+          allMessages.push(msg);
+        }
+      });
     }
 
     context.commit('setMessage', allMessages);

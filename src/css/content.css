@@ -658,8 +658,9 @@
 .user_setting img.verify {
   width: 20px;
   height: 20px;
-  position: absolute;
-  top: 103px;
+  position: relative;
+  top: 3px;
+  padding-right: 4px;
 }
 
 .user_setting .line {
@@ -743,6 +744,7 @@
   -webkit-line-clamp: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: bold;
 }
 
 .roster_notice_list {

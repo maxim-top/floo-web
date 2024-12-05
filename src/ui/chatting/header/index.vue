@@ -1,5 +1,5 @@
 <template>
-  <div class="header">
+  <div class="header" ref="imHeader">
     <div class="searchArea">
       <input @input="handleSearch" placeHolder="搜索会话" type="text" v-model="kw" />
       <div @click="headerAddChickHandler" class="addBtn"></div>
@@ -14,7 +14,7 @@
       <div @click="touchAboutUs" class="stab"><img :src="aboutUsImage" /></div>
       <div @click="touchSafariAudioSupport" class="stab" v-if="checkSafari">
         <img :src="audioImage" />
-        <span class="supportname">点击获取振铃权限</span>
+        <span class="supportname" v-if="showSafariTips">点击获取振铃权限</span>
       </div>
     </div>
     <div class="profile">
@@ -34,6 +34,16 @@ export default {
     if (navigator.userAgent.indexOf('Safari') > -1 && navigator.userAgent.indexOf('Chrome') == -1) {
       this.checkSafari = true;
     }
+    window.addEventListener('resize', () => {
+      this.$nextTick(() => {
+        const width = this.$refs.imHeader.offsetWidth;
+        if (width >= 900) {
+          this.showSafariTips = true;
+        } else {
+          this.showSafariTips = false;
+        }
+      });
+    });
   },
 
   data() {
@@ -46,7 +56,8 @@ export default {
       audioImage: '',
       name: '',
       avatar: '',
-      checkSafari: false
+      checkSafari: false,
+      showSafariTips: true
     };
   },
   watch: {

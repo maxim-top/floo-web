@@ -7,6 +7,9 @@ const formatJson = (obj = 0) => {
   if (isLong) {
     return obj.toString();
   }
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
   // for uniapp compatibility, obj might not be instance of Long
   // since protobuf.wechat uses it own long.js
   const { low, high, unsigned = true } = obj;
@@ -37,6 +40,9 @@ const formatJson = (obj = 0) => {
 };
 
 const transferToLong = (obj = 0) => {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
   const { low, high, unsigned } = obj;
   if (typeof low !== 'undefined' && typeof high !== 'undefined') {
     const srret = new Long(low, high, unsigned);

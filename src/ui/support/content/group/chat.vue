@@ -62,13 +62,14 @@ export default {
     });
 
     this.$store.getters.im.on('onSendingMessageStatusChanged', ({ status, mid, message }) => {
-      console.log('Sending Message status changed to ', status, ' mid: ', mid);
       // this.requireMessage();
       if (status === 'sending') {
+        console.log('Sending Message status changed to sending mid: ', mid);
         this.$store.dispatch('content/actionAppendMessage', {
           sendingMessages: [message]
         });
       } else if (status === 'sent') {
+        console.log('Sending Message status changed to sent mid: ', mid);
         this.$store.dispatch('content/actionUpdateMessage', {
           message,
           mid

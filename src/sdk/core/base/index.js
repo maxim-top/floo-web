@@ -109,7 +109,7 @@ const webim = function ({
     })
     .catch((ex) => {
       console.log('flooim init error, please retry later: ', ex);
-      fire('flooError', { category: 'DNS_FAILED', desc: ex.message });
+      fire('flooError', { category: 'DNS_FAILED', desc: ex.message, code: ex.code ? ex.code : 0 });
     });
 };
 

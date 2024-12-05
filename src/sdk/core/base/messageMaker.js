@@ -1,5 +1,5 @@
 import { rtcmessage, conversation, frame, message, meta, provision, syncul, xid } from '../../model/index';
-import { infoStore } from '../../utils/store';
+import { infoStore, groupStore } from '../../utils/store';
 import { toLong, toNumber } from '../../utils/tools';
 import log from '../../utils/log';
 import {
@@ -122,6 +122,16 @@ const makeGroupMessage = (amessage) => {
   if (sctype > 0 && attachment) {
     // 0是文本
     smessage.attachment = JSON.stringify(attachment);
+  }
+
+  const groupInfo = groupStore.getGroupInfo(gid);
+  if (groupInfo && groupInfo.read_ack === true) {
+    const memberList = groupStore.getGroupMembers(gid) || [];
+    const currentUserId = infoStore.getUid();
+    const otherMemberIdList = memberList.filter((item) => item.user_id !== currentUserId).map((item) => item.user_id);
+    smessage.config = JSON.stringify({
+      groupMemberList: otherMemberIdList
+    });
   }
 
   const smeta = new meta({

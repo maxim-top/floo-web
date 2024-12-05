@@ -218,7 +218,8 @@
 .login .verify_detail img {
   width: 20px;
   height: 20px;
-  padding-top: 7px;
+  padding-top: 3px;
+  padding-right: 4px;
 }
 
 .login .verify_detail .ll {
@@ -235,4 +236,5 @@
   -webkit-line-clamp: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: bold;
 }

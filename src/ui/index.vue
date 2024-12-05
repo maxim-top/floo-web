@@ -361,13 +361,28 @@ export default {
           }
         },
         flooError: (msg) => {
-          const { category, desc } = msg;
+          const { category, desc, code } = msg;
           switch (category) {
             case 'USER_BANNED':
               that.alert('用户错误: ' + desc);
               break;
             case 'DNS_FAILED':
-              that.alert('DNS错误: ' + desc);
+              if (code && code === 99998) {
+                if (that.intent && that.intent.action === 'support') {
+                  that.alert('DNS错误: 无效AppID，重置为默认AppID');
+                  setTimeout(() => {
+                    that.$store.dispatch('actionChangeAppID', 'welovemaxim');
+                  }, 500);
+                  let currentUrl = new URL(window.location.href);
+                  currentUrl.searchParams.delete('code');
+                  currentUrl.searchParams.set('link', '3qur4g');
+                  window.history.replaceState({}, document.title, currentUrl.toString());
+                } else {
+                  that.alert('DNS错误: 无效AppID');
+                }
+              } else {
+                that.alert('DNS错误: ' + desc);
+              }
               break;
             case 'LICENSE':
               that.alert('服务需要续费: ' + desc);
@@ -444,6 +459,11 @@ export default {
         })
         .catch((err) => {
           that.alert('Link无效： ' + err.code + ':' + err.message);
+          let currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.delete('code');
+          currentUrl.searchParams.set('link', '3qur4g');
+          window.history.replaceState({}, document.title, currentUrl.toString());
+          window.location.replace(currentUrl.toString());
         });
     },
 

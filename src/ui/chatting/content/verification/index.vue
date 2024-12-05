@@ -4,8 +4,8 @@
       <span>本APP（APPID：{{ appid }}）由</span>
       <br />
       <span class="span-lines">{{ verification_description }}</span>
-      <span>{{ verification_status }}</span>
       <img :src="verification_img" class="verify" />
+      <span :style="{ 'font-size': '12px' }">{{ verification_status }}</span>
       <br />
       <span>提供服务</span>
     </p>
@@ -21,7 +21,7 @@ export default {
     return {
       verification_description: '', // 认证描述
       verification_img: '/image/unverified.png', // 认证图片
-      verification_status: '（？未认证）'
+      verification_status: '未认证'
     };
   },
   mounted() {
@@ -29,22 +29,22 @@ export default {
     let appConfig = im.sysManage.getAppConfig(im.userManage.getAppid());
     if (appConfig) {
       if (appConfig.account_verification_type && appConfig.account_verification_type == 'enterprise') {
-        this.verification_description += '「' + appConfig.account_verification_name + '」';
+        this.verification_description += appConfig.account_verification_name;
       } else {
-        this.verification_description += '「个人开发者：' + appConfig.account_verification_name + '」';
+        this.verification_description += '个人开发者：' + appConfig.account_verification_name;
       }
       if (appConfig.account_verification_status) {
         switch (appConfig.account_verification_status) {
           case 'unverified':
-            this.verification_status = '（？未认证）';
+            this.verification_status = '未认证';
             this.verification_img = '/image/unverified.png';
             break;
           case 'verified':
-            this.verification_status = '（v已认证）';
+            this.verification_status = '已认证';
             this.verification_img = '/image/verifyed.png';
             break;
           case 'expired':
-            this.verification_status = '（！认证失败）';
+            this.verification_status = '认证失败';
             this.verification_img = '/image/verify_failed.png';
             break;
           default:
