@@ -1,10 +1,12 @@
 import { request } from '../../../utils/request';
+import dnsManager from '../../../manage/dnsManager';
+import { infoStore } from '../../../utils/store';
 
 // dns
 const getServers = (url, params) => request(url, 'get', params, ['app_id'], true);
 
 // app config
-const getAppConfig = (url, params) => request(url + '/app/config', 'get', params, ['platform']);
+const getAppConfig = (url, params) => request('/app/config', 'get', params, ['platform']);
 
 // link
 const parseLink = (url, params) => request(url, 'get', params, ['link'], true);
@@ -127,16 +129,16 @@ const userDeviceList = (params) => request('/user/device/list', 'get', params, [
 const userKick = (params) => request('/user/kick', 'post', params, ['device_sn']);
 
 // file upload
-const fileForward = (params) => request('/file/upload/forward', 'get', params, ['file_sign', 'access-token', 'to_id', 'to_type'], true);
-const asyncFileUpload = (url, params, config, processCallback) => request(url, 'post', params, [], false, config, processCallback);
+const fileForward = (params) => maybeUpdateDownloadUrl(request('/file/upload/forward', 'get', params, ['file_sign', 'access-token', 'to_id', 'to_type'], true));
+const asyncFileUpload = (url, params, config, processCallback) => maybeUpdateDownloadUrl(request(maybeRemoveFileDomain(url), 'post', params, [], false, config, processCallback));
 
 //avatar ....
-const fileUploadAvatarUrl = (params) => request('/file/upload/avatar/user', 'get', params, [], true);
-const fileUploadGroupAvatarUrl = (params) => request('/file/upload/avatar/group', 'get', params, ['group_id'], true);
-const fileUploadChatFileUrl = (params) => request('/file/upload/chat', 'get', params, ['file_type', 'to_id', 'to_type'], true);
+const fileUploadAvatarUrl = (params) => maybeUpdateDownloadUrl(request('/file/upload/avatar/user', 'get', params, [], true));
+const fileUploadGroupAvatarUrl = (params) => maybeUpdateDownloadUrl(request('/file/upload/avatar/group', 'get', params, ['group_id'], true));
+const fileUploadChatFileUrl = (params) => maybeUpdateDownloadUrl(request('/file/upload/chat', 'get', params, ['file_type', 'to_id', 'to_type'], true));
 
 // file download
-const fileDownloadChatFileUrl = (url, params, config, processCallback) => request(url, 'get', params, [], true, config, processCallback);
+const fileDownloadChatFileUrl = (url, params, config, processCallback) => request(maybeRemoveFileDomain(url), 'get', params, [], true, config, processCallback);
 
 // qrcode
 const qrcode = (params) => request('/app/qr_code', 'get', params, []);
@@ -159,6 +161,34 @@ const wechatUnbind = () => request('/app/wechat/unbind', 'post');
 const wechatIsbind = () => request('/app/wechat/is_bind', 'get');
 const wechatBind = (params) => request('/app/wechat/bind', 'post', params, ['open_id', 'type']); //type ==== 1 小程序
 
+const maybeRemoveFileDomain = (url) => {
+  if (url && (url.includes('maximtop.com.cn') || url.includes('maximtop.cn'))) {
+    var new_url = url.replace(/^https?:\/\/[^/]+/, '');
+    return new_url;
+  }
+  return url;
+};
+
+const maybeUpdateDownloadUrl = (requestPromise) => {
+  return new Promise((resolve, reject) => {
+    requestPromise
+      .then((res) => {
+        if (res && res.download_url) {
+          let url = res.download_url;
+          let new_url = maybeRemoveFileDomain(url);
+          if (new_url != url) {
+            let appId = infoStore.getAppid();
+            new_url = dnsManager.getServers(appId).ratel + new_url;
+            res.download_url = new_url;
+          }
+        }
+        resolve(res);
+      })
+      .catch((err) => {
+        reject(err);
+      });
+  });
+};
 export {
   getServers,
   getAppConfig,

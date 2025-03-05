@@ -500,11 +500,15 @@ webim.logout = function (opt) {
   window.sessionStorage.setItem('key_stop_auto_login', true);
   isLogin = false;
   if (opt) {
-    if (opt.quitAllWeb) {
-      webim.kickAllWeb();
-    }
-    if (!opt.linkLogin) {
-      window.location.reload();
+    if (opt.deleteUser) {
+      // do nothing.
+    } else {
+      if (opt.quitAllWeb) {
+        webim.kickAllWeb();
+      }
+      if (!opt.linkLogin) {
+        window.location.reload();
+      }
     }
   } else {
     window.location.reload();

@@ -1,6 +1,6 @@
 {
   "name": "lanying-im-web",
-  "version": "3.0.15",
+  "version": "3.0.16",
   "private": true,
   "scripts": {
     "prebuild": "yarn",

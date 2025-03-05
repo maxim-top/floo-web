@@ -124,7 +124,6 @@ const changeFireplaceIndex = (appID) => {
     //compatible with dns v1
     fires = clusterObj.ws;
   }
-
   if (fires.length > fireIndex + 1) {
     fireIndex++;
     saveDnsInfo(appID, {
@@ -147,9 +146,16 @@ bind('fireplaceError', () => {
   fire('refresh_fireplace', fireplace);
 });
 
-const changeClusterIndex = (appID) => {
+const changeClusterIndex = (appID, expectClusterIndex = -1) => {
   const data = getDnsInfo(appID);
   let { clusters, clusterIndex } = data;
+
+  if (expectClusterIndex > 0) {
+    if (clusterIndex == expectClusterIndex) {
+      return;
+    }
+    clusterIndex = expectClusterIndex - 1;
+  }
 
   while (clusters.length > clusterIndex + 1) {
     clusterIndex++;
@@ -163,7 +169,6 @@ const changeClusterIndex = (appID) => {
       //compatible with dns v1
       fires = clusterObj.ws;
     }
-
     if (fires.length >= 0) {
       saveDnsInfo(appID, {
         clusters,
@@ -176,7 +181,9 @@ const changeClusterIndex = (appID) => {
     }
   }
   //run out of cluster, refresh dns
-  fire('retrieve_dns');
+  if (expectClusterIndex == -1) {
+    fire('retrieve_dns');
+  }
 };
 
 const getDnsInfo = (appID) => {
@@ -230,14 +237,16 @@ const asyncGetDns = (dnsServer, appID, ws) => {
       .then((res) => {
         log.info('DNS SUCCESS: ', res);
         saveServers(appID, res);
-        http
-          .getAppConfig(getServers(appID).ratel, {
-            platform: 6
-          })
-          .then((res) => {
-            log.info('APP CONFIG SUCCESS: ', res);
-            saveAppConfig(appID, res);
-          });
+        getFastestServer(appID).then(() => {
+          http
+            .getAppConfig(getServers(appID).ratel, {
+              platform: 6
+            })
+            .then((res) => {
+              log.info('APP CONFIG SUCCESS: ', res);
+              saveAppConfig(appID, res);
+            });
+        });
       });
     return Promise.resolve(sret);
   }
@@ -249,17 +258,61 @@ const asyncGetDns = (dnsServer, appID, ws) => {
     .then((res) => {
       log.info('DNS SUCCESS: ', res);
       saveServers(appID, res);
-      getServers(appID);
-      http
-        .getAppConfig(getServers(appID).ratel, {
-          platform: 6
-        })
-        .then((res) => {
-          log.info('APP CONFIG SUCCESS: ', res);
-          saveAppConfig(appID, res);
-        });
+      getFastestServer(appID).then(() => {
+        getServers(appID);
+        http
+          .getAppConfig(getServers(appID).ratel, {
+            platform: 6
+          })
+          .then((res) => {
+            log.info('APP CONFIG SUCCESS: ', res);
+            saveAppConfig(appID, res);
+          });
+      });
       return getServers(appID);
     });
+};
+
+const testServerSpeed = (url, index) => {
+  const start = Date.now();
+  return fetch(url)
+    .then(() => {
+      const end = Date.now();
+      const timeTaken = end - start;
+      log.info(`SpeedTest ${url} took ${timeTaken} ms`);
+      return { url, timeTaken, index };
+    })
+    .catch((error) => {
+      log.info(`SpeedTest ${url} got error`);
+      return delay(10000).then(() => {
+        return { url, timeTaken: Infinity, index }; // 如果请求失败，返回最大值
+      });
+    });
+};
+
+const delay = (ms) => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+const getFastestServer = (appID) => {
+  const data = getDnsInfo(appID);
+  let { clusters, clusterIndex } = data;
+
+  const promises = clusters.map((cluster, index) => {
+    let url = cluster.ratel[0].protocol + '://' + cluster.ratel[0].host + '/';
+    return testServerSpeed(url, index);
+  });
+
+  return Promise.race(promises).then((fastest) => {
+    log.info(`SpeedTest The fastest server is: ${JSON.stringify(fastest)}`);
+    if (clusterIndex != fastest.index) {
+      log.info(`SpeedTest change server: ${JSON.stringify(fastest)}`);
+      changeClusterIndex(appID, fastest.index);
+      const { fireplace, ratel } = getServers(appID) || {};
+      fire('refresh_ratel', ratel);
+      fire('refresh_fireplace', fireplace);
+    }
+  });
 };
 
 const dnsManager = {

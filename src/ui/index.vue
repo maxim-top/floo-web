@@ -9,6 +9,8 @@
     <Skipping v-else-if="getAppStatus == 'skipping'" />
     <Navigation v-else-if="getAppStatus == 'navigation'" />
     <Minimize v-else-if="getAppStatus == 'minimize'" />
+    <Delete :appid="appid" :sdkok="sdkok" v-else-if="getAppStatus == 'delete'" />
+    <Achieve :appid="appid" v-else-if="getAppStatus == 'achieve'" />
     <Login :appid="appid" :sdkok="sdkok" v-else />
     <Layers />
   </div>
@@ -22,6 +24,8 @@ import Loading from './support/loading/index.vue';
 import Skipping from './support/skipping/index.vue';
 import Navigation from './support/navigation/index.vue';
 import Minimize from './support/minimize/index.vue';
+import Delete from './delete/index.vue';
+import Achieve from './delete/achieve.vue';
 import Layers from './layers/index.vue';
 import { mapGetters } from 'vuex';
 
@@ -49,6 +53,8 @@ export default {
     Skipping,
     Navigation,
     Minimize,
+    Delete,
+    Achieve,
     Layers
   },
   data() {
@@ -58,7 +64,8 @@ export default {
       intent: {},
       autoSkip: true,
       officialUser: false,
-      linkChangeAccount: false
+      linkChangeAccount: false,
+      delPass: ''
     };
   },
   mounted() {
@@ -274,6 +281,8 @@ export default {
                 '*'
               );
             }
+          } else if (that.intent.action === 'delete') {
+            that.asyncDeleteUser();
           } else {
             that.$store.dispatch('login/actionChangeAppStatus', 'chatting');
           }
@@ -332,16 +341,22 @@ export default {
                         that.imLogin();
                       }, 500);
                     }
+                  } else if (that.intent.action === 'delete') {
+                    // do nothing.
                   } else {
                     that.imLogout();
                   }
                 }
               } else if ('relogin_manually' == desc) {
-                that.alert('请重新登录');
-                if (that.intent.action === 'support') {
-                  that.imLogout(true);
+                if (that.intent.action === 'delete') {
+                  // do nothing.
                 } else {
-                  that.imLogout();
+                  that.alert('请重新登录');
+                  if (that.intent.action === 'support') {
+                    that.imLogout(true);
+                  } else {
+                    that.imLogout();
+                  }
                 }
               } else {
                 console.log('Floo Notice: unknown action ', desc);
@@ -516,7 +531,9 @@ export default {
             token: loginInfo.token
           });
         } else if (this.intent.action) {
-          this.autoRegisterAndLogin();
+          if (this.intent.action !== 'delete') {
+            this.autoRegisterAndLogin();
+          }
         } else {
           console.log('没有用户信息不能登录');
         }
@@ -537,20 +554,26 @@ export default {
     },
 
     imLogout(linkLogin = false, quitAllWeb = false) {
-      if (!linkLogin) {
-        let currentUrl = new URL(window.location.href);
-        currentUrl.search = '';
-        window.history.replaceState({}, document.title, currentUrl.toString());
-      }
-      this.getIM().logout({ quitAllWeb, linkLogin });
-      this.removeLoginInfo();
-      if (!linkLogin) {
-        this.$store.dispatch('login/actionChangeAppStatus', 'login');
+      if (this.intent.action === 'delete') {
+        this.$store.dispatch('login/actionChangeAppStatus', 'achieve');
+        this.getIM().logout({ deleteUser: true });
+        this.removeLoginInfo();
       } else {
-        this.linkChangeAccount = true;
-        this.$store.dispatch('layer/actionSetShowing', '');
-        this.$store.dispatch('layer/actionSetShowmask', false);
-        this.$store.dispatch('login/actionChangeAppStatus', 'loading');
+        if (!linkLogin) {
+          let currentUrl = new URL(window.location.href);
+          currentUrl.search = '';
+          window.history.replaceState({}, document.title, currentUrl.toString());
+        }
+        this.getIM().logout({ quitAllWeb, linkLogin });
+        this.removeLoginInfo();
+        if (!linkLogin) {
+          this.$store.dispatch('login/actionChangeAppStatus', 'login');
+        } else {
+          this.linkChangeAccount = true;
+          this.$store.dispatch('layer/actionSetShowing', '');
+          this.$store.dispatch('layer/actionSetShowmask', false);
+          this.$store.dispatch('login/actionChangeAppStatus', 'loading');
+        }
       }
     },
 
@@ -648,6 +671,33 @@ export default {
     retrieveAppId() {
       return this.intent.app_id || window.sessionStorage.getItem('lanying_im_appid') || window.localStorage.getItem('lanying_im_appid') || 'welovemaxim';
     },
+
+    deleteUser(username, password) {
+      const im = this.getIM();
+      this.saveLoginInfo({ username, password }, this.appid);
+      this.delPass = password;
+      im.login({
+        name: username,
+        password: password
+      });
+    },
+    asyncDeleteUser() {
+      let that = this;
+      const im = this.getIM();
+      im.userManage
+        .asyncDeleteUser({
+          password: this.delPass
+        })
+        .then(() => {
+          that.delPass = '';
+          that.imLogout();
+        })
+        .catch((err) => {
+          console.log('删除用户失败 code = ' + err.code + ' : ' + err.message);
+          that.alert('注销账户失败，请联系管理员');
+        });
+    },
+
     autoRegisterAndLogin() {
       const im = this.getIM();
       var username = 'anon_';
@@ -678,7 +728,7 @@ export default {
     },
     loadIntent() {
       let params = new URL(document.location).searchParams;
-      if (params.get('action') == 'chat' || params.get('action') == 'support') {
+      if (params.get('action') == 'chat' || params.get('action') == 'support' || params.get('action') == 'delete') {
         this.intent = {
           app_id: params.get('app_id'),
           uid: parseInt(params.get('uid')),
@@ -694,6 +744,9 @@ export default {
         this.intent.hasParseLink = false;
         this.intent.action = this.intent.action ? this.intent.action : 'support';
       }
+      if (this.intent.action === 'delete') {
+        this.$store.dispatch('login/actionChangeAppStatus', 'delete');
+      }
       if (this.intent.action === 'support') {
         this.$store.dispatch('login/actionChangeAppStatus', 'minimize');
         parent.postMessage(
@@ -704,7 +757,7 @@ export default {
           '*'
         );
       }
-      if (params.get('action') !== 'chat') {
+      if (params.get('action') !== 'chat' && params.get('action') !== 'delete') {
         parent.postMessage(
           JSON.stringify({
             type: 'lanying_link_fetch_user'
@@ -724,7 +777,7 @@ export default {
       }
     },
     maybeFeedbackLoginUser() {
-      if (this.intent.action !== 'chat') {
+      if (this.intent.action !== 'chat' && this.intent.action !== 'delete') {
         const loginInfo = this.getLoginInfo();
         parent.postMessage(
           JSON.stringify({

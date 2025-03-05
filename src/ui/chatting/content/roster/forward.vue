@@ -156,6 +156,7 @@ export default {
     clearSelectList() {
       this.selRosterIdList = [];
       this.selGroupIdList = [];
+      this.selCount = 0;
     }
 
     //methods finish

@@ -123,6 +123,12 @@
   margin-top: 0px;
 }
 
+.login .info {
+  margin-top: 20px;
+  text-align: center;
+  color: gray;
+}
+
 .header .hint {
   position: relative;
   margin-top: 20px;
