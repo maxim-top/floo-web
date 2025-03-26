@@ -82,6 +82,15 @@ module "third/long" is not defined
 npm i -f
 ```
 
+3. vue3适配问题
+
+```
+The requested module '/src/im/floo-3.0.0.js' does not provide an export named 'default'
+```
+
+需要通过 yarn 安装 vite-plugin-commonjs 和 vite-plugin-require-transform 两个插件。
+![](https://docs.lanyingim.com/assets/vue3-import.jpg)
+
 ## 其他
 
 了解更多信息可以阅读[在线文档](https://docs.lanyingim.com/)，或者在本仓库提问，好好玩 :)
