@@ -44,7 +44,7 @@ export default {
         const rosterMaps = this.im.rosterManage.getAllRosterDetail();
         res.forEach((r) => {
           const suser = rosterMaps[r.user_id] || {};
-          r.user_name = suser.nick_name || suser.username || r.user_id;
+          r.user_name = suser.alias || suser.nick_name || suser.username || r.user_id;
         });
         this.notices = res;
       });

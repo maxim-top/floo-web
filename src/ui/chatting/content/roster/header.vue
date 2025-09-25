@@ -3,8 +3,8 @@
     <div class="header_items">
       <span class="name" @click="touchUserNameHandler">{{ rosterName }}</span>
       <span class="typing" style="padding-left: 10px; color: #111; font-size: 12px" v-if="status">正在输入...</span>
-      <div class="multi_forward_button" @click="multiMessagesForward()">批量转发</div>
-      <div class="delete_button" @click="deleteConversation(getSid)">删除会话</div>
+      <div v-if="!getShowMultiForwardStatus" class="multi_forward_button" @click="multiMessagesForward()">批量转发</div>
+      <div v-if="!getShowMultiForwardStatus" class="delete_button" @click="deleteConversation(getSid)">删除会话</div>
     </div>
   </div>
 </template>
@@ -43,7 +43,7 @@ export default {
     ...mapGetters('content', ['getRosterInfo', 'getSid']),
     ...mapGetters('forward', ['getShowMultiForwardStatus']),
     rosterName() {
-      let name = this.getRosterInfo.nick_name || this.getRosterInfo.username;
+      let name = this.getRosterInfo.alias || this.getRosterInfo.nick_name || this.getRosterInfo.username;
       if (!name) {
         this.$store.dispatch('content/actionUpdateRoster');
       }
@@ -73,6 +73,13 @@ export default {
     multiMessagesForward() {
       let status = !this.getShowMultiForwardStatus;
       this.$store.dispatch('forward/actionShowMultiForwardStatus', status);
+    }
+  },
+  watch: {
+    getSid(a, b) {
+      if (a !== b) {
+        this.status = false;
+      }
     }
   }
 };

@@ -174,5 +174,13 @@ export default {
    * @example
    * {% lanying_code_snippet repo="lanying-im-web",class="userManage",function="asyncUpdateSettings" %}{% endlanying_code_snippet %}
    */
-  asyncUpdateSettings: http.userSettingsPost
+  asyncUpdateSettings: http.userSettingsPost,
+
+  asyncGetUserVerification: http.getUserVerification,
+
+  userVerificationByMobile: http.userVerificationByMobile,
+
+  userChangeMobileCheckPassword: http.userChangeMobileCheckPassword,
+  userChangeMobileCheckMobile: http.userChangeMobileCheckMobile,
+  userChangeMobile: http.userChangeMobile
 };

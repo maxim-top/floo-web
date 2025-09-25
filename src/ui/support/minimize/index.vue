@@ -63,6 +63,8 @@ export default {
           }),
           '*'
         );
+      } else {
+        window.location.reload();
       }
     },
 

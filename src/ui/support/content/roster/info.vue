@@ -19,6 +19,11 @@
       <p class="lr">{{ nickName }}</p>
     </div>
 
+    <div class="line">
+      <span class="ll">备注名称</span>
+      <p @click="setAlias" class="lr">{{ aliasName || '点击设置' }}</p>
+    </div>
+
     <div @click="chatRemoveHandler" class="logout mt15" v-if="isFriend">删除好友</div>
     <div @click="addFriendHandler" class="logout mt15" v-else>添加好友</div>
     <div @click="chatClickHandler" class="logout mt15" v-if="isFriend">开始聊天</div>
@@ -53,6 +58,9 @@ export default {
   computed: {
     ...mapGetters('content', ['getSid']),
     ...mapGetters('contact', ['getRosterList']),
+    aliasName() {
+      return this.userInfo.alias;
+    },
     rosterName() {
       return this.userInfo.username;
     },
@@ -86,8 +94,8 @@ export default {
       this.$store.getters.im.sysManage.deleteConversation(this.getSid, also_delete_other_devices);
     },
     addFriendHandler() {
-      const { user_id, username } = this.userInfo;
-      const alias = username;
+      const { user_id } = this.userInfo;
+      const alias = '';
       this.$store.getters.im.rosterManage.asyncApply({ user_id, alias }).then(() => {
         alert('请求已发送成功!');
       });
@@ -99,6 +107,23 @@ export default {
         sid: this.getSid,
         type: 'rosterchat'
       });
+    },
+    setAlias() {
+      const im = this.$store.getters.im;
+      this.$prompt('请输入备注名称', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消'
+      })
+        .then(({ value }) => {
+          if (!value) {
+            value = '';
+          }
+          im.rosterManage.asyncUpdateRosterAlias({ user_id: this.userInfo.user_id, alias: value }).then(() => {
+            this.refreshUserInfo(this.getSid);
+            this.$message.success('修改成功');
+          });
+        })
+        .catch(() => {});
     }
   }
 };

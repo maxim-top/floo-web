@@ -1,6 +1,6 @@
 <template>
   <div>
-    <Login :appid="appid" :sdkok="sdkok" v-if="sappStatus == 'login'" />
+    <Login :appid="appid" :sdkok="sdkok" :isAppInfoReady="isAppInfoReady" v-if="sappStatus == 'login'" />
     <Regedit :appid="appid" :sdkok="sdkok" v-if="sappStatus == 'regedit'" />
     <VerifyInfo :appid="appid" :sdkok="sdkok" v-if="sappStatus == 'verifyinfo'" />
 
@@ -27,7 +27,7 @@ import { mapGetters } from 'vuex';
 
 export default {
   name: 'index',
-  props: ['sdkok', 'appid'],
+  props: ['sdkok', 'appid', 'isAppInfoReady'],
   data() {
     return {};
   },

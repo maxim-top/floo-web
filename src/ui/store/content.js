@@ -19,6 +19,8 @@ const state = {
    */
   viewType: '',
   sid: -1, //selected roster/group id..
+  lastViewType: '',
+  lastSid: -1,
   intentMessage: '',
   messages: [],
   time: [], // 这个是，消息的时间，几分钟显示一下，按现在的逻辑..
@@ -84,6 +86,14 @@ const mutations = {
   setSid(state, x) {
     state.sid = x;
     this.queryHistoryMessageId = 0;
+  },
+
+  setLastViewType(state, x) {
+    state.lastViewType = x;
+  },
+
+  setLastSid(state, x) {
+    state.lastSid = x;
   },
 
   setIntentMessage(state, x) {
@@ -198,6 +208,10 @@ const actions = {
 
   actionSetType(context, x) {
     const { state } = context;
+    if (x.type == 'restore') {
+      x.sid = state.lastSid;
+      x.type = state.lastViewType;
+    }
     if (typeof x.sid === 'undefined' || x.sid < 0) {
       context.commit('setMessage', []);
       context.commit('setViewType', '');
@@ -208,6 +222,12 @@ const actions = {
       x.type && context.commit('setViewType', x.type);
       x.sid && context.commit('setMessage', []);
       state.time = [];
+      if (x.type == 'groupchat' || x.type == 'rosterchat') {
+        if (state.lastSid !== x.sid || state.lastViewType !== x.type) {
+          context.commit('setLastSid', x.sid);
+          context.commit('setLastViewType', x.type);
+        }
+      }
     }
   },
 

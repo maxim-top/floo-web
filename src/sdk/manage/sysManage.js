@@ -15,6 +15,7 @@ import {
 } from '../core/base/messageMaker';
 import { fire } from '../utils/cusEvent';
 import { STATIC_MESSAGE_STATUS } from '../utils/static';
+import { tryUrlsWithTimeout } from '../utils/speedTest';
 
 /**
  * @module sysManage
@@ -197,7 +198,7 @@ const makeSearch = (kw) => {
       }
     });
     if (!has) {
-      if (username.indexOf(kw) >= 0) {
+      if (username && username.indexOf(kw) >= 0) {
         rosterArr.push({
           user_id,
           username,
@@ -226,7 +227,7 @@ const makeSearch = (kw) => {
       }
     });
     if (!has) {
-      if (name.indexOf(kw) >= 0) {
+      if (name && name.indexOf(kw) >= 0) {
         groupArr.push({
           group_id,
           name
@@ -283,62 +284,67 @@ const getMessageStatus = (cid, mid, isGroup = false) => {
  */
 const asyncFileUpload = (param) => {
   return new Promise((success, rej) => {
-    const { group_id, to_id, toType, file, fileType, chatType, processCallback } = param;
-    let target = '';
-    if (toType === 'rosterAvatar') {
-      target = 'fileUploadAvatarUrl';
-    } else if (toType == 'chat') {
-      target = 'fileUploadChatFileUrl';
-    } else {
-      // groupAvatar
-      target = 'fileUploadGroupAvatarUrl';
-    }
+    const { group_id, to_id, toType, file: origFile, fileType, chatType, processCallback } = param;
 
-    const sendParam = {};
-    const token = infoStore.getToken();
-    if (toType === 'groupAvatar') {
-      sendParam['access-token'] = token;
-    }
-
-    // 文件类型 100: 普通聊天文件, 101: 语音聊天文件(amr格式),102: 图片聊天文件, 103: 视频聊天文件, 104: 语音聊天文件(mp3格式)
-    // 200: 普通共享文件, 201: 语音共享文件, 202: 图片共享文件, 203: 视频共享文件
-    const fileTypes = ['file', 'audio', 'image', 'video', 'audio-mp3'];
-    const fileTypes2 = ['shareFile', 'shareAudio', 'shareImage', 'shareVideo'];
-    if (fileType) sendParam.file_type = fileTypes.indexOf(fileType) + 100;
-    if (sendParam < 100) sendParam.file_type = fileTypes2.indexOf(fileType) + 200;
-
-    if (group_id) sendParam.group_id = group_id;
-    if (chatType == 'group') sendParam.to_type = 2;
-    if (chatType == 'roster') sendParam.to_type = 1;
-    if (to_id) sendParam.to_id = to_id;
-    io[target](sendParam)
-      .then((res) => {
-        let param = new FormData();
-        //Oss has this param, ceph not.
-        if (res.oss_body_param && res.oss_body_param.key) {
-          param.append('OSSAccessKeyId', res.oss_body_param.OSSAccessKeyId);
-          param.append('policy', res.oss_body_param.policy);
-          param.append('signature', res.oss_body_param.signature);
-          param.append('callback', res.oss_body_param.callback);
-          param.append('key', res.oss_body_param.key);
+    preprocessImage(origFile, fileType, toType)
+      .then(function (file) {
+        let target = '';
+        if (toType === 'rosterAvatar') {
+          target = 'fileUploadAvatarUrl';
+        } else if (toType == 'chat') {
+          target = 'fileUploadChatFileUrl';
+        } else {
+          // groupAvatar
+          target = 'fileUploadGroupAvatarUrl';
         }
-        param.append('file', file);
 
-        let config = {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        };
+        const sendParam = {};
+        const token = infoStore.getToken();
+        if (toType === 'groupAvatar') {
+          sendParam['access-token'] = token;
+        }
 
-        io.asyncFileUpload(res.upload_url, param, config, processCallback)
-          .then(() => {
-            success({ url: res.download_url });
+        // 文件类型 100: 普通聊天文件, 101: 语音聊天文件(amr格式),102: 图片聊天文件, 103: 视频聊天文件, 104: 语音聊天文件(mp3格式)
+        // 200: 普通共享文件, 201: 语音共享文件, 202: 图片共享文件, 203: 视频共享文件
+        const fileTypes = ['file', 'audio', 'image', 'video', 'audio-mp3'];
+        const fileTypes2 = ['shareFile', 'shareAudio', 'shareImage', 'shareVideo'];
+        if (fileType) sendParam.file_type = fileTypes.indexOf(fileType) + 100;
+        if (sendParam < 100) sendParam.file_type = fileTypes2.indexOf(fileType) + 200;
+
+        if (group_id) sendParam.group_id = group_id;
+        if (chatType == 'group') sendParam.to_type = 2;
+        if (chatType == 'roster') sendParam.to_type = 1;
+        if (to_id) sendParam.to_id = to_id;
+        io[target](sendParam)
+          .then((res) => {
+            let param = new FormData();
+            //Oss has this param, ceph not.
+            if (res.oss_body_param && res.oss_body_param.key) {
+              param.append('OSSAccessKeyId', res.oss_body_param.OSSAccessKeyId);
+              param.append('policy', res.oss_body_param.policy);
+              param.append('signature', res.oss_body_param.signature);
+              param.append('callback', res.oss_body_param.callback);
+              param.append('key', res.oss_body_param.key);
+            }
+            param.append('file', file);
+
+            let config = {
+              headers: { 'Content-Type': 'multipart/form-data' }
+            };
+
+            io.asyncFileUpload(res.upload_url, param, config, processCallback)
+              .then(() => {
+                success({ url: res.download_url });
+              })
+              .catch((err) => {
+                log.error('Fail to upload file due to ', err);
+              });
           })
           .catch((err) => {
-            log.error('Fail to upload file due to ', err);
+            rej(err);
           });
       })
-      .catch((err) => {
-        rej(err);
-      });
+      .catch(rej); // 预处理出错也 reject
   });
 };
 
@@ -456,6 +462,83 @@ const deleteConversation = function (id, other_devices = true) {
   io.sendMessage(operation);
 };
 
+/**
+ * 解析蓝莺link
+ * @static
+ * @param {string} link 蓝莺link
+ * @example
+ * {% lanying_code_snippet repo="lanying-im-web",class="sysManage",function="aysncParseLinkV2" %}{% endlanying_code_snippet %}
+ */
+const aysncParseLinkV2 = function (link) {
+  let linkServers = dnsManager.getLinkServerList();
+  let urls = [];
+  for (let i in linkServers) {
+    urls.push('https://' + linkServers[i].domain + '/info');
+  }
+  if (urls.length == 0) {
+    urls.push('https://lanyinglink.com/info');
+  }
+  return tryUrlsWithTimeout(urls, (url) => io.parseLink(url, { link }), 1000, 20000);
+};
+
+// ==============================
+// 图片预处理函数
+// ==============================
+const preprocessImage = function (file, fileType, toType) {
+  return new Promise(function (resolve, reject) {
+    if (fileType != 'image' && fileType != 'shareImage' && toType != 'rosterAvatar' && toType != 'groupAvatar') return resolve(file);
+    if (!file.type.startsWith('image/')) return resolve(file);
+
+    if (file.type === 'image/webp') {
+      isExtendedWebP(file)
+        .then(function (isExtendedWebP) {
+          if (isExtendedWebP) return webpToPng(file);
+          return file;
+        })
+        .then(resolve)
+        .catch(reject);
+    } else {
+      resolve(file);
+    }
+  });
+};
+
+const isExtendedWebP = function (file) {
+  return new Promise(function (resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const bytes = new Uint8Array(e.target.result);
+      const header = String.fromCharCode(...bytes.slice(8, 16)); // 取 WEBP + VP8X
+      resolve(header === 'WEBPVP8X');
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+const webpToPng = function (file) {
+  return new Promise(function (resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const img = new Image();
+      img.onload = function () {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        canvas.toBlob(function (blob) {
+          const newFile = new File([blob], file.name.replace(/\.webp$/i, '.png'), { type: 'image/png' });
+          resolve(newFile);
+        }, 'image/png');
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
 export default {
   getStaticVars,
   sendRosterMessage,
@@ -507,10 +590,13 @@ export default {
   getServers: dnsManager.getServers,
   getLinkServer: infoStore.getLinkServer,
   getAppConfig: dnsManager.getAppConfig,
+  getAppStatus: dnsManager.getAppStatus,
+  getAccountVerification: dnsManager.getAccountVerification,
+  getServerIp: dnsManager.getServerIp,
   asyncWechatUnbind: io.wechatUnbind,
   asyncWechatIsbind: io.wechatIsbind,
   asyncWechatBind: io.wechatBind,
   aysncParseLink: io.parseLink,
-
+  aysncParseLinkV2,
   deleteConversation
 };

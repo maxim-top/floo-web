@@ -110,10 +110,10 @@ export default {
       event.preventDefault();
     });
 
-    let appConfig = this.im.sysManage.getAppConfig(this.im.userManage.getAppid());
-    if (appConfig) {
-      if (appConfig.account_verification_status) {
-        switch (appConfig.account_verification_status) {
+    let accountVerification = this.im.sysManage.getAccountVerification(this.im.userManage.getAppid());
+    if (accountVerification) {
+      if (accountVerification.status) {
+        switch (accountVerification.status) {
           case 'unverified':
             this.verifyInfo += '未认证开发者：';
             break;
@@ -128,12 +128,12 @@ export default {
             break;
         }
       }
-      if (appConfig.account_verification_type && appConfig.account_verification_type == 'enterprise') {
+      if (accountVerification.type && accountVerification.type == 'enterprise') {
         //
       } else {
         this.verifyInfo += '个人开发者 ';
       }
-      this.verifyInfo += appConfig.account_verification_name;
+      this.verifyInfo += accountVerification.name;
     }
   },
   methods: {

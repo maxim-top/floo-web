@@ -9,7 +9,8 @@ const state = {
   callId: '',
   pickupTime: 0,
   searchKeyword: '',
-  totalUnread: ''
+  totalUnread: '',
+  conversationScroll: 0
 };
 
 const contactRequestFlag = {
@@ -48,6 +49,10 @@ const getters = {
 
   getTotalUnread(state) {
     return state.totalUnread;
+  },
+
+  getConversationScroll(state) {
+    return state.conversationScroll || 0;
   }
 };
 
@@ -86,6 +91,10 @@ const mutations = {
 
   setTotalUnread(state, x) {
     state.totalUnread = x;
+  },
+
+  setConversationScroll(state, x) {
+    state.conversationScroll = x;
   }
 };
 
@@ -135,7 +144,7 @@ const actions = {
       if (item.type === 'roster') {
         //roster
         const sroster = allRosterMap[id] || {};
-        name = sroster.nick_name || sroster.username || id;
+        name = sroster.alias || sroster.nick_name || sroster.username || id;
         avatar = sroster.avatar;
       } else if (item.type === 'group') {
         //group
@@ -242,6 +251,9 @@ const actions = {
   },
   actionSetCallId(context, x) {
     context.commit('setCallId', x);
+  },
+  actionSetConversationScroll(context, scroll) {
+    context.commit('setConversationScroll', scroll);
   }
 };
 export default {

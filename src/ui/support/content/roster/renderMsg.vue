@@ -6,7 +6,7 @@
       <div class="rosterInfo">
         <div v-if="isSelf">
           <el-popover placement="left-start" trigger="hover" width="170" :visible-arrow="false" :append-to-body="false">
-            <div class="profile-name">{{ this.getUserProfile.nick_name || this.getUserProfile.username }}</div>
+            <div class="profile-name">{{ this.getUserProfile.alias || this.getUserProfile.nick_name || this.getUserProfile.username }}</div>
             <div class="profile-bio" v-if="this.getUserProfile.nick_name">昵称：{{ this.getUserProfile.nick_name }}</div>
             <div class="profile-bio">用户名：{{ this.getUserProfile.username }}</div>
             <div class="profile-bio">ID: {{ this.getUserProfile.user_id }}</div>
@@ -196,7 +196,7 @@ export default {
       const umaps = this.im.rosterManage.getAllRosterDetail() || {};
       const fromUid = toNumber(this.message.from);
       const fromUserObj = umaps[fromUid] || {};
-      let username = fromUserObj.nick_name || fromUserObj.username || fromUserObj.user_id;
+      let username = fromUserObj.alias || fromUserObj.nick_name || fromUserObj.username || fromUserObj.user_id;
       let avatar = this.im.sysManage.getImage({ avatar: fromUserObj.avatar });
 
       if (fromUid === cuid) {

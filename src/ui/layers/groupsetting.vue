@@ -255,7 +255,7 @@ export default {
             memberArray.push(this.getMemberList[this.getMemberList.findIndex((y) => y.user_id === arr[i].user_id)]);
           } else {
             let mapUser = allMaps[arr[i].user_id] || {};
-            mapUser.display_name = mapUser.nick_name || mapUser.username || arr[i].user_id;
+            mapUser.display_name = mapUser.alias || mapUser.nick_name || mapUser.username || arr[i].user_id;
             memberArray.push(mapUser);
           }
         }
@@ -279,7 +279,7 @@ export default {
       this.memberList.forEach((x) => {
         const user_id = x.user_id || x;
         const mapUser = allMaps[user_id] || {};
-        const user_name = x.user_name || mapUser.nick_name || mapUser.username || x.user_id;
+        const user_name = x.user_name || mapUser.alias || mapUser.nick_name || mapUser.username || x.user_id;
         const durItem = this.bans.find((i) => i.user_id === x.user_id);
         let duration = '';
         if (this.groupInfo.ban_expire_time && this.groupInfo.ban_expire_time === -1) {
@@ -301,7 +301,7 @@ export default {
       this.blocks.forEach((x) => {
         const user_id = x.user_id || x;
         let mapUser = allMaps[user_id] || {};
-        mapUser.display_name = mapUser.nick_name || mapUser.username || x;
+        mapUser.display_name = mapUser.alias || mapUser.nick_name || mapUser.username || x;
         const user_name = this.displayRosterName(mapUser);
         ret.push({
           user_name,
@@ -319,7 +319,7 @@ export default {
       arr.forEach((x) => {
         const user_id = x;
         let mapUser = allMaps[user_id] || {};
-        mapUser.display_name = mapUser.nick_name || mapUser.username || x;
+        mapUser.display_name = mapUser.alias || mapUser.nick_name || mapUser.username || x;
         const user_name = this.displayRosterName(mapUser);
         ret.push({
           user_id,

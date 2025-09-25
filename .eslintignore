@@ -1,2 +1,3 @@
 /src/sdk/core/rtc/janus.js
 /src/ui/third/marked.min.js
+/src/sdk/utils/store/storeHelper.js

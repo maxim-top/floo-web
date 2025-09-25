@@ -100,8 +100,8 @@ export default {
     },
 
     clickUserHandler() {
-      const { user_id, username } = this.searchResult;
-      const alias = this.alias || username;
+      const { user_id } = this.searchResult;
+      const alias = this.alias;
       this.$store.getters.im.rosterManage.asyncApply({ user_id, alias }).then(() => {
         alert('请求已发送成功!');
       });

@@ -157,11 +157,13 @@ const groupAddMemberLogic = (group_id, uids, isNotice, replace) => {
       } else {
         item.has_nick = false;
         if (item.user_id != uid) {
-          if (item.display_name || allRosterInfos[item.user_id].nick_name) {
+          let alias = allRosterInfos[item.user_id].alias;
+          if (alias || item.display_name || allRosterInfos[item.user_id].nick_name) {
             item.has_nick = true;
           }
-          item.display_name = item.display_name || allRosterInfos[item.user_id].nick_name || allRosterInfos[item.user_id].username || allRosterInfos[item.user_id].user_id;
+          item.display_name = alias || item.display_name || allRosterInfos[item.user_id].nick_name || allRosterInfos[item.user_id].username || allRosterInfos[item.user_id].user_id;
         } else {
+          item.has_nick = true;
           item.display_name = item.display_name || allRosterInfos[item.user_id].nick_name || allRosterInfos[item.user_id].username || allRosterInfos[item.user_id].user_id;
         }
         item.username = allRosterInfos[item.user_id].username;
@@ -182,11 +184,14 @@ const groupAddMemberLogic = (group_id, uids, isNotice, replace) => {
           if (!sitem.display_name) {
             sitem.has_nick = false;
             if (sitem.user_id != uid) {
-              if (sitem.display_name || allRosterInfos[sitem.user_id].nick_name) {
+              let alias = allRosterInfos[sitem.user_id].alias;
+              if (alias || sitem.display_name || allRosterInfos[sitem.user_id].nick_name) {
                 sitem.has_nick = true;
               }
-              sitem.display_name = sitem.display_name || allRosterInfos[sitem.user_id].nick_name || allRosterInfos[sitem.user_id].username || allRosterInfos[sitem.user_id].user_id;
+              sitem.display_name =
+                alias || sitem.display_name || allRosterInfos[sitem.user_id].nick_name || allRosterInfos[sitem.user_id].username || allRosterInfos[sitem.user_id].user_id;
             } else {
+              sitem.has_nick = true;
               sitem.display_name = sitem.display_name || allRosterInfos[sitem.user_id].nick_name || allRosterInfos[sitem.user_id].username || allRosterInfos[sitem.user_id].user_id;
             }
           }
@@ -346,14 +351,15 @@ bind('imGroupMessage', (meta) => {
 });
 bind('imReceivedUnread', (unread) => {
   const rosterIds = unread.filter((x) => x.type === 1).map((f) => toNumber(f.xid.uid));
+  const hasUnreadRosterIds = unread.filter((x) => x.type === 1 && x.n > 0).map((f) => toNumber(f.xid.uid));
   const gids = unread.filter((x) => x.type === 2).map((f) => toNumber(f.xid.uid));
-  dealRosterUnread(rosterIds);
+  dealRosterUnread(rosterIds, hasUnreadRosterIds);
   // rostersInfoLogic(rosterIds);
   dealGroupUnread(gids);
   groupsInfoLogic(gids);
 });
 
-const dealRosterUnread = (uids) => {
+const dealRosterUnread = (uids, hasUnreadRosterIds) => {
   const allRosterInfos = rosterStore.getAllRosterInfos() || {};
   const ret = [];
   uids.forEach((user_id) => {
@@ -376,16 +382,25 @@ const dealRosterUnread = (uids) => {
           list: subArray
         }).then((res) => {
           rosterStore.saveRosterInfo(res);
-          recentStore.saveUnreadRecent(subArray, 'roster');
+          recentStore.saveUnreadRecent(
+            subArray.filter((item) => !hasUnreadRosterIds.includes(item)),
+            'roster'
+          );
         });
       }, (count += 1) * 1000);
     });
     let local = uids.filter((x) => !ret.includes(x));
     if (Array.isArray(local) && local.length) {
-      recentStore.saveUnreadRecent(local, 'roster');
+      recentStore.saveUnreadRecent(
+        local.filter((item) => !hasUnreadRosterIds.includes(item)),
+        'roster'
+      );
     }
   } else {
-    recentStore.saveUnreadRecent(uids, 'roster');
+    recentStore.saveUnreadRecent(
+      uids.filter((item) => !hasUnreadRosterIds.includes(item)),
+      'roster'
+    );
   }
 };
 

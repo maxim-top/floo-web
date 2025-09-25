@@ -1,10 +1,10 @@
 <template>
   <div class="chat-index" @click="handleClick">
+    <Forward />
     <MemberList />
     <Header />
     <Chat />
     <Inputer />
-    <Forward />
   </div>
 </template>
 

@@ -4,6 +4,7 @@
 const state = {
   settingInfo: {},
   profileInfo: {},
+  userVerification: {},
   callStatus: false
 };
 
@@ -14,6 +15,10 @@ const getters = {
 
   getProfileInfo(state) {
     return state.profileInfo;
+  },
+
+  getUserVerification(state) {
+    return state.userVerification;
   }
 };
 
@@ -24,6 +29,10 @@ const mutations = {
 
   setProfileInfo(state, x) {
     state.profileInfo = x;
+  },
+
+  setUserVerification(state, x) {
+    state.userVerification = x;
   }
 };
 
@@ -39,6 +48,21 @@ const actions = {
     rootState.im.userManage.asyncGetSettings().then((res) => {
       context.commit('setSettingInfo', res);
     });
+  },
+  actionGetUserVerification(context) {
+    const { rootState } = context;
+    rootState.im.userManage
+      .asyncGetUserVerification()
+      .then((res) => {
+        context.commit('setUserVerification', res);
+      })
+      .catch((ex) => {
+        if (ex.code == 404) {
+          context.commit('setUserVerification', {
+            status: -1
+          });
+        }
+      });
   }
 };
 

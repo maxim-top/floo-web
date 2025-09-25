@@ -1,5 +1,6 @@
 import log from '../log';
 import { transferToLong } from '../tools';
+import { setItem } from './storeHelper';
 
 const PARTITION_NUMBER = 31;
 
@@ -37,7 +38,7 @@ const saveItem = (key, item, hasuid = true, partition_key = -1, sessionStore = f
     if (sessionStore) {
       window.sessionStorage.setItem(skey, item);
     }
-    window.localStorage.setItem(skey, item);
+    setItem(skey, item);
     return;
   }
 
@@ -55,7 +56,7 @@ const saveItem = (key, item, hasuid = true, partition_key = -1, sessionStore = f
       if (sessionStore) {
         window.sessionStorage.setItem(skey, itemString);
       }
-      window.localStorage.setItem(skey, itemString);
+      setItem(skey, itemString);
     }
   } catch (ex) {
     log.error('stringify error:', ex, skey, item);
@@ -97,7 +98,7 @@ const getItem = (key, hasuid = true, partition_key = -1, sessionStore = false) =
   return ret.data || ret;
 };
 
-const removeItem = (key, hasuid = true, partition_key = -1) => {
+const removeItem = (key, hasuid = true, partition_key = -1, sessionStore = false) => {
   let skey = key;
   if (hasuid) {
     const uid = getUid();
@@ -105,6 +106,9 @@ const removeItem = (key, hasuid = true, partition_key = -1) => {
   }
   if (partition_key >= 0) {
     skey = skey + '_' + partitionId(partition_key);
+  }
+  if (sessionStore) {
+    window.sessionStorage.removeItem(skey);
   }
   window.localStorage.removeItem(skey);
 };

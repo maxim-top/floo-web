@@ -1,9 +1,9 @@
 <template>
   <div class="chat-index">
+    <Forward />
     <Header />
     <Chat />
     <Inputer />
-    <Forward />
   </div>
 </template>
 

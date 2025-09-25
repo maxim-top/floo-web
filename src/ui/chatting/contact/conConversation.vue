@@ -1,5 +1,5 @@
 <template>
-  <div class="l_conversation" ref="imgContainer">
+  <div class="l_conversation" ref="imgContainer" @scroll="handleScroll">
     <div :class="{ sel: getSid == conversation.sid }" @click="touchConversation(index)" class="item" v-bind:key="index" v-for="(conversation, index) in getConversationList">
       <span :class="{ none: conversation.unread === 0 }" class="unread_number">{{ conversation.unread }}</span>
 
@@ -39,10 +39,11 @@ export default {
   },
   mounted() {
     this.$store.dispatch('contact/actionGetConversationList');
+    this.restoreScroll();
   },
 
   computed: {
-    ...mapGetters('contact', ['getConversationList']),
+    ...mapGetters('contact', ['getConversationList', 'getConversationScroll']),
     ...mapGetters('content', ['getSid']),
     token() {
       return this.$store.getters.im.userManage.getToken();
@@ -52,6 +53,9 @@ export default {
   watch: {
     getConversationList() {
       //refresh list
+    },
+    getConversationScroll() {
+      this.restoreScroll();
     }
   },
 
@@ -78,6 +82,23 @@ export default {
       if (conversation.type === 'group' && conversation.hasAt) {
         this.$store.state.im.groupManage.consumeGroupAtStatus(conversation.sid);
       }
+    },
+
+    handleScroll() {
+      const container = this.$refs.imgContainer;
+      if (!container) return;
+      this.$store.dispatch('contact/actionSetConversationScroll', container.scrollTop);
+    },
+
+    restoreScroll() {
+      this.$nextTick(() => {
+        const container = this.$refs.imgContainer;
+        if (!container) return;
+
+        if (this.getConversationScroll != container.scrollTop) {
+          container.scrollTop = this.getConversationScroll;
+        }
+      });
     }
   }
 };

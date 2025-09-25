@@ -134,7 +134,7 @@ export default {
     ...mapGetters('contact', ['getCallPickupTime']),
     ...mapGetters('contact', ['getCallId']),
     rosterName() {
-      return this.userInfo.nick_name || this.userInfo.username || this.userInfo.user_id;
+      return this.userInfo.alias || this.userInfo.nick_name || this.userInfo.username || this.userInfo.user_id;
     }
   },
   methods: {

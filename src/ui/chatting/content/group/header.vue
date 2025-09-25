@@ -3,8 +3,8 @@
     <div class="header_items">
       <span class="name" @click="touchUserNameHandler">{{ groupName }}</span>
       <span class="typing" style="padding-left: 20px; color: #ddd"></span>
-      <div class="multi_forward_button" @click="multiMessagesForward()">批量转发</div>
-      <div class="delete_button" @click="deleteConversation(getSid)">删除会话</div>
+      <div v-if="!getShowMultiForwardStatus" class="multi_forward_button" @click="multiMessagesForward()">批量转发</div>
+      <div v-if="!getShowMultiForwardStatus" class="delete_button" @click="deleteConversation(getSid)">删除会话</div>
     </div>
   </div>
 </template>

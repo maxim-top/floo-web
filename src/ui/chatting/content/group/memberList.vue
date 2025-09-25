@@ -1,5 +1,5 @@
 <template>
-  <div class="group_memberlist">
+  <div class="group_memberlist" v-if="!getShowMultiForwardStatus">
     <div class="infos">
       群组成员
       <span class="group_count">{{ getMemberList.length }}人</span>
@@ -39,6 +39,7 @@ export default {
   },
 
   computed: {
+    ...mapGetters('forward', ['getShowMultiForwardStatus']),
     ...mapGetters('content', ['getSid', 'getGroupInfo', 'getMemberList', 'getAdminList']),
     isAdmin() {
       const uid = this.$store.getters.im.userManage.getUid();

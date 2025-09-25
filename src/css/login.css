@@ -123,6 +123,12 @@
   margin-top: 0px;
 }
 
+.login .info {
+  margin-top: 20px;
+  text-align: center;
+  color: gray;
+}
+
 .header .hint {
   position: relative;
   margin-top: 20px;
@@ -210,9 +216,8 @@
 
 .login .verify_detail {
   line-height: 2.5;
-  max-width: 85%;
-  padding-left: 8%;
   padding-top: 20px;
+  text-align: center;
 }
 
 .login .verify_detail img {
@@ -220,14 +225,17 @@
   height: 20px;
   padding-top: 3px;
   padding-right: 4px;
+  margin-top: 4px;
+  margin-left: 5px;
 }
 
 .login .verify_detail .ll {
-  float: left;
+  align-items: center;
+  justify-content: center;
 }
 
 .login .verify_detail .lastl {
-  margin-top: -25px;
+  margin-top: -35px;
 }
 
 .login .span-lines {
@@ -237,4 +245,5 @@
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: bold;
+  max-width: 200px;
 }

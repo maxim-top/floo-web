@@ -5,7 +5,7 @@
     <div :class="{ messageFrame: true, self: isSelf, roster: !isSelf }">
       <div class="rosterInfo">
         <el-popover placement="left-start" trigger="hover" width="170" :visible-arrow="false" :append-to-body="false">
-          <div class="profile-name">{{ rosterProfile.nick_name || rosterProfile.username }}</div>
+          <div class="profile-name">{{ rosterProfile.alias || rosterProfile.nick_name || rosterProfile.username }}</div>
           <div class="profile-bio" v-if="rosterProfile.nick_name">昵称：{{ rosterProfile.nick_name }}</div>
           <div class="profile-bio">用户名：{{ rosterProfile.username }}</div>
           <div class="profile-bio">ID： {{ rosterProfile.user_id }}</div>

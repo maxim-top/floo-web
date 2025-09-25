@@ -33,7 +33,7 @@ const removeUid = () => {
 };
 
 const deleteToken = () => {
-  removeItem('key_user_token');
+  removeItem('key_user_token', true, -1, true);
 };
 
 const deleteLinkServer = () => {
@@ -57,8 +57,8 @@ const deleteTokenAppId = () => {
 };
 
 const infoStore = {
-  saveToken: (token) => saveItem('key_user_token', token),
-  getToken: () => getItem('key_user_token'),
+  saveToken: (token) => saveItem('key_user_token', token, true, -1, true),
+  getToken: () => getItem('key_user_token', true, -1, true),
   deleteToken,
   saveTokenAppId: (appId) => saveItem('key_user_token_app_id', appId),
   getTokenAppId: () => getItem('key_user_token_app_id'),

@@ -66,7 +66,7 @@ export default {
         avatar: profile.avatar,
         type: 'roster'
       });
-      this.name = this.notEmpty(profile.nick_name) ? profile.nick_name : profile.username || profile.user_id;
+      this.name = profile.alias || (this.notEmpty(profile.nick_name) ? profile.nick_name : profile.username) || profile.user_id;
       if (this.name.length > 20) {
         this.name = this.name.substring(0, 20) + '...';
       }
@@ -80,7 +80,7 @@ export default {
   },
   computed: {
     ...mapGetters('header', ['getHeaderStatus', 'getUserProfile', 'getSupportSafariAudio']),
-    ...mapGetters('contact', ['getTotalUnread']),
+    ...mapGetters('contact', ['getTotalUnread', 'getConversationList', 'getConversationScroll']),
 
     // avatar() {
     //   return this.$store.state.im.sysManage.getImage({
@@ -121,9 +121,11 @@ export default {
       }
     },
     touchRecent() {
+      let headStatus = this.getHeaderStatus;
       this.$store.dispatch('header/actionChangeHeaderStatus', 'conversation');
-      this.$store.dispatch('chat/actionSetType', { type: 'x' });
+      this.$store.dispatch('chat/actionSetType', { type: 'restore' });
       this.closeOtherLayers();
+      this.gotoUnreadConversation(headStatus);
     },
     touchContact() {
       this.$store.dispatch('header/actionChangeHeaderStatus', 'contact');
@@ -162,6 +164,35 @@ export default {
     handleSearch(e) {
       const kw = e.target.value;
       this.$store.dispatch('contact/actionSetSearchkeyword', kw);
+    },
+    gotoUnreadConversation(headStatus) {
+      let scroll = 0;
+      let convList = this.getConversationList;
+      let minScroll = -1;
+      if (headStatus == 'conversation') {
+        minScroll = this.getConversationScroll;
+      }
+      let nextScroll = -1;
+      let convHeight = 61;
+      for (let i in convList) {
+        let conv = convList[i];
+        if (conv.unread !== 0) {
+          if (nextScroll == -1) {
+            nextScroll = scroll;
+          }
+          if (scroll > minScroll) {
+            nextScroll = scroll;
+            break;
+          } else {
+            scroll += convHeight;
+          }
+        } else {
+          scroll += convHeight;
+        }
+      }
+      if (nextScroll >= 0) {
+        this.$store.dispatch('contact/actionSetConversationScroll', nextScroll);
+      }
     }
   }
 };

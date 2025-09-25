@@ -7,6 +7,7 @@ import rosterManage from '../../manage/rosterManage';
 import groupManage from '../../manage/groupManage';
 import dnsManager from '../../manage/dnsManager';
 import userManage from '../../manage/userManage';
+import sysManage from '../../manage/sysManage';
 /**
  * @module flooim
  */
@@ -15,6 +16,8 @@ let loginSwap = null;
 let sdkOk = false;
 let isLogin = false;
 let stopAutoLogin = false;
+let appStatus = '';
+let isReloading = false;
 /**
  * 初始化SDK
  * @function flooim
@@ -37,24 +40,35 @@ let stopAutoLogin = false;
  * const im = flooim(config);
  * {% lanying_code_snippet repo="lanying-im-web",class="",function="flooim" %}{% endlanying_code_snippet %}
  */
-const webim = function ({
-  autoLogin = true,
-  dnsServer = 'https://dns.lanyingim.com/v2/app_dns',
-  appid = 'welovemaxim',
-  ws = false,
-  logLevel = 'debug',
-  linkServer = 'https://lanying.link/info'
-}) {
+const webim = function ({ autoLogin = true, dnsServer, appid = 'welovemaxim', ws = false, logLevel = 'debug', linkServer = 'https://lanyinglink.com/info' }) {
+  appStatus = '';
+  sdkOk = false;
   log.setLogLevel(logLevel);
+  const { source, path, dnsServers } = decideDnsServers(dnsServer);
   infoStore.saveAppid(appid);
   infoStore.saveLinkServer(linkServer);
   stopAutoLogin = window.sessionStorage.getItem('key_stop_auto_login') || false;
+  if (isReloading) {
+    log.log('window is reloading, stop init floo');
+    return;
+  }
   dnsManager
-    .asyncGetDns(dnsServer, appid, ws)
+    .asyncGetDns(dnsServers, appid, ws, source, path)
     .then((res) => {
+      appStatus = dnsManager.getAppStatus(appid);
+      if (appStatus == 'banned') {
+        fire('flooError', { category: 'APP_BANNED', desc: 'app is banned' });
+        return;
+      } else if (appStatus == 'frozen') {
+        fire('flooError', { category: 'APP_FROZEN', desc: 'app is frozen' });
+        return;
+      } else if (appStatus == 'revoked') {
+        fire('flooError', { category: 'APP_REVOKED', desc: 'app is revoked' });
+        return;
+      }
       const { ratel, fireplace } = res;
       if (!ratel || !fireplace) {
-        log.log('DNS error, check the server: ', dnsServer);
+        log.log('DNS error, check the server: ', dnsServer, 'appStatus:', appStatus);
         fire('flooError', { category: 'DNS_FAILED', desc: dnsServer });
         return;
       }
@@ -118,6 +132,46 @@ const setup_servers = function (appID) {
   const { ratel, fireplace } = dnsManager.getServers(appID) || {};
   fire('refresh_ratel', ratel);
   fire('refresh_fireplace', fireplace);
+};
+
+const decideDnsServers = function (dnsServer) {
+  if (dnsServer && !(dnsServer.includes('dns.lanyingim.com') || dnsServer.includes('dns.maximtop.com'))) {
+    return { source: 'sdk', path: '', dnsServers: [dnsServer] };
+  }
+  let savedDnsServerList = dnsManager.getDnsServerList();
+  let returnDnsServerList = [];
+  for (let i in savedDnsServerList) {
+    let server = savedDnsServerList[i];
+    if (server.domain) {
+      returnDnsServerList.push('https://' + server.domain);
+    }
+  }
+  let source = decideSource();
+  let ipServer = 'https://39.107.255.12';
+  if (returnDnsServerList.length == 0) {
+    if (source == 'app') {
+      returnDnsServerList.push('https://dns-app.lanyingim.com', 'https://dns-app.maximtop.com');
+    } else {
+      returnDnsServerList.push('https://dns.lanyingim.com', 'https://dns.maximtop.com');
+    }
+  }
+  if (!returnDnsServerList.includes(ipServer)) {
+    returnDnsServerList.push(ipServer);
+  }
+  return { source, path: '/v2/app_dns', dnsServers: returnDnsServerList };
+};
+
+const decideSource = function () {
+  if (typeof window !== 'undefined' && window.location && window.location.href) {
+    const href = window.location.href;
+    if (href.includes('lanyingim.com') || href.includes('maximtop.com')) {
+      return 'app';
+    }
+    if (href.includes('%E8%93%9D%E8%8E%BAIM') || href.includes('蓝莺IM') || href.includes('lanying-im-pc')) {
+      return 'app';
+    }
+  }
+  return 'sdk';
 };
 
 // 系统相关 ////////////////////////////////////////////////////////////
@@ -456,6 +510,7 @@ webim.kickAllWeb = function () {
       if (device_list && device_list.length) {
         if (device_list.length === 1) {
           webim.cleanup();
+          isReloading = true;
           window.location.reload();
         } else {
           let arr = [];
@@ -477,6 +532,7 @@ webim.kickAllWeb = function () {
           });
           Promise.all(arr).then(() => {
             webim.cleanup();
+            isReloading = true;
             window.location.reload();
           });
         }
@@ -500,19 +556,29 @@ webim.logout = function (opt) {
   window.sessionStorage.setItem('key_stop_auto_login', true);
   isLogin = false;
   if (opt) {
-    if (opt.quitAllWeb) {
-      webim.kickAllWeb();
-    }
-    if (!opt.linkLogin) {
-      window.location.reload();
+    if (opt.deleteUser) {
+      // do nothing.
+    } else {
+      if (opt.quitAllWeb) {
+        webim.kickAllWeb();
+      }
+      if (!opt.linkLogin) {
+        isReloading = true;
+        window.location.reload();
+      }
     }
   } else {
+    isReloading = true;
     window.location.reload();
   }
 };
 
 webim.isReady = function () {
   return sdkOk;
+};
+
+webim.isAppInfoReady = function () {
+  return !!appStatus;
 };
 
 /**
