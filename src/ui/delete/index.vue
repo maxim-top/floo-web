@@ -1,28 +1,28 @@
 <template>
   <div class="login">
     <p class="header">
-      <span @click="changeAppID(appid)" class="hint">AppID: {{ appid }}</span>
+      <span @click="changeAppID(appid)" class="hint">{{ $t('AppID') }}: {{ appid }}</span>
       <img @click="changeAppID(appid)" class="edit_logo" src="/image/edit.png" />
     </p>
     <div class="logo">
       <img src="/image/logob.png" />
     </div>
     <div class="iptFrame mt21">
-      <input @keyup.enter="nameEnter" autocomplete="false" placeholder="用户名" type="text" v-model="user.username" />
+      <input @keyup.enter="nameEnter" autocomplete="false" :placeholder="$t('用户名')" type="text" v-model="user.username" />
     </div>
 
     <div class="iptFrame mt14">
-      <input @keyup.enter="submit" autocomplete="false" placeholder="密码" ref="password" type="password" v-model="user.password" />
+      <input @keyup.enter="submit" autocomplete="false" :placeholder="$t('密码')" ref="password" type="password" v-model="user.password" />
     </div>
     <div>
       <ul :style="{ color: 'red' }">
-        <li>账号注销后，将永久删除您的账号信息</li>
-        <li>账号中的所有数据将被清除且无法恢复</li>
-        <li>注销后将无法使用该账号登录</li>
+        <li>{{ $t('账号注销后，将永久删除您的账号信息') }}</li>
+        <li>{{ $t('账号中的所有数据将被清除且无法恢复') }}</li>
+        <li>{{ $t('注销后将无法使用该账号登录') }}</li>
       </ul>
     </div>
     <div @click="submit" class="loginBtn mt14">
-      {{ sdkok ? '注销账户' : '加载中...' }}
+      {{ sdkok ? $t('注销账户') : $t('加载中...') }}
     </div>
   </div>
 </template>
@@ -67,11 +67,11 @@ export default {
         if (this.user.username && this.user.password) {
           this.getApp().deleteUser(this.user.username, this.user.password);
         } else {
-          this.getApp().alert('用户名或密码不能为空');
+          this.getApp().alert(this.$t('用户名或密码不能为空'));
         }
       } else {
         this.$message({
-          message: '初始化异常,请检查 appid 是否正确！',
+          message: this.$t('初始化异常,请检查 appid 是否正确！'),
           type: 'warning',
           duration: 2000
         });

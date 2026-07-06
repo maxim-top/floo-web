@@ -4,10 +4,11 @@ const state = {
   groupList: [],
   forwardMessage: null,
   multiForwardMessages: [],
+  forwardStage: 'idle',
   showMultiForwardStatus: false,
   showForwardList: false,
-  messageForwardMaxUserNum: 1,
-  messageForwardMaxMessageNum: 1
+  messageForwardMaxUserNum: 20,
+  messageForwardMaxMessageNum: 100
 };
 
 const getters = {
@@ -20,7 +21,7 @@ const getters = {
   },
 
   getShowMultiForwardStatus(state) {
-    return state.showMultiForwardStatus;
+    return state.forwardStage === 'selecting';
   },
 
   getMultiForwardMessages(state) {
@@ -28,7 +29,15 @@ const getters = {
   },
 
   getShowForwardList(state) {
-    return state.showForwardList;
+    return state.forwardStage === 'routing';
+  },
+
+  getForwardStage(state) {
+    return state.forwardStage;
+  },
+
+  getForwardMessage(state) {
+    return state.forwardMessage;
   },
 
   getMessageForwardMaxUserNum(state) {
@@ -51,6 +60,12 @@ const mutations = {
 
   setForwardMessage(state, x) {
     state.forwardMessage = x;
+  },
+
+  setForwardStage(state, x) {
+    state.forwardStage = x;
+    state.showMultiForwardStatus = x === 'selecting';
+    state.showForwardList = x === 'routing';
   },
 
   setMultiForwardMessages(state, x) {
@@ -134,10 +149,9 @@ const actions = {
   },
 
   actionRecordForwardMessage(context, x) {
-    // 记录要转发的message
     context.commit('setForwardMessage', x);
-    context.commit('setShowForwardList', true);
-    context.commit('setShowMultiForwardStatus', false);
+    context.commit('setMultiForwardMessages', []);
+    context.commit('setForwardStage', 'routing');
   },
 
   actionForwardMessage(context, param) {
@@ -153,12 +167,53 @@ const actions = {
     rootState.im.sysManage.forwardMessage(fmsg);
   },
 
-  actionShowMultiForwardStatus(context, x) {
+  actionBeginMultiForwardSelection(context) {
+    context.commit('setForwardMessage', null);
+    context.commit('setMultiForwardMessages', []);
+    context.commit('setForwardStage', 'selecting');
+  },
+
+  actionOpenForwardRouting(context) {
     const { state } = context;
-    if (state.showMultiForwardStatus !== x) {
-      context.commit('setShowMultiForwardStatus', x);
-      context.commit('setShowForwardList', x);
+    if (!state.multiForwardMessages.length && !state.forwardMessage) {
+      return;
     }
+    context.commit('setForwardStage', 'routing');
+  },
+
+  actionBackToMessageSelection(context) {
+    const { state } = context;
+    if (state.multiForwardMessages.length) {
+      context.commit('setForwardStage', 'selecting');
+      return;
+    }
+    context.commit('setForwardStage', 'idle');
+  },
+
+  actionShowMultiForwardStatus(context, x) {
+    if (x) {
+      context.dispatch('actionBeginMultiForwardSelection');
+    } else {
+      context.dispatch('actionCancelForward');
+    }
+  },
+
+  actionResetForwardStage(context) {
+    context.commit('setForwardStage', 'idle');
+    context.commit('setForwardMessage', null);
+    context.commit('setMultiForwardMessages', []);
+  },
+
+  actionSelectForwardTarget(context, param) {
+    const { state } = context;
+    if (state.forwardStage !== 'routing') {
+      return Promise.resolve();
+    }
+    if (state.multiForwardMessages.length) {
+      return context.dispatch('actionMultiForwardMessages', param);
+    }
+    context.dispatch('actionForwardMessage', param);
+    return Promise.resolve();
   },
 
   actionMultiForwardMessageSelect(context, param) {
@@ -177,7 +232,8 @@ const actions = {
     const { rootState, state } = context;
     const { type, id: xid } = param; //type: group, roster; id: uid,gid
     let count = 0;
-    state.multiForwardMessages.forEach((message) => {
+    const totalDelay = state.multiForwardMessages.reduce((lastDelay, message) => {
+      const nextDelay = lastDelay + 100;
       setTimeout(() => {
         const fmsg = {};
         if (type === 'roster') {
@@ -187,19 +243,23 @@ const actions = {
         }
         fmsg.message = message;
         rootState.im.sysManage.forwardMessage(fmsg);
-      }, (count += 100));
+      }, nextDelay);
+      return nextDelay;
+    }, count);
+    return new Promise((resolve) => {
+      setTimeout(resolve, totalDelay + 120);
     });
   },
 
   actionFinishForward(context) {
-    context.commit('setShowForwardList', false);
-    context.commit('setShowMultiForwardStatus', false);
+    context.commit('setForwardStage', 'idle');
+    context.commit('setForwardMessage', null);
     context.commit('setMultiForwardMessages', []);
   },
 
   actionCancelForward(context) {
-    context.commit('setShowForwardList', false);
-    context.commit('setShowMultiForwardStatus', false);
+    context.commit('setForwardStage', 'idle');
+    context.commit('setForwardMessage', null);
     context.commit('setMultiForwardMessages', []);
   }
 };

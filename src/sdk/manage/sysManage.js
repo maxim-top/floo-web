@@ -1,7 +1,7 @@
 import * as statics from '../utils/static';
 import log from '../utils/log';
 import io from '../core/base/io/index';
-import { groupStore, infoStore, messageStore, noticeStore, rosterStore } from '../utils/store';
+import { groupStore, infoStore, messageStore, noticeStore, recentStore, rosterStore } from '../utils/store';
 import dnsManager from './dnsManager';
 import queryString from 'query-string';
 import {
@@ -22,6 +22,39 @@ import { tryUrlsWithTimeout } from '../utils/speedTest';
  */
 
 const getStaticVars = () => statics;
+
+const getConversationDraft = (id, type) => {
+  const conversation = recentStore.getRecentByConversation(id, type);
+  return (conversation && conversation.draft) || '';
+};
+
+const saveConversationDraft = (id, type, draft, forcedTimestamp = '') => {
+  recentStore.saveDraft(id, type, draft, forcedTimestamp);
+};
+
+const touchConversation = (id, type, forcedTimestamp = '') => {
+  recentStore.saveUnreadRecent([id], type, forcedTimestamp);
+};
+
+const markMessageUnread = (cid, mid, isGroup = false) => {
+  const stored = isGroup ? messageStore.getGroupMessageById(cid, mid) : messageStore.getRosterMessageById(cid, mid);
+  if (!stored) {
+    return null;
+  }
+
+  const changed = {
+    ...stored,
+    status: STATIC_MESSAGE_STATUS.UNREAD
+  };
+
+  if (isGroup) {
+    messageStore.saveGroupMessage(changed);
+  } else {
+    messageStore.saveRosterMessage(changed);
+  }
+
+  return changed;
+};
 
 /**
  * 发送单聊消息
@@ -541,12 +574,16 @@ const webpToPng = function (file) {
 
 export default {
   getStaticVars,
+  getConversationDraft,
+  saveConversationDraft,
+  touchConversation,
+  markMessageUnread,
   sendRosterMessage,
   sendGroupMessage,
   sendMentionMessage,
   sendInputStatusMessage,
   sendMessage: io.sendMessage,
-  getNoticeMessage: noticeStore.getNotice(),
+  getNoticeMessage: noticeStore.getNotice,
   getMessageStatus,
   forwardMessage,
 

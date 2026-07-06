@@ -1,53 +1,61 @@
 <template>
-  <div class="call_panel">
-    <div>
-      <p v-if="isGetThrough" class="call_time">{{ callTime }}</p>
+  <div :class="['call_video_panel', callStateClass]" @mousemove="handleActivity" @touchstart.passive="handleActivity">
+    <video id="remote-video" ref="remoteVideo" autoplay playsinline class="call_video_remote"></video>
+    <video id="local-video" ref="localVideo" autoplay playsinline muted class="call_video_local"></video>
+    <audio ref="remoteAudio" id="video-call-remote-audio" class="hide" autoplay playsinline></audio>
+
+    <div class="call_video_scrim"></div>
+    <div class="call_video_status">
+      <div class="call_video_name">{{ rosterName }}</div>
+      <div class="call_video_state">{{ statusText }}</div>
+      <div v-if="isGetThrough" class="call_video_timer">{{ callTime }}</div>
+      <div v-if="peerCameraClose && isGetThrough" class="call_video_peer_notice">{{ $t('对方已关闭摄像头') }}</div>
     </div>
-    <div class="info" :style="{ 'z-index': isGetThrough ? (peerCameraClose ? '7' : '4') : '6' }">
-      <div class="avatar">
-        <img :src="userInfo.avatar" class="av" />
-      </div>
-      <div>
-        <p :style="{ color: peerCameraClose ? 'white' : 'black' }">{{ rosterName }}</p>
-        <p :style="{ display: isGetThrough ? 'none' : 'block' }">正在等待对方接受邀请...</p>
-      </div>
-    </div>
-    <div class="layer">
-      <div class="item">
-        <button class="button" @click="micChangeStatus">
-          <i :class="[mic ? 'mic_on' : 'mic_off']"></i>
-        </button>
-        <span v-if="mic" class="display_info">麦克风已开</span>
-        <span v-if="!mic" class="display_info">麦克风关闭</span>
-      </div>
-      <div class="item">
-        <button class="button" @click="speakerChangeStatus">
-          <i :class="[speaker ? 'speaker_on' : 'speaker_off']"></i>
-        </button>
-        <span v-if="speaker" class="display_info">扬声器已开</span>
-        <span v-if="!speaker" class="display_info">扬声器关闭</span>
-      </div>
-      <div class="item">
-        <button class="button" @click="cameraChangeStatus">
-          <i :class="[camera ? 'camera_on' : 'camera_off']"></i>
-        </button>
-        <span v-if="camera" class="display_info">摄像头已开</span>
-        <span v-if="!camera" class="display_info">摄像头关闭</span>
-      </div>
-    </div>
-    <div>
-      <span class="caller_layer">
-        <button class="button" @click="hangupCall(true)">
-          <i :class="['hangup']"></i>
-        </button>
-      </span>
-    </div>
-    <div>
-      <video class="panel_remote" id="roster_remote_video" width="100%" height="100%" autoplay playsinline muted />
-      <audio class="hide" id="roster_remote_audio" autoplay playsinline muted />
-    </div>
-    <div>
-      <video class="panel_local" id="roster_local_video" width="100%" autoplay playsinline muted />
+
+    <div :class="['call_video_controls', { 'is-visible': controlsVisible }]">
+      <button class="call_action_button call_control_button" type="button" @click="micChangeStatus" :aria-label="mic ? $t('关闭麦克风') : $t('打开麦克风')">
+        <svg v-if="mic" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="9" y="4" width="6" height="10" rx="3"></rect>
+          <path d="M6 11a6 6 0 0 0 12 0"></path>
+          <path d="M12 17v3"></path>
+        </svg>
+        <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="9" y="4" width="6" height="10" rx="3"></rect>
+          <path d="M6 11a6 6 0 0 0 12 0"></path>
+          <path d="M12 17v3"></path>
+          <path d="M5 5l14 14"></path>
+        </svg>
+      </button>
+      <button class="call_action_button call_control_button" type="button" @click="speakerChangeStatus" :aria-label="speaker ? $t('关闭扬声器') : $t('打开扬声器')">
+        <svg v-if="speaker" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 14h4l5 4V6L9 10H5z"></path>
+          <path d="M17 9a4 4 0 0 1 0 6"></path>
+          <path d="M18.8 6.5a7 7 0 0 1 0 11"></path>
+        </svg>
+        <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 14h4l5 4V6L9 10H5z"></path>
+          <path d="M17 9a4 4 0 0 1 0 6"></path>
+          <path d="M5 5l14 14"></path>
+        </svg>
+      </button>
+      <button class="call_action_button call_control_button" type="button" @click="cameraChangeStatus" :aria-label="camera ? $t('关闭摄像头') : $t('打开摄像头')">
+        <svg v-if="camera" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="7" width="11" height="10" rx="2"></rect>
+          <path d="M14 10.5l5-3v9l-5-3z"></path>
+        </svg>
+        <svg v-else viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="7" width="11" height="10" rx="2"></rect>
+          <path d="M14 10.5l5-3v9l-5-3z"></path>
+          <path d="M4 5l16 14"></path>
+        </svg>
+      </button>
+      <button class="call_action_button is-decline" type="button" @click="hangupCall(true)" :aria-label="$t('结束通话')">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5.2 14.2c1.9-1.7 4.2-2.6 6.8-2.6s4.9.9 6.8 2.6l-1.9 2.1c-1.4-1.2-3.1-1.9-4.9-1.9s-3.5.7-4.9 1.9z"></path>
+          <path d="M8.2 14.5l-2.3 3.1"></path>
+          <path d="M15.8 14.5l2.3 3.1"></path>
+        </svg>
+      </button>
     </div>
   </div>
 </template>
@@ -69,7 +77,10 @@ export default {
       caller: true,
       isGetThrough: false,
       doHangup: false,
-      callTime: ''
+      callTime: '',
+      timerRef: null,
+      controlsVisible: true,
+      controlsTimer: null
     };
   },
   mounted() {
@@ -83,7 +94,9 @@ export default {
       this.refreshUserInfo(this.getSid);
       this.startPhoneRing();
     }
-    document.getElementById('roster_remote_audio').muted = false;
+    if (this.$refs.remoteAudio) {
+      this.$refs.remoteAudio.muted = false;
+    }
     this.$store.getters.im.rtcManage.initRTCEngine({
       server: this.$store.state.im.sysManage.getServers(app_id).rtc,
       id: this.$store.state.im.userManage.getUid(),
@@ -113,15 +126,14 @@ export default {
         } catch (ex) {
           //
         }
-        if (sext && sext.callId === this.getCallId) {
-          if (Object.prototype.hasOwnProperty.call(sext, 'mute_video')) {
-            this.peerCameraClose = sext.mute_video;
-          }
+        if (sext && sext.callId === this.getCallId && Object.prototype.hasOwnProperty.call(sext, 'mute_video')) {
+          this.peerCameraClose = sext.mute_video;
         }
       }
     });
 
     this.startLocalRender();
+    this.handleActivity();
   },
   watch: {
     getSid(newSid) {
@@ -133,8 +145,17 @@ export default {
     ...mapGetters('contact', ['getCallInviteInfo']),
     ...mapGetters('contact', ['getCallPickupTime']),
     ...mapGetters('contact', ['getCallId']),
+    callStateClass() {
+      return this.isGetThrough ? 'is-connected' : 'is-calling';
+    },
     rosterName() {
       return this.userInfo.alias || this.userInfo.nick_name || this.userInfo.username || this.userInfo.user_id;
+    },
+    statusText() {
+      if (this.isGetThrough) {
+        return this.$t('视频通话已接通');
+      }
+      return this.caller ? this.$t('正在呼叫...') : this.$t('正在连接视频通话...');
     }
   },
   methods: {
@@ -177,9 +198,9 @@ export default {
         navigator.mediaDevices
           .getUserMedia({ audio: false, video: { width: 360, height: 640 } })
           .then((stream) => {
-            let lVideo = document.getElementById('roster_local_video');
+            let lVideo = this.$refs.localVideo;
             lVideo.srcObject = stream;
-            lVideo.play();
+            lVideo.play().catch(() => {});
           })
           .catch(() => {});
       }
@@ -189,21 +210,19 @@ export default {
         let pickupTime = this.getCallPickupTime;
         let content = '';
         let pushlocKey = 'call_duration';
-        let callTime = [0, 0];
+        let callArgs = [0, 0];
         if (pickupTime) {
           content = (Date.now() - this.getCallPickupTime).toString();
           let intervalMsec = parseInt(content);
           let intervalSec = intervalMsec / 1000;
-          callTime[0] = parseInt(intervalSec / 60);
-          callTime[1] = parseInt(intervalSec - callTime[0] * 60);
+          callArgs[0] = parseInt(intervalSec / 60);
+          callArgs[1] = parseInt(intervalSec - callArgs[0] * 60);
+        } else if (timeout) {
+          content = 'timeout';
+          pushlocKey = 'callee_not_responding';
         } else {
-          if (timeout) {
-            content = 'timeout';
-            pushlocKey = 'callee_not_responding';
-          } else {
-            content = 'canceled';
-            pushlocKey = 'call_canceled_by_caller';
-          }
+          content = 'canceled';
+          pushlocKey = 'call_canceled_by_caller';
         }
         this.$store.getters.im.rtcManage.sendRTCMessage({
           uid: this.userInfo.user_id,
@@ -214,7 +233,7 @@ export default {
             initiator: toNumber(this.getCallId.split('_')[0]),
             peerDrop: peerDrop,
             pushMessageLocKey: pushlocKey,
-            pushMessageLocArgs: callTime
+            pushMessageLocArgs: callArgs
           })
         });
       }
@@ -249,7 +268,8 @@ export default {
         this.isGetThrough = true;
         this.$store.dispatch('contact/actionSetCallPickupTime', Date.now());
         this.stopPhoneRing();
-        setInterval(this.calculateDisplayTime, 1000);
+        this.calculateDisplayTime();
+        this.timerRef = window.setInterval(this.calculateDisplayTime, 1000);
       }
     },
     stopTracks(stream) {
@@ -264,21 +284,30 @@ export default {
     },
     attachStream(stream, type, isLocal = false) {
       if (type === 'audio') {
-        let rAudio = document.getElementById('roster_remote_audio');
+        let rAudio = this.$refs.remoteAudio;
         rAudio.srcObject = stream;
-        rAudio.play();
+        rAudio.play().catch(() => {});
       } else if (type === 'video') {
         if (isLocal) {
-          let lVideo = document.getElementById('roster_local_video');
+          let lVideo = this.$refs.localVideo;
           this.stopTracks(lVideo.srcObject);
           lVideo.srcObject = stream;
-          lVideo.play();
+          lVideo.play().catch(() => {});
         } else {
-          let rVideo = document.getElementById('roster_remote_video');
+          let rVideo = this.$refs.remoteVideo;
           rVideo.srcObject = stream;
-          rVideo.play();
+          rVideo.play().catch(() => {});
         }
       }
+    },
+    handleActivity() {
+      this.controlsVisible = true;
+      if (this.controlsTimer) {
+        clearTimeout(this.controlsTimer);
+      }
+      this.controlsTimer = window.setTimeout(() => {
+        this.controlsVisible = false;
+      }, 3000);
     },
     randomString(len) {
       let charSet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -307,6 +336,14 @@ export default {
     }
   },
   beforeDestroy() {
+    if (this.timerRef) {
+      clearInterval(this.timerRef);
+      this.timerRef = null;
+    }
+    if (this.controlsTimer) {
+      clearTimeout(this.controlsTimer);
+      this.controlsTimer = null;
+    }
     if (!this.doHangup) {
       this.hangupCall(false);
     }
@@ -315,13 +352,4 @@ export default {
 };
 </script>
 
-<style scoped>
-.closer {
-  position: absolute;
-  right: 0;
-  top: 0;
-  font-size: 34px;
-  font-weight: bold;
-  color: white;
-}
-</style>
+<style scoped></style>

@@ -1,21 +1,61 @@
 <template>
   <div class="inputer_frame" ref="groupInputer">
-    <div class="attach">
-      <div class="mentionList" v-if="this.filteredMentionRosters.length > 0">
-        <div :key="roster.user_id" @click="clickMemberListHander(roster.user_id)" class="mentionItem" v-for="roster in this.filteredMentionRosters">
-          <img :src="rImage(roster.avatar)" class="avatar" />
-          <span class="name">{{ displayName(roster) }}</span>
+    <div class="composer_surface">
+      <div class="attach">
+        <div class="mentionList" v-if="this.filteredMentionRosters.length > 0">
+          <div :key="roster.user_id" @click="clickMemberListHander(roster.user_id)" class="mentionItem" v-for="roster in this.filteredMentionRosters">
+            <img :src="rImage(roster.avatar)" class="avatar" />
+            <span class="name">{{ displayName(roster) }}</span>
+          </div>
+        </div>
+        <input @change="fileChangeHandler" ref="fileRef" type="file" />
+        <div class="attach_toggle" @click.stop="toggleActionMenu" tabindex="0">
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_toggle_icon">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </div>
+        <div v-if="showActionMenu" class="attach_menu" @click.stop>
+          <div @click="imageUploadClickHandler" class="attach_menu_item">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_menu_icon">
+              <rect x="4" y="5" width="16" height="14" rx="2"></rect>
+              <circle cx="9" cy="10" r="1.5"></circle>
+              <path d="M7 16l3.5-3.5L13 15l2-2 2 3"></path>
+            </svg>
+            <span>{{ $t('发送图片') }}</span>
+          </div>
+          <div @click="fileUploadClickHandler" class="attach_menu_item">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_menu_icon">
+              <path d="M8 3h6l4 4v13a1 1 0 0 1-1 1H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"></path>
+              <path d="M14 3v5h5"></path>
+            </svg>
+            <span>{{ $t('发送文件') }}</span>
+          </div>
+          <div @click="locationClickHandler" class="attach_menu_item">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_menu_icon">
+              <path d="M12 21s6-5.3 6-11a6 6 0 1 0-12 0c0 5.7 6 11 6 11z"></path>
+              <circle cx="12" cy="10" r="2"></circle>
+            </svg>
+            <span>{{ $t('发送位置') }}</span>
+          </div>
         </div>
       </div>
-      <input @change="fileChangeHandler" ref="fileRef" type="file" />
-      <span v-popover:tooltip.top="'发送图片'" @click="imageUploadClickHandler" class="ico image"></span>
-      <span v-popover:tooltip.top="'发送文件'" @click="fileUploadClickHandler" class="ico file"></span>
-      <span v-popover:tooltip.top="'发送位置'" @click="locationClickHandler" class="ico location"></span>
+      <div class="input">
+        <textarea
+          v-if="!(this.hasBan || this.hasAllBan)"
+          @input="handleTextareaInput"
+          @keydown="textareaKeyDown"
+          @keyup="textKeyUp"
+          class="input_text"
+          v-model="message"
+          wrap="hard"
+          ref="inputTextRef"
+        ></textarea>
+      </div>
+      <div v-if="!(this.hasBan || this.hasAllBan)" class="button">
+        <div @click="handleSendMessage" :class="message && !/^\s*$/.test(message) ? 'im_send_full' : 'im_send_empty'"></div>
+      </div>
     </div>
-    <el-alert v-if="hasBan || hasAllBan" title="您已被禁言，请联系管理员" type="info" center :closable="false"></el-alert>
-    <div class="input">
-      <textarea v-if="!(this.hasBan || this.hasAllBan)" @keydown="textareaKeyDown" @keyup="textKeyUp" class="input_text" v-model="message" wrap="hard"></textarea>
-    </div>
+    <el-alert v-if="hasBan || hasAllBan" :title="$t('您已被禁言，请联系管理员')" type="info" center :closable="false"></el-alert>
   </div>
 </template>
 
@@ -35,7 +75,8 @@ export default {
       hasBan: false,
       expired_time: 0,
       hasAllBan: false,
-      banCheckTimer: null
+      banCheckTimer: null,
+      showActionMenu: false
     };
   },
   components: {},
@@ -50,6 +91,7 @@ export default {
     }
   },
   mounted() {
+    document.addEventListener('click', this.closeActionMenu);
     let _this = this;
 
     //todo later. need ban fix.
@@ -132,13 +174,20 @@ export default {
     this.$refs.groupInputer.addEventListener('dragover', function (event) {
       event.preventDefault();
     });
+
+    this.$nextTick(() => {
+      this.loadConversationDraft();
+      this.autoResizeTextarea();
+    });
   },
   destroyed() {
+    document.removeEventListener('click', this.closeActionMenu);
     //todo later. need ban fix.
     //this.stopBanCheck();
   },
   watch: {
     getSid(newSid) {
+      this.loadConversationDraft();
       //todo later. need ban fix.
       //this.chechBan(newSid);
     }
@@ -156,6 +205,7 @@ export default {
       }
     },
     textKeyUp() {
+      this.autoResizeTextarea();
       const varr = (this.message.split && this.message.split('@')) || [];
       if (varr.length >= 2) {
         const str = varr[varr.length - 1];
@@ -170,6 +220,16 @@ export default {
       } else {
         this.filteredMentionRosters = [];
       }
+    },
+    handleTextareaInput() {
+      this.autoResizeTextarea();
+      this.syncDraft(this.message);
+    },
+    toggleActionMenu() {
+      this.showActionMenu = !this.showActionMenu;
+    },
+    closeActionMenu() {
+      this.showActionMenu = false;
     },
     filterMemberList(str) {
       let ret = [];
@@ -224,15 +284,18 @@ export default {
     },
 
     imageUploadClickHandler() {
+      this.closeActionMenu();
       this.fileType = 'image';
       this.$refs.fileRef.click();
     },
     fileUploadClickHandler() {
+      this.closeActionMenu();
       this.fileType = 'file';
       this.$refs.fileRef.click();
     },
 
     locationClickHandler() {
+      this.closeActionMenu();
       const message = {
         gid: this.getSid,
         content: '',
@@ -240,7 +303,7 @@ export default {
         attachment: {
           lat: 40.024422,
           lon: 116.398376,
-          addr: '奥林匹克森林公园'
+          addr: this.$t('奥林匹克森林公园')
         }
       };
       this.im.sysManage.sendGroupMessage(message);
@@ -250,6 +313,7 @@ export default {
       const txt = this.message;
       if (/^\s*$/.test(txt)) {
         this.message = '';
+        this.syncDraft('');
         return;
       }
       if (this.willsendMessage && this.mentionSelectedUids.length) {
@@ -290,12 +354,28 @@ export default {
           priority: 0
         });
       }
+      this.syncDraft('');
       setTimeout(() => {
-        this.message = [];
+        this.message = '';
         this.willsendMessage = '';
         this.mentionSelectedUids = [];
         this.filteredMentionRosters = [];
+        this.$nextTick(() => {
+          this.autoResizeTextarea();
+        });
       }, 200);
+    },
+
+    loadConversationDraft() {
+      this.message = this.im.sysManage.getConversationDraft(this.getSid, 'group');
+      this.$nextTick(() => {
+        this.autoResizeTextarea();
+      });
+    },
+
+    syncDraft(message) {
+      const draft = typeof message === 'string' ? message : '';
+      this.im.sysManage.saveConversationDraft(this.getSid, 'group', draft, Date.now());
     },
 
     fileChangeHandler(e) {
@@ -428,6 +508,15 @@ export default {
       } else {
         return roster.display_name;
       }
+    },
+
+    autoResizeTextarea() {
+      const textarea = this.$refs.inputTextRef;
+      if (!textarea) return;
+      textarea.style.height = '36px';
+      const nextHeight = Math.min(Math.max(textarea.scrollHeight, 36), 150);
+      textarea.style.height = `${nextHeight}px`;
+      textarea.style.overflowY = textarea.scrollHeight > 150 ? 'auto' : 'hidden';
     }
     //methods finish
   }

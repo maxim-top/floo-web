@@ -100,7 +100,7 @@
  * @property {number} owner_id - 群主id,int64
  * @property {boolean} read_ack - 群消息已读功能设置
  * @property {number} status - 群状态, 0：正常, 1：已解散
- * @property {number} type - 群类型: 1表示公开群，0表示私有群, 2表示聊天室
+ * @property {number} type - 群类型: 1表示公开群，0表示私有群, 2表示聊天室, 3表示临时群
  * @property {number} updated_at - 更新时间,int64
  * @property {number} count - 群成员数
  * @property {number} capacity - 群容量
@@ -119,7 +119,7 @@
  * @property {string} name - 群名称
  * @property {number} owner - 群主id,int64
  * @property {number} status - 群状态, 0：正常, 1：已解散,int32
- * @property {number} type - 群类型: 1表示公开群，0表示私有群, 2表示聊天室。int32
+ * @property {number} type - 群类型: 1表示公开群，0表示私有群, 2表示聊天室, 3表示临时群。int32
  */
 
 /**
@@ -166,7 +166,7 @@
  * @property {string} avatar - 群头像
  * @property {string} description - 群描述
  * @property {string} name - 群名称
- * @property {number} type - 群类型 1表示公开群，0表示私有群, 2表示聊天室,int32
+ * @property {number} type - 群类型 1表示公开群，0表示私有群, 2表示聊天室, 3表示临时群,int32
  * @property {Array.<number>} user_list - 邀请入群的用户id列表
  */
 

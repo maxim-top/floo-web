@@ -2,72 +2,113 @@
   <div class="header" :style="{ 'border-radius': checkMobile ? '0px' : '10px 10px 0 0' }">
     <!-- <div class="header_title">{{ rosterName }}</div> -->
     <div class="profile-container">
-      <el-popover placement="right" trigger="hover" width="170" :visible-arrow="false" :append-to-body="false">
+      <el-popover placement="right" trigger="hover" width="170" :visible-arrow="false" :append-to-body="true">
         <div class="profile-name">{{ rosterName }}</div>
         <div v-if="isGroup">
-          <div class="profile-bio">群id: {{ this.getGroupInfo.group_id }}</div>
-          <div class="profile-bio" v-if="cardName">群名片: {{ cardName }}</div>
+          <div class="profile-bio">{{ $t('群ID') }}: {{ this.getGroupInfo.group_id }}</div>
+          <div class="profile-bio" v-if="cardName">{{ $t('群名片') }}: {{ cardName }}</div>
           <hr v-if="this.getGroupInfo.description" />
           <div v-if="this.getGroupInfo.description" class="profile-bio">{{ this.getGroupInfo.description }}</div>
         </div>
         <div v-else>
-          <div v-if="this.getRosterInfo.nick_name" class="profile-bio">昵称: {{ this.getRosterInfo.nick_name }}</div>
-          <div class="profile-bio">用户名: {{ this.getRosterInfo.username }}</div>
-          <div class="profile-bio">ID: {{ this.getRosterInfo.user_id }}</div>
+          <div v-if="this.getRosterInfo.nick_name" class="profile-bio">{{ $t('昵称') }}: {{ this.getRosterInfo.nick_name }}</div>
+          <div class="profile-bio">{{ $t('用户名') }}: {{ this.getRosterInfo.username }}</div>
+          <div class="profile-bio">{{ $t('ID') }}: {{ this.getRosterInfo.user_id }}</div>
           <hr v-if="this.getRosterInfo.description" />
           <div v-if="this.getRosterInfo.description">{{ this.getRosterInfo.description }}</div>
         </div>
         <div slot="reference">
-          <img :src="getRosterAvatar" class="profile-picture" :style="{ filter: useDefaultAvatar ? 'brightness(0) invert(1)' : 'none' }" />
+          <div class="profile-picture-wrap">
+            <img
+              :src="getRosterAvatar"
+              class="profile-picture"
+              :style="{
+                filter: useDefaultAvatar ? 'brightness(0) saturate(100%) invert(16%) sepia(22%) saturate(1286%) hue-rotate(186deg) brightness(92%) contrast(91%)' : 'none'
+              }"
+            />
+            <span class="profile-online-dot" aria-hidden="true"></span>
+          </div>
         </div>
       </el-popover>
       <div class="profile-info">
-        <div class="name">{{ rosterName }}</div>
-        <div class="bio">{{ rosterDescription }}</div>
+        <div class="support-header-title-row">
+          <div class="name">{{ rosterName }}</div>
+          <span class="support-header-badge" v-if="showSupportBadge">
+            <span class="support-header-badge__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 3l6 2.5V11c0 4.2-2.7 8.1-6 10-3.3-1.9-6-5.8-6-10V5.5L12 3z"></path>
+                <path d="M9.5 12.3l1.7 1.8 3.6-4"></path>
+              </svg>
+            </span>
+            <span>{{ $t('客服') }}</span>
+          </span>
+        </div>
+        <div class="bio">{{ supportStatusText }}</div>
       </div>
     </div>
-    <div class="im_wechat" @click="touchWechat"></div>
-    <el-popover v-model="popVisible" placement="bottom-end" trigger="click" width="120" :visible-arrow="false" :append-to-body="false">
-      <div
-        :class="{ sel: getSid == conversation.sid }"
-        @click="touchConversation(index)"
-        class="conversation-item"
-        v-bind:key="index"
-        v-for="(conversation, index) in getConversationList"
-      >
-        <img class="conversation-avatar" :src="conversation.avatar" />
-        <div class="conversation-name">{{ conversation.name }}</div>
-        <div class="conversation-unread" v-if="conversation.unread">{{ conversation.unread }}</div>
-      </div>
-      <hr />
-      <div v-if="checkMicroMessenger">
-        <div @click="touchChoice(index, 'weixin')" class="conversation-item" v-bind:key="index" v-for="(item, index) in weixinItemList">
-          <div class="item-name">{{ item }}</div>
+    <div class="support_header_action support_header_action--wechat" @click="touchWechat" :aria-label="$t('微信与打开方式')" role="button" tabindex="0">
+      <svg viewBox="0 0 24 24" aria-hidden="true" class="support_header_action_icon">
+        <path d="M8.5 7.5C5.46 7.5 3 9.66 3 12.33c0 1.46.73 2.77 1.9 3.67L4.5 19l2.7-1.35c.42.1.85.15 1.3.15 3.04 0 5.5-2.16 5.5-4.82S11.54 7.5 8.5 7.5z"></path>
+        <path d="M15.5 5C19.09 5 22 7.51 22 10.6c0 1.7-.9 3.22-2.32 4.24L20 18l-3.1-1.55c-.45.1-.91.15-1.4.15-1 0-1.95-.2-2.8-.57"></path>
+      </svg>
+    </div>
+    <el-popover v-model="popVisible" placement="bottom-end" trigger="click" width="220" :visible-arrow="false" :append-to-body="true" popper-class="support-header-popover">
+      <div class="support_header_popover_group">
+        <div class="support_header_popover_title">{{ $t('最近会话') }}</div>
+        <div
+          :class="{ sel: getSid == conversation.sid }"
+          @click="touchConversation(conversation)"
+          class="conversation-item"
+          v-bind:key="conversation.sid + '-' + index"
+          v-for="(conversation, index) in recentConversationList"
+        >
+          <img class="conversation-avatar" :src="conversation.avatar" />
+          <div class="conversation-name">{{ conversation.name }}</div>
+          <div class="conversation-unread" v-if="conversation.unread">{{ conversation.unread }}</div>
         </div>
       </div>
-      <div v-else-if="checkMobile">
-        <div @click="touchChoice(index, 'mobile')" class="conversation-item" v-bind:key="index" v-for="(item, index) in mobileItemList">
-          <div class="item-name">{{ item }}</div>
+      <hr class="support_header_popover_divider" />
+      <div class="support_header_popover_group">
+        <div class="support_header_popover_title">{{ $t('更多操作') }}</div>
+        <div v-if="checkMicroMessenger">
+          <div @click="touchChoice(index, 'weixin')" class="conversation-item conversation-item--action" v-bind:key="index" v-for="(item, index) in weixinItemList">
+            <div class="item-name">{{ item }}</div>
+          </div>
         </div>
-      </div>
-      <div v-else>
-        <div @click="touchChoice(index, 'pc')" class="conversation-item" v-bind:key="index" v-for="(item, index) in pcItemList">
-          <div class="item-name">{{ item }}</div>
+        <div v-else-if="checkMobile">
+          <div @click="touchChoice(index, 'mobile')" class="conversation-item conversation-item--action" v-bind:key="index" v-for="(item, index) in mobileItemList">
+            <div class="item-name">{{ item }}</div>
+          </div>
+        </div>
+        <div v-else>
+          <div @click="touchChoice(index, 'pc')" class="conversation-item conversation-item--action" v-bind:key="index" v-for="(item, index) in pcItemList">
+            <div class="item-name">{{ item }}</div>
+          </div>
         </div>
       </div>
       <div slot="reference">
-        <el-popover v-model="showPop" placement="left-start" trigger="manual" width="120" :visible-arrow="true" :append-to-body="false">
-          <div @click="clickNewMessageConversation" v-if="unreadConversation">
-            <p class="show-pop-title">{{ unreadConversation.name }}</p>
-            <p class="show-pop-content">点击查看新消息</p>
-          </div>
-          <div slot="reference" class="im_popover">
-            <span class="unread_number_right" :style="{ 'background-color': blinkBackgroundColor }">{{ getTotalUnread }}</span>
-          </div>
-        </el-popover>
+        <div class="support_header_action support_header_action--recent" :aria-label="$t('最近会话与更多')" role="button" tabindex="0">
+          <el-popover v-model="showPop" placement="left-start" trigger="manual" width="160" :visible-arrow="true" :append-to-body="true">
+            <div @click="clickNewMessageConversation" v-if="unreadConversation">
+              <p class="show-pop-title">{{ unreadConversation.name }}</p>
+              <p class="show-pop-content">{{ $t('点击查看新消息') }}</p>
+            </div>
+            <div slot="reference" class="support_header_action_badge">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="support_header_action_icon">
+                <path d="M12 7v5l3 2"></path>
+                <circle cx="12" cy="12" r="8"></circle>
+              </svg>
+              <span class="unread_number_right" :style="{ 'background-color': blinkBackgroundColor }">{{ getTotalUnread }}</span>
+            </div>
+          </el-popover>
+        </div>
       </div>
     </el-popover>
-    <div @click="clickClose" class="im_closer" />
+    <div @click="clickClose" class="support_header_action support_header_action--close" :aria-label="$t('最小化')" role="button" tabindex="0">
+      <svg viewBox="0 0 24 24" aria-hidden="true" class="support_header_action_icon">
+        <path d="M6 12h12"></path>
+      </svg>
+    </div>
   </div>
 </template>
 
@@ -79,6 +120,7 @@ export default {
     if (this.getApp().isIMLogin()) {
       this.$store.dispatch('header/actionLazyGetHeaderProfile');
       this.changeStabImage(this.getHeaderStatus);
+      this.refreshSupportContacts();
       this.startBlink();
     }
   },
@@ -119,9 +161,7 @@ export default {
       blinkBackgroundColor: 'red',
       unreadConversation: null,
       unreadConversationList: [],
-      weixinItemList: ['已有账号登录', '打开完整版'],
-      mobileItemList: ['已有账号登录', '打开完整版', '打开客户端'],
-      pcItemList: ['已有账号登录', '打开完整版', '打开客户端']
+      supportUserIds: []
     };
   },
   watch: {
@@ -231,10 +271,49 @@ export default {
 
     checkMobileMicroMessenger() {
       return /mobile/i.test(navigator.userAgent.toLowerCase());
+    },
+
+    recentConversationList() {
+      return (this.getConversationList || []).slice(0, 10);
+    },
+
+    weixinItemList() {
+      return [this.$t('其他账号登录'), this.$t('打开完整版')];
+    },
+
+    mobileItemList() {
+      return [this.$t('其他账号登录'), this.$t('打开完整版'), this.$t('打开客户端')];
+    },
+
+    pcItemList() {
+      return [this.$t('其他账号登录'), this.$t('打开完整版'), this.$t('打开客户端')];
+    },
+
+    supportStatusText() {
+      return rosterDescriptionOrDefault(this.rosterDescription, this.$t.bind(this));
+    },
+
+    showSupportBadge() {
+      if (this.isGroup || !this.getSid) {
+        return false;
+      }
+      return this.supportUserIds.findIndex((x) => `${x}` === `${this.getSid}`) >= 0;
     }
   },
 
   methods: {
+    refreshSupportContacts() {
+      const im = this.$store.getters.im;
+      im.sysManage
+        .asyncGetStaticContact()
+        .then((res) => {
+          this.supportUserIds = (res || []).map((item) => item.user_id);
+        })
+        .catch(() => {
+          this.supportUserIds = [];
+        });
+    },
+
     isEmpty(str) {
       return !str || /^\s*$/.test(str);
     },
@@ -423,8 +502,7 @@ export default {
       }
     },
 
-    touchConversation(index) {
-      let conversation = this.getConversationList[index];
+    touchConversation(conversation) {
       this.openConversation(conversation);
       this.$nextTick(() => {
         this.popVisible = false;
@@ -508,7 +586,7 @@ export default {
         if (this.checkMobileMicroMessenger) {
           this.getApp().linkLaunchWXMP();
         } else {
-          this.getApp().alert('微信PC端不支持URL link');
+          this.getApp().alert(this.$t('微信PC端不支持URL link'));
         }
       } else if (this.checkMobile) {
         this.getApp().linkLaunchWXMP();
@@ -590,7 +668,7 @@ export default {
     openApp(url, callback) {
       let { isAndroid, isIOS, isIOS9 } = this.judgePhoneType();
       if (this.isWeixin()) {
-        alert('请您在浏览器中打开，即可下载');
+        alert(this.$t('请您在浏览器中打开，即可下载'));
         return;
       }
 
@@ -728,45 +806,67 @@ export default {
     }
   }
 };
+
+function rosterDescriptionOrDefault(description, translate) {
+  return description && description.trim() ? description : translate('在线咨询');
+}
 </script>
 
 <style scoped>
-.im_closer {
+.support_header_action {
   position: absolute;
-  width: 12px;
-  height: 12px;
-  right: 18px;
-  top: 9px;
+  top: 50%;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(193, 198, 200, 0.8);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ly-text-dark);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   cursor: pointer;
-  background-image: url(/image/minimize.png);
-  background-size: 12px 12px;
-  filter: brightness(0) invert(0.9);
-  margin-top: 10px;
+  z-index: 3;
+  transform: translateY(-50%);
+  appearance: none;
+  -webkit-appearance: none;
+  transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
 }
 
-.im_wechat {
-  position: absolute;
-  width: 20px;
-  height: 20px;
-  top: 3px;
-  right: 90px;
-  cursor: pointer;
-  margin-top: 10px;
-  background-image: url(/image/im_wechat.png);
-  background-size: 20px 20px;
+.support_header_action:hover {
+  background: rgba(51, 51, 204, 0.08);
+  border-color: rgba(51, 51, 204, 0.18);
+  color: var(--ly-primary);
 }
 
-.im_popover {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  right: 55px;
-  top: 8px;
-  cursor: pointer;
-  background-image: url(/image/im_popover.png);
-  background-size: 12px 12px;
-  filter: brightness(0.9);
-  margin-top: 10px;
+.support_header_action--wechat {
+  right: 104px;
+}
+
+.support_header_action--recent {
+  right: 60px;
+}
+
+.support_header_action--close {
+  right: 16px;
+}
+
+.support_header_action_badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.support_header_action_icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .unread_number_right {
@@ -784,42 +884,108 @@ export default {
 }
 
 .header {
-  line-height: 50px;
-  min-width: 360px;
-}
-
-.header_title {
-  position: absolute;
-  margin-left: 20px;
-  top: 0px;
-  font-size: 18px;
-  color: white;
+  position: relative;
+  display: flex;
+  align-items: center;
+  line-height: normal;
+  min-width: 0;
+  min-height: 64px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .profile-container {
   display: flex;
   align-items: center;
-  padding: 2px 10px;
-  max-width: calc(100% - 170px);
-  min-width: 200px;
-  height: 48px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 140px 0 16px;
+  min-height: 64px;
+  box-sizing: border-box;
+}
+
+.profile-picture-wrap {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  margin-right: 12px;
 }
 
 .profile-picture {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  margin-right: 10px;
-  margin-top: 15px;
+  display: block;
+}
+
+.profile-online-dot {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  border: 2px solid var(--ly-bg-white);
+  box-sizing: border-box;
 }
 
 .profile-info {
   flex: 1;
-  width: calc(100% - 50px);
+  min-width: 0;
+  width: auto;
+}
+
+.support-header-title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.support-header-title-row .name {
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+.support-header-badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(24, 163, 127, 0.1);
+  color: #12795f;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.support-header-badge__icon {
+  width: 12px;
+  height: 12px;
+  display: inline-flex;
+}
+
+.support-header-badge__icon svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 /deep/ .el-popover {
-  padding: 5px;
+  padding: 10px;
+  border: 1px solid rgba(193, 198, 200, 0.7);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(19, 41, 75, 0.14);
 }
 
 /deep/ .el-popper[x-placement^='right'] {
@@ -827,9 +993,9 @@ export default {
 }
 
 /deep/ .el-popper[x-placement^='bottom'] {
-  margin-top: 0px;
-  margin-right: 15px;
-  max-height: 200px;
+  margin-top: 6px;
+  margin-right: 8px;
+  max-height: 360px;
   overflow: auto;
   scrollbar-width: none;
 }
@@ -856,23 +1022,34 @@ export default {
 }
 
 .conversation-item {
-  line-height: 30px;
   display: flex;
   align-items: center;
-  border-radius: 6px;
+  gap: 10px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.conversation-item:hover {
+  background: rgba(51, 51, 204, 0.05);
 }
 
 .conversation-avatar {
-  width: 26px;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
   overflow: hidden;
-  margin-left: 3px;
-  border-radius: 3px;
-  background-size: 26px 26px;
+  margin-left: 0;
+  border-radius: 10px;
+  background-size: 28px 28px;
 }
 
 .conversation-name {
-  margin-left: 5px;
-  width: 65%;
+  margin-left: 0;
+  flex: 1;
+  min-width: 0;
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
@@ -897,7 +1074,7 @@ export default {
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
-  text-align: center;
+  text-align: left;
 }
 
 .name {
@@ -905,22 +1082,38 @@ export default {
   font-weight: bold;
   line-height: 24px;
   top: 0px;
-  color: white;
+  color: var(--ly-text-dark);
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
-  max-width: calc(100% - 20px);
+  max-width: 100%;
 }
 
 .bio {
   font-size: 12px;
-  line-height: 20px;
+  line-height: 18px;
   top: 0px;
-  color: white;
+  color: var(--ly-text-muted);
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
-  max-width: calc(100% - 20px);
+  max-width: 100%;
+}
+
+.support_header_popover_title {
+  padding: 4px 10px 8px;
+  font-size: 12px;
+  color: var(--ly-text-muted);
+}
+
+.support_header_popover_divider {
+  margin: 8px 0;
+  border: none;
+  border-top: 1px solid var(--ly-border-light);
+}
+
+.conversation-item--action {
+  min-height: 38px;
 }
 
 .show-pop-title {
@@ -936,5 +1129,49 @@ export default {
   font-size: 12px;
   margin-block-start: 5px;
   margin-block-end: 5px;
+}
+
+@media (max-width: 768px) {
+  .profile-container {
+    padding: 0 124px 0 0;
+    min-width: 0;
+  }
+
+  .support-header-title-row {
+    gap: 6px;
+  }
+
+  .support-header-badge {
+    padding: 0 7px;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 520px) {
+  .profile-container {
+    padding-right: 116px;
+  }
+
+  .support_header_action {
+    width: 32px;
+    height: 32px;
+  }
+
+  .support_header_action--wechat {
+    right: 88px;
+  }
+
+  .support_header_action--recent {
+    right: 52px;
+  }
+
+  .support_header_action--close {
+    right: 16px;
+  }
+
+  .support_header_action_icon {
+    width: 16px;
+    height: 16px;
+  }
 }
 </style>

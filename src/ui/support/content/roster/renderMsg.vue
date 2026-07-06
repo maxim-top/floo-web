@@ -2,60 +2,95 @@
   <div>
     <!-- <div v-if="messageType===1"> -->
     <div class="timeline" v-if="timeMessage != ''">{{ timeMessage }}</div>
-    <div :class="{ messageFrame: true, self: isSelf, roster: !isSelf }">
-      <div class="rosterInfo">
-        <div v-if="isSelf">
-          <el-popover placement="left-start" trigger="hover" width="170" :visible-arrow="false" :append-to-body="false">
-            <div class="profile-name">{{ this.getUserProfile.alias || this.getUserProfile.nick_name || this.getUserProfile.username }}</div>
-            <div class="profile-bio" v-if="this.getUserProfile.nick_name">昵称：{{ this.getUserProfile.nick_name }}</div>
-            <div class="profile-bio">用户名：{{ this.getUserProfile.username }}</div>
-            <div class="profile-bio">ID: {{ this.getUserProfile.user_id }}</div>
-            <hr v-if="this.getUserProfile.description" />
-            <div v-if="this.getUserProfile.description">
-              <span class="profile-bio">{{ this.getUserProfile.description }}</span>
-            </div>
-            <div slot="reference">
-              <img :src="userObj.avatar" />
-            </div>
-          </el-popover>
-        </div>
-        <div v-else>
-          <img :src="userObj.avatar" />
-        </div>
+    <div v-if="isSystemReminderMessage" class="messageFrame messageFrame--system">
+      <div :class="['system-reminder-banner', `system-reminder-banner--${systemReminderTone}`]">
+        <div class="system-reminder__content">{{ showContent }}</div>
       </div>
-      <div class="support-contentFrame">
-        <!--        <p class="username" v-if="!isSelf">{{ userObj.username }}</p>-->
-        <div :class="{ user_content: true, self: isSelf, roster: !isSelf }">
-          <div class="c_content" :style="{ 'padding-bottom': showMarkdown ? '0px' : '' }">
-            <div v-if="message.type === 'text'">
-              <div v-if="showMarkdown" v-html="showMarkdownContent" class="c_markdown" />
-              <div v-else>
-                {{ showContent }}
+    </div>
+    <div v-else :class="{ messageFrame: true, self: isSelf, roster: !isSelf }">
+      <div class="message-inner-group">
+        <div class="rosterInfo">
+          <div v-if="isSelf">
+            <el-popover placement="left-start" trigger="hover" width="170" :visible-arrow="false" :append-to-body="true">
+              <div class="profile-name">{{ this.getUserProfile.alias || this.getUserProfile.nick_name || this.getUserProfile.username }}</div>
+              <div class="profile-bio" v-if="this.getUserProfile.nick_name">{{ $t('昵称：') }}{{ this.getUserProfile.nick_name }}</div>
+              <div class="profile-bio">{{ $t('用户名：') }}{{ this.getUserProfile.username }}</div>
+              <div class="profile-bio">ID: {{ this.getUserProfile.user_id }}</div>
+              <hr v-if="this.getUserProfile.description" />
+              <div v-if="this.getUserProfile.description">
+                <span class="profile-bio">{{ this.getUserProfile.description }}</span>
               </div>
-              <div class="c_content_ext" v-if="showExt">ext: {{ message.ext }}</div>
-            </div>
-            <div v-if="message.type === 'image'">
-              <img class="c_image" :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
-            </div>
-            <div @click="playAudio" class="audio_frame" v-if="message.type === 'audio'">
-              <img class="audio" src="/image/audio.png" />
-            </div>
-            <div @click="playVideo" class="video_frame" v-if="message.type === 'video'">
-              <img :src="videoImage" class="preview" />
-              <img class="play" src="/image/play.png" />
-            </div>
-            <div class="loc_frame" v-if="message.type === 'file'">
-              <img class="loc" src="/image/file2.png" />
-              <span @click="downloadFile" class="loc_txt">{{ attachName }}</span>
-            </div>
-            <div @click="openLocation" class="loc_frame" v-if="message.type === 'location'">
-              <img class="loc" src="/image/loc.png" />
-              <span class="loc_txt">{{ attachLocation.addr }}</span>
+              <div slot="reference">
+                <img :src="userObj.avatar" />
+              </div>
+            </el-popover>
+          </div>
+          <div v-else>
+            <img :src="userObj.avatar" />
+          </div>
+        </div>
+        <div class="support-contentFrame message-content-wrapper">
+          <!--        <p class="username" v-if="!isSelf">{{ userObj.username }}</p>-->
+          <div :class="{ user_content: true, self: isSelf, roster: !isSelf }">
+            <div
+              :class="{
+                c_content: true,
+                'message-bubble-self': isSelf,
+                'message-bubble-other': !isSelf
+              }"
+              :style="{ 'padding-bottom': showMarkdown ? '0px' : '' }"
+            >
+              <div class="send_failed" v-if="isSelf && isSendFailed" @click="showSendFailedReason">!</div>
+              <div v-if="message.type === 'text'">
+                <div v-if="showMarkdown" v-html="showMarkdownContent" class="c_markdown" />
+                <div v-else>{{ showContent }}</div>
+                <div class="c_content_ext" v-if="showExt">ext: {{ message.ext }}</div>
+              </div>
+              <div v-if="message.type === 'rtc'" class="rtc_message">
+                <svg viewBox="0 0 24 24" aria-hidden="true" class="rtc_message_icon">
+                  <path d="M7 6h6a2 2 0 0 1 2 2v2.5l3.5-2a1 1 0 0 1 1.5.87v5.26a1 1 0 0 1-1.5.87L15 13.5V16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"></path>
+                </svg>
+                <span>{{ message.content }}</span>
+              </div>
+              <div v-if="message.type === 'image'">
+                <img class="c_image" :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
+              </div>
+              <div @click="playAudio" class="audio_frame" v-if="message.type === 'audio'">
+                <img class="audio" src="/image/audio.png" />
+              </div>
+              <div @click="playVideo" class="video_frame" v-if="message.type === 'video'">
+                <img :src="videoImage" class="preview" />
+                <img class="play" src="/image/play.png" />
+              </div>
+              <div class="loc_frame" v-if="message.type === 'file'">
+                <img class="loc" src="/image/file2.png" />
+                <span @click="downloadFile" class="loc_txt">{{ attachName }}</span>
+              </div>
+              <div @click="openLocation" class="loc_frame" v-if="message.type === 'location'">
+                <img class="loc" src="/image/loc.png" />
+                <span class="loc_txt">{{ attachLocation.addr }}</span>
+              </div>
             </div>
           </div>
-          <div class="c_content_more" v-if="message.type === 'text'">
-            <span class="c_ext_title" v-if="isMarkdown" @click="changeShowMarkdownFormat">{{ showMarkdownTitle }}</span>
-            <span class="c_ext_title" v-if="message.ext" @click="changeShowExt">{{ showExtTitle }}</span>
+          <div :class="{ c_content_more: true, 'message-action-footer': true, 'is-menu-open': showActionMenu }" v-if="message.type === 'text'">
+            <button class="message-footer-action" type="button" v-if="isMarkdown" @click="changeShowMarkdownFormat">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="message-footer-action__icon">
+                <path d="M4 7h8"></path>
+                <path d="M4 12h6"></path>
+                <path d="M4 17h8"></path>
+                <path d="M14 7l5 10"></path>
+                <path d="M19 7l-5 10"></path>
+              </svg>
+              <span>{{ showMarkdownTitle.trim() }}</span>
+            </button>
+            <button class="message-footer-action" type="button" v-if="message.ext" @click="changeShowExt">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="message-footer-action__icon">
+                <circle cx="12" cy="12" r="8"></circle>
+                <path d="M12 10v5"></path>
+                <path d="M12 7.5h.01"></path>
+              </svg>
+              <span>{{ showExtTitle.trim() }}</span>
+            </button>
           </div>
         </div>
       </div>
@@ -86,31 +121,37 @@ export default {
   data() {
     return {
       system_roster: {
-        name: '系统通知',
+        name: '',
         avatar: '/image/setting.png'
       },
       showExt: false,
-      showExtTitle: ' 显示扩展 ',
-      showMarkdownTitle: ' 显示原文 ',
+      showExtTitle: '',
+      showMarkdownTitle: '',
       isMarkdown: false,
       showMarkdown: false,
       marked: null,
+      markdownRendererHasHighlight: false,
       addHlgs: false,
       content: '',
       markContent: '',
 
       showContent: '',
+      stableContent: '',
       appendContent: '',
       appendTimer: null,
       lastSliceStreamTime: 0,
 
       showMarkdownContent: '',
       showTotalContent: '',
+      stableMarkdownContent: '',
       showAppendContent: '',
       appendMarkdownTimer: null
     };
   },
   mounted() {
+    this.system_roster.name = this.$t('系统通知');
+    this.showExtTitle = this.$t('显示扩展');
+    this.showMarkdownTitle = this.$t('显示原文');
     const im = this.$store.getters.im;
     if (!im) return;
 
@@ -125,7 +166,10 @@ export default {
     // Message displayed as read
     const fromUid = toNumber(this.message.from);
     const uid = this.$store.getters.im.userManage.getUid();
-    if (fromUid !== uid) {
+    const isSystemMessage =
+      this.message && (this.message.is_system === true || this.message.is_system === 'true' || this.message.is_system === 1 || this.message.is_system === '1');
+    const shouldAutoRead = (fromUid !== uid && fromUid > 0) || (isSystemMessage && fromUid === 0);
+    if (shouldAutoRead) {
       //do not read message sent by oneself
       const im = this.$store.getters.im;
       if (im) im.rosterManage.readRosterMessage(this.getSid, this.message.id);
@@ -135,7 +179,7 @@ export default {
       this.calculateContent(this.message.content);
     }
 
-    if (!this.message.isHistory && this.message.ext && this.message.ext.length && this.isAIStreamFinish(this.message.ext)) {
+    if (this.shouldReplayInitialAIStream()) {
       if (this.showMarkdown) {
         this.calculateMarkdownAppend(this.message.content, this.message.ext);
       }
@@ -200,7 +244,7 @@ export default {
       let avatar = this.im.sysManage.getImage({ avatar: fromUserObj.avatar });
 
       if (fromUid === cuid) {
-        username = '我';
+        username = this.$t('我');
         avatar = this.im.sysManage.getImage({ avatar: this.getUserProfile.avatar });
       } else if (0 == fromUid) {
         username = this.system_roster.name;
@@ -269,7 +313,7 @@ export default {
       if (attachObj.dName) {
         return attachObj.dName;
       }
-      return '文件附件';
+      return this.$t('文件附件');
     },
 
     messageStatus() {
@@ -278,18 +322,83 @@ export default {
       const uid = this.im.userManage.getUid();
       const cid = fromUid === uid ? toUid : fromUid;
 
-      // status will be unread / delivered / read
-      return this.im.sysManage.getMessageStatus(cid, this.message.id);
+      const liveStatus = this.im.sysManage.getMessageStatus(cid, this.message.id);
+      if (liveStatus) {
+        return liveStatus;
+      }
+
+      if (typeof this.message.status !== 'undefined') {
+        const localStatus = Object.keys(this.im.sysManage.getStaticVars().STATIC_MESSAGE_STATUS || {})[this.message.status || 0];
+        if (localStatus) {
+          return localStatus.toLowerCase();
+        }
+      }
+      return undefined;
+    },
+    isSendFailed() {
+      return !!this.message.sendFailed;
+    },
+    parsedMessageExt() {
+      if (!this.message.ext || typeof this.message.ext !== 'string') {
+        return {};
+      }
+      try {
+        return JSON.parse(this.message.ext);
+      } catch (ex) {
+        return {};
+      }
+    },
+    isSystemReminderMessage() {
+      const value = this.message.is_system;
+      return value === true || value === 'true' || value === 1 || value === '1';
+    },
+    systemReminderStyle() {
+      const style = this.parsedMessageExt.style;
+      return typeof style === 'string' ? style.toLowerCase() : '';
+    },
+    systemReminderTone() {
+      const style = this.systemReminderStyle;
+      if (['emergency', 'urgent', 'critical', 'error'].includes(style)) return 'critical';
+      if (['warning', 'warnning'].includes(style)) return 'warning';
+      if (style === 'notice') return 'notice';
+      if (['debug', 'verbose'].includes(style)) return 'debug';
+      return 'info';
+    },
+    sendFailedReason() {
+      if (!this.isSendFailed) {
+        return '';
+      }
+      const reason = this.message.sendFailedReason;
+      if (reason) {
+        return reason;
+      }
+      if (typeof this.message.sendFailedCode !== 'undefined') {
+        return this.$t('发送失败，错误码：{code}', { code: this.message.sendFailedCode });
+      }
+      return this.$t('发送失败');
     }
   },
 
   watch: {
+    '$localeState.locale'() {
+      this.system_roster.name = this.$t('系统通知');
+      this.showExtTitle = this.showExt ? this.$t('隐藏扩展') : this.$t('扩展信息');
+      this.showMarkdownTitle = this.showMarkdown ? this.$t('解析格式') : this.$t('显示原文');
+    },
     getUserProfile() {
       this.userObj;
     }
   },
 
   methods: {
+    isSameMessageUpdate(message) {
+      return !!(message && this.message && `${message.id}` === `${this.message.id}`);
+    },
+
+    normalizeTextContent(content) {
+      return typeof content === 'string' ? content.trim() : content;
+    },
+
     notEmpty(str) {
       return !(!str || /^\s*$/.test(str));
     },
@@ -307,13 +416,13 @@ export default {
       if (image) {
         this.openImage(image);
       } else {
-        alert('附件错误..');
+        alert(this.$t('附件错误..'));
       }
     },
     playAudio() {
       const url = this.attachAudio;
       if (!url) {
-        alert('url为空，不能播放');
+        alert(this.$t('url为空，不能播放'));
         return;
       }
       const au = document.querySelector('#audio_player');
@@ -351,7 +460,7 @@ export default {
         //   link.click();
         // });
       } else {
-        alert('附件错误..');
+        alert(this.$t('附件错误..'));
       }
     },
     openLocation() {
@@ -425,18 +534,18 @@ export default {
     changeShowMarkdownFormat() {
       this.showMarkdown = !this.showMarkdown;
       if (this.showMarkdown) {
-        this.showMarkdownTitle = ' 显示原文 ';
+        this.showMarkdownTitle = this.$t('显示原文');
       } else {
-        this.showMarkdownTitle = ' 解析格式 ';
+        this.showMarkdownTitle = this.$t('解析格式');
       }
     },
 
     changeShowExt() {
       this.showExt = !this.showExt;
       if (this.showExt) {
-        this.showExtTitle = ' 隐藏扩展 ';
+        this.showExtTitle = this.$t('隐藏扩展');
       } else {
-        this.showExtTitle = ' 扩展信息 ';
+        this.showExtTitle = this.$t('扩展信息');
       }
     },
 
@@ -450,40 +559,135 @@ export default {
       return newContent;
     },
 
-    calculateContent(content) {
+    createMarkdownRenderer(enableHighlight) {
+      this.addHlgs = false;
+      if (enableHighlight) {
+        let that = this;
+        this.marked = new Marked(
+          markedHighlight({
+            langPrefix: 'hljs language-',
+            highlight(code, lang) {
+              let language = hljs.getLanguage(lang) ? lang : 'plaintext';
+              if (language === 'plaintext') {
+                that.addHlgs = true;
+                return hljs.highlightAuto(code).value;
+              }
+              return hljs.highlight(code, { language }).value;
+            }
+          })
+        );
+      } else {
+        this.marked = new Marked();
+      }
+      this.markdownRendererHasHighlight = enableHighlight;
+    },
+
+    ensureMarkdownRenderer(content, extension) {
+      const needsHighlight = this.hasCodeBlock(content) || this.isAIStream(extension);
+      if (!this.marked) {
+        this.createMarkdownRenderer(needsHighlight);
+        return;
+      }
+      if (needsHighlight && !this.markdownRendererHasHighlight) {
+        this.createMarkdownRenderer(true);
+      }
+    },
+
+    calculateContent(content, extension = this.message.ext) {
+      content = this.normalizeTextContent(content);
       this.isMarkdown = this.isMarkdownFormat(content);
       if (this.isMarkdown) {
-        if (this.marked) {
-          // already generate markded object. do nothing.
-          this.markContent = this.parseMarkdownContent(content);
-        } else {
-          let hasCode = this.hasCodeBlock(content);
-          if (hasCode) {
-            let that = this;
-            this.marked = new Marked(
-              markedHighlight({
-                langPrefix: 'hljs language-',
-                highlight(code, lang) {
-                  let language = hljs.getLanguage(lang) ? lang : 'plaintext';
-                  if (language === 'plaintext') {
-                    that.addHlgs = true;
-                    return hljs.highlightAuto(code).value;
-                  }
-                  return hljs.highlight(code, { language }).value;
-                }
-              })
-            );
-          } else {
-            this.marked = new Marked();
-          }
-          this.markContent = this.parseMarkdownContent(content);
-          this.showAppendContent = content;
-          this.showMarkdown = true;
-        }
+        this.ensureMarkdownRenderer(content, extension);
+        this.markContent = this.parseMarkdownContent(content);
+        this.showAppendContent = content;
+        this.showMarkdown = true;
       } else {
         this.showMarkdown = false;
       }
       this.content = content;
+    },
+
+    stripTypingCursor(content) {
+      if (typeof content !== 'string') {
+        return '';
+      }
+      return content.endsWith('｜') ? content.slice(0, content.length - 1) : content;
+    },
+
+    extendPendingPlainStream(content) {
+      if (!this.appendTimer) {
+        return false;
+      }
+      const pendingTarget = `${this.stripTypingCursor(this.showContent)}${this.appendContent}`;
+      if (!content.startsWith(pendingTarget)) {
+        return false;
+      }
+      this.appendContent += content.slice(pendingTarget.length);
+      return true;
+    },
+
+    extendPendingMarkdownStream(content) {
+      if (!this.appendMarkdownTimer) {
+        return false;
+      }
+      const pendingTarget = `${this.showTotalContent}${this.showAppendContent}`;
+      if (!content.startsWith(pendingTarget)) {
+        return false;
+      }
+      this.showAppendContent += content.slice(pendingTarget.length);
+      return true;
+    },
+
+    getPlainStreamBase() {
+      const visibleContent = this.stripTypingCursor(this.showContent);
+      return visibleContent.length > this.stableContent.length ? visibleContent : this.stableContent;
+    },
+
+    getMarkdownStreamBase() {
+      return this.showTotalContent.length > this.stableMarkdownContent.length ? this.showTotalContent : this.stableMarkdownContent;
+    },
+
+    commitRenderedContent(content, markdownContent = content) {
+      this.stableContent = content;
+      this.showContent = content;
+      if (this.isMarkdown) {
+        this.stableMarkdownContent = markdownContent;
+        this.showTotalContent = markdownContent;
+        this.showMarkdownContent = this.markContent;
+      } else {
+        this.stableMarkdownContent = '';
+        this.showTotalContent = '';
+      }
+    },
+
+    parseStreamExtension(extension) {
+      if (extension && typeof extension === 'object') {
+        return extension;
+      }
+      try {
+        return JSON.parse(extension);
+      } catch (ex) {
+        return {};
+      }
+    },
+
+    resolveStreamStepCount(remaining, extension, preferFast = false) {
+      const ext = this.parseStreamExtension(extension);
+      const ai = ext.ai || {};
+      const openclaw = ext.openclaw || {};
+      const period = 40;
+      const configuredInterval = Number(ai.stream_interval);
+      const baseDuration = configuredInterval > 0 ? configuredInterval * 1000 : 3000;
+      let targetDuration = baseDuration;
+
+      if (preferFast || ai.finish) {
+        targetDuration = Math.min(900, Math.max(600, Math.round(baseDuration * 0.25)));
+      } else if (openclaw.role && openclaw.role !== 'assistant') {
+        targetDuration = Math.max(1800, Math.round(baseDuration * 0.7));
+      }
+
+      const frameCount = Math.max(1, Math.ceil(targetDuration / period));
+      return Math.max(1, Math.min(96, Math.ceil(remaining / frameCount)));
     },
 
     isAIStream(extension) {
@@ -512,34 +716,31 @@ export default {
       }
     },
 
+    shouldReplayInitialAIStream() {
+      return !!(!this.message.isHistory && !this.message.skipStreamReplayOnMount && this.message.ext && this.message.ext.length && this.isAIStreamFinish(this.message.ext));
+    },
+
     calculateAppend(content, extension) {
-      let ext = {};
-      try {
-        ext = JSON.parse(extension);
-      } catch (ex) {
-        //
-      }
-      if (ext && ext.ai && ext.ai.stream && ext.ai.stream_interval) {
+      const ext = this.parseStreamExtension(extension);
+      if (ext && ext.ai && ext.ai.stream) {
         this.appendTimer && clearInterval(this.appendTimer);
-        //每40毫秒是一个显示周期，每次展示count指定个数的字符。
-        let count = 1;
         let period = 40;
-        let duration = this.showAppendContent.length * period;
-        if (duration > 20000) {
-          count = Math.ceil(duration / 20000);
-        }
         let that = this;
         this.appendTimer = setInterval(() => {
           if (that.appendContent.length <= 0) {
             clearInterval(that.appendTimer);
             that.appendTimer = null;
-            that.showContent = content;
+            that.stableContent = that.content;
+            that.showContent = that.content;
+            that.ensureStreamingMessageVisible();
           } else {
+            const count = that.resolveStreamStepCount(that.appendContent.length, ext);
             if (that.showContent.length && that.showContent.charAt(that.showContent.length - 1) === '｜') {
               that.showContent = that.showContent.slice(0, that.showContent.length - 1);
             }
             that.showContent += that.appendContent.slice(0, count) + '｜';
             that.appendContent = that.appendContent.slice(count);
+            that.ensureStreamingMessageVisible();
           }
         }, period);
       } else {
@@ -548,31 +749,24 @@ export default {
     },
 
     calculateMarkdownAppend(content, extension) {
-      let ext = {};
-      try {
-        ext = JSON.parse(extension);
-      } catch (ex) {
-        //
-      }
-      if (ext && ext.ai && ext.ai.stream && ext.ai.stream_interval) {
+      const ext = this.parseStreamExtension(extension);
+      if (ext && ext.ai && ext.ai.stream) {
         this.appendMarkdownTimer && clearInterval(this.appendMarkdownTimer);
-        //每40毫秒是一个显示周期，每次展示count指定个数的字符。
-        let count = 1;
         let period = 40;
-        let duration = this.showAppendContent.length * period;
-        if (duration > 20000) {
-          count = Math.ceil(duration / 20000);
-        }
         let that = this;
         this.appendMarkdownTimer = setInterval(() => {
           if (that.showAppendContent.length <= 0) {
             clearInterval(that.appendMarkdownTimer);
             that.appendMarkdownTimer = null;
-            that.showMarkdownContent = that.parseMarkdownContent(that.showTotalContent);
+            that.stableMarkdownContent = that.showTotalContent;
+            that.showMarkdownContent = that.parseMarkdownContent(that.showTotalContent + '｜');
+            that.ensureStreamingMessageVisible();
           } else {
+            const count = that.resolveStreamStepCount(that.showAppendContent.length, ext);
             that.showTotalContent += that.showAppendContent.slice(0, count);
             that.showAppendContent = that.showAppendContent.slice(count);
-            that.showMarkdownContent = that.parseMarkdownContent(that.showTotalContent + '｜');
+            that.showMarkdownContent = that.parseMarkdownContent(that.showTotalContent);
+            that.ensureStreamingMessageVisible();
           }
         }, period);
       } else {
@@ -580,42 +774,80 @@ export default {
       }
     },
 
+    findMessageScrollContainer() {
+      let node = this.$el;
+      while (node) {
+        if (node.classList && node.classList.contains('list')) {
+          return node;
+        }
+        node = node.parentElement;
+      }
+      return null;
+    },
+
+    ensureStreamingMessageVisible() {
+      this.$nextTick(() => {
+        const container = this.findMessageScrollContainer();
+        const messageEl = this.$el;
+        if (!container || !messageEl) return;
+        const containerRect = container.getBoundingClientRect();
+        const messageRect = messageEl.getBoundingClientRect();
+        const overflowBottom = messageRect.bottom - containerRect.bottom;
+        const nearBottom = container.scrollHeight - (container.scrollTop + container.clientHeight) <= 96;
+        if (overflowBottom > 0) {
+          container.scrollTop += overflowBottom + 24;
+        } else if (nearBottom) {
+          container.scrollTop = container.scrollHeight;
+        }
+      });
+    },
+
     messageContentAppend(message) {
+      if (!this.isSameMessageUpdate(message)) {
+        return;
+      }
       let oldFlag = this.isMarkdown;
-      this.calculateContent(message.content);
+      const plainBase = this.getPlainStreamBase();
+      const markdownBase = this.getMarkdownStreamBase();
+      this.calculateContent(message.content, message.ext);
       if (false == oldFlag && true == this.isMarkdown) {
-        this.showTotalContent = this.showContent;
-        this.showMarkdownContent = this.parseMarkdownContent(this.showContent);
+        this.showTotalContent = plainBase;
+        this.stableMarkdownContent = plainBase;
+        this.showMarkdownContent = this.parseMarkdownContent(plainBase);
       }
       if (message.ext && message.ext.length && this.isAIStream(message.ext)) {
         if (this.isMarkdown) {
-          this.showAppendContent = message.content.slice(this.showTotalContent.length);
-          this.calculateMarkdownAppend(message.content, message.ext);
+          const nextMarkdownBase = oldFlag && this.isMarkdown ? markdownBase : plainBase;
+          if (!(oldFlag && this.extendPendingMarkdownStream(this.content))) {
+            this.showTotalContent = nextMarkdownBase;
+            this.showAppendContent = this.content.slice(nextMarkdownBase.length);
+            this.calculateMarkdownAppend(this.content, message.ext);
+          }
         }
-        this.appendContent = message.content.slice(this.showContent.length);
-        this.calculateAppend(message.content, message.ext);
+        if (!this.extendPendingPlainStream(this.content)) {
+          this.showContent = plainBase;
+          this.appendContent = this.content.slice(plainBase.length);
+          this.calculateAppend(this.content, message.ext);
+        }
       } else {
-        if (this.isMarkdown) {
-          this.showMarkdownContent = this.markContent;
-        }
-        this.showContent = this.content;
+        this.commitRenderedContent(this.content);
       }
     },
 
     messageReplace(message) {
-      this.calculateContent(message.content);
-      if (this.isMarkdown) {
-        clearInterval(this.appendMarkdownTimer);
-        this.appendMarkdownTimer = null;
-        setTimeout(() => {
-          this.showMarkdownContent = this.markContent;
-        }, 200);
+      if (!this.isSameMessageUpdate(message)) {
+        return;
       }
+      this.calculateContent(message.content, message.ext);
+      clearInterval(this.appendMarkdownTimer);
+      this.appendMarkdownTimer = null;
       clearInterval(this.appendTimer);
       this.appendTimer = null;
-      setTimeout(() => {
-        this.showContent = this.content;
-      }, 200);
+      this.commitRenderedContent(this.content);
+    },
+
+    showSendFailedReason() {
+      this.$message.error(this.sendFailedReason);
     }
   }
 };
@@ -628,5 +860,78 @@ export default {
 
 /deep/ .el-popper[x-placement^='left'] {
   margin-right: 5px;
+}
+
+.send_failed {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #f56c6c;
+  color: #ffffff;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  user-select: none;
+  position: absolute;
+  left: -24px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.messageFrame--system {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 12px;
+}
+
+.system-reminder-banner {
+  display: inline-block;
+  max-width: min(100%, 460px);
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  box-shadow: none;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.system-reminder {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.system-reminder__content {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.system-reminder-banner--critical {
+  background: rgba(214, 74, 74, 0.12);
+  color: #9f3a3a;
+}
+
+.system-reminder-banner--warning {
+  background: rgba(237, 201, 72, 0.18);
+  color: #8a6a00;
+}
+
+.system-reminder-banner--notice {
+  background: rgba(124, 135, 142, 0.14);
+  color: #66737d;
+}
+
+.system-reminder-banner--info {
+  background: rgba(124, 135, 142, 0.14);
+  color: #66737d;
+}
+
+.system-reminder-banner--debug {
+  background: rgba(124, 135, 142, 0.1);
+  color: #7b8790;
 }
 </style>

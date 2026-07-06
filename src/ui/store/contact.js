@@ -1,4 +1,5 @@
 //collection.js
+import { t } from '../../i18n';
 
 const state = {
   rosterList: [],
@@ -10,12 +11,41 @@ const state = {
   pickupTime: 0,
   searchKeyword: '',
   totalUnread: '',
-  conversationScroll: 0
+  conversationScroll: 0,
+  skipAutoSelectOnce: false,
+  skipConversationAutoSelectOnce: false
 };
 
 const contactRequestFlag = {
   rosterList: false,
   groupList: false
+};
+
+const deriveRecentPreviewFromMessage = (message) => {
+  if (!message) {
+    return {
+      content: '',
+      timestamp: ''
+    };
+  }
+
+  const { type, attach, timestamp } = message;
+  let content = message.content || '';
+  if (!content && !attach) {
+    return {
+      content: '',
+      timestamp: timestamp || ''
+    };
+  }
+
+  if (type !== 'text' && type !== 'rtc') {
+    content = type;
+  }
+
+  return {
+    content,
+    timestamp: timestamp || ''
+  };
 };
 
 const getters = {
@@ -53,6 +83,14 @@ const getters = {
 
   getConversationScroll(state) {
     return state.conversationScroll || 0;
+  },
+
+  getSkipAutoSelectOnce(state) {
+    return state.skipAutoSelectOnce;
+  },
+
+  getSkipConversationAutoSelectOnce(state) {
+    return state.skipConversationAutoSelectOnce;
   }
 };
 
@@ -95,6 +133,14 @@ const mutations = {
 
   setConversationScroll(state, x) {
     state.conversationScroll = x;
+  },
+
+  setSkipAutoSelectOnce(state, x) {
+    state.skipAutoSelectOnce = x;
+  },
+
+  setSkipConversationAutoSelectOnce(state, x) {
+    state.skipConversationAutoSelectOnce = x;
   }
 };
 
@@ -133,8 +179,12 @@ const actions = {
     const convData = convlist.map((item, index) => {
       let name;
       const id = item.id;
-      const content = item.content;
-      const timestamp = item.timestamp;
+      const draft = typeof item.draft === 'string' ? item.draft : '';
+      const hasDraft = !!draft.trim();
+      const fallbackMessages = item.type === 'roster' ? rootState.im.rosterManage.getRosterMessageByRid(id) : rootState.im.groupManage.getGruopMessage(id);
+      const fallbackPreview = deriveRecentPreviewFromMessage(fallbackMessages && fallbackMessages.length ? fallbackMessages[fallbackMessages.length - 1] : null);
+      const content = hasDraft ? draft : item.content || fallbackPreview.content;
+      const timestamp = hasDraft ? item.draftTimestamp || item.timestamp || fallbackPreview.timestamp : item.timestamp || fallbackPreview.timestamp;
       const hasAt = item.hasAt;
       // const img = allRosterMap[id] && allRosterMap[id].avatar;
       let avatar = ''; //(img && this.client.signatureUrl(img, { expires: 600, process: 'image/resize,w_50' })) || '/image/roster.png';
@@ -143,9 +193,14 @@ const actions = {
       totalUnreadCount += unread;
       if (item.type === 'roster') {
         //roster
-        const sroster = allRosterMap[id] || {};
-        name = sroster.alias || sroster.nick_name || sroster.username || id;
-        avatar = sroster.avatar;
+        if (Number(id) === 0) {
+          name = t('系统通知');
+          avatar = '/image/setting.png';
+        } else {
+          const sroster = allRosterMap[id] || {};
+          name = sroster.alias || sroster.nick_name || sroster.username || id;
+          avatar = sroster.avatar;
+        }
       } else if (item.type === 'group') {
         //group
         const sgroup = allGroupMap[id] || {};
@@ -165,12 +220,15 @@ const actions = {
         avatar,
         unread,
         hasAt,
+        isDraft: hasDraft,
         sid: id
       };
     });
 
     const sortedConvList = convData.sort((a, b) => {
-      return a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0;
+      const aTimestamp = Number(a.timestamp || 0);
+      const bTimestamp = Number(b.timestamp || 0);
+      return aTimestamp < bTimestamp ? 1 : aTimestamp > bTimestamp ? -1 : 0;
     });
     context.commit('saveConversationList', sortedConvList);
     if (totalUnreadCount > 99) {
@@ -254,6 +312,12 @@ const actions = {
   },
   actionSetConversationScroll(context, scroll) {
     context.commit('setConversationScroll', scroll);
+  },
+  actionSetSkipAutoSelectOnce(context, x) {
+    context.commit('setSkipAutoSelectOnce', x);
+  },
+  actionSetSkipConversationAutoSelectOnce(context, x) {
+    context.commit('setSkipConversationAutoSelectOnce', x);
   }
 };
 export default {

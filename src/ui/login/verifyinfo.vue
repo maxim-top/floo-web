@@ -1,24 +1,43 @@
 <template>
-  <div class="login">
-    <p class="header">
-      <span class="hint">AppID: {{ appid }}</span>
-    </p>
+  <div class="login login-card">
+    <div class="login_card_header">
+      <div class="login_appid" role="presentation">{{ $t('AppID') }}: {{ appid }}</div>
+    </div>
+    <div class="logo login_brand">
+      <img src="/image/logob.png" alt="LanyingIM" />
+    </div>
+    <h2 class="login_title">{{ $t('认证信息') }}</h2>
     <div class="verify_container">
-      <div>本App（AppID：{{ appid }}）服务提供方</div>
+      <div>{{ $t('本App（AppID：{appid}）服务提供方', { appid }) }}</div>
       <div class="verification_desc" :title="verification_description">{{ verification_description }}</div>
       <div class="verification_status">
-        <img :src="verification_img" />
         <span>{{ verification_status }}</span>
+        <span :class="['auth_status_badge', 'auth_status_badge--' + verificationState]" aria-hidden="true">
+          <svg v-if="verificationState === 'verified'" viewBox="0 0 24 24" class="auth_status_badge_icon">
+            <path d="M12 3l7 3v5c0 4.5-2.7 7.9-7 10-4.3-2.1-7-5.5-7-10V6l7-3z"></path>
+            <path d="M9.5 12.5l1.8 1.8 3.7-4"></path>
+          </svg>
+          <svg v-else-if="verificationState === 'failed'" viewBox="0 0 24 24" class="auth_status_badge_icon">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M9 9l6 6"></path>
+            <path d="M15 9l-6 6"></path>
+          </svg>
+          <svg v-else viewBox="0 0 24 24" class="auth_status_badge_icon">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M12 8v4"></path>
+            <path d="M12 16h.01"></path>
+          </svg>
+        </span>
       </div>
       <div class="status-container">
-        服务状态：{{ appStatusName }}
-        <el-tooltip v-if="app_status == 'normal'" :content="'服务器IP：' + (server_ip ? server_ip : '无')" placement="top">
+        {{ $t('服务状态：') }}{{ appStatusName }}
+        <el-tooltip v-if="app_status == 'normal'" :content="$t('服务器IP：') + (server_ip ? server_ip : $t('无'))" placement="top">
           <i class="el-icon-info status-icon"></i>
         </el-tooltip>
       </div>
     </div>
-    <div class="login-button">
-      <span @click="switchLogin('login')" class="mr5 colorb">已有账号，去登录</span>
+    <div class="login_footer_links login_footer_links--center">
+      <button @click="switchLogin('login')" class="login_footer_link" type="button">{{ $t('已有账号，去登录') }}</button>
     </div>
   </div>
 </template>
@@ -32,8 +51,8 @@ export default {
   data() {
     return {
       verification_description: '', // 认证描述
-      verification_img: '/image/unverified.png', // 认证图片
-      verification_status: '未认证',
+      verification_status: '',
+      verificationState: 'unknown',
       app_status: '',
       server_ip: ''
     };
@@ -41,13 +60,13 @@ export default {
   computed: {
     appStatusName() {
       if (this.app_status == 'banned') {
-        return '封禁';
+        return this.$t('封禁');
       } else if (this.app_status == 'frozen') {
-        return '冻结';
+        return this.$t('冻结');
       } else if (this.app_status == 'revoked') {
-        return '已失效';
+        return this.$t('已失效');
       } else if (this.app_status == 'normal') {
-        return '正常';
+        return this.$t('正常');
       } else {
         return '';
       }
@@ -55,38 +74,51 @@ export default {
   },
 
   mounted() {
-    const im = this.$store.getters.im;
-    this.app_status = im.sysManage.getAppStatus(im.userManage.getAppid());
-    this.server_ip = im.sysManage.getServerIp(im.userManage.getAppid());
-    let accountVerification = im.sysManage.getAccountVerification(im.userManage.getAppid());
-    if (accountVerification) {
-      if (accountVerification.type && accountVerification.type == 'enterprise') {
-        this.verification_description += accountVerification.name;
-      } else {
-        this.verification_description += '个人开发者：' + accountVerification.name;
-      }
-      if (accountVerification.status) {
-        switch (accountVerification.status) {
-          case 'unverified':
-            this.verification_status = '未认证';
-            this.verification_img = '/image/unverified.png';
-            break;
-          case 'verified':
-            this.verification_status = '已认证';
-            this.verification_img = '/image/verifyed.png';
-            break;
-          case 'expired':
-            this.verification_status = '认证失败';
-            this.verification_img = '/image/verify_failed.png';
-            break;
-          default:
-            break;
-        }
-      }
+    this.initVerification();
+  },
+
+  watch: {
+    '$localeState.locale'() {
+      this.initVerification();
     }
   },
 
   methods: {
+    initVerification() {
+      this.verification_description = '';
+      this.verification_status = this.$t('未认证');
+      this.verificationState = 'unknown';
+      const im = this.$store.getters.im;
+      this.app_status = im.sysManage.getAppStatus(im.userManage.getAppid());
+      this.server_ip = im.sysManage.getServerIp(im.userManage.getAppid());
+      let accountVerification = im.sysManage.getAccountVerification(im.userManage.getAppid());
+      if (accountVerification) {
+        if (accountVerification.type && accountVerification.type == 'enterprise') {
+          this.verification_description += accountVerification.name;
+        } else {
+          this.verification_description += this.$t('个人开发者：') + accountVerification.name;
+        }
+        if (accountVerification.status) {
+          switch (accountVerification.status) {
+            case 'unverified':
+              this.verification_status = this.$t('未认证');
+              this.verificationState = 'unverified';
+              break;
+            case 'verified':
+              this.verification_status = this.$t('已认证');
+              this.verificationState = 'verified';
+              break;
+            case 'expired':
+              this.verification_status = this.$t('认证失败');
+              this.verificationState = 'failed';
+              break;
+            default:
+              this.verificationState = 'unknown';
+              break;
+          }
+        }
+      }
+    },
     switchLogin(type) {
       this.$store.dispatch('login/actionChangeAppStatus', type);
     }
@@ -95,39 +127,34 @@ export default {
 </script>
 
 <style scoped>
+.verify_container {
+  line-height: 1.5;
+  padding-top: 4px;
+  text-align: center;
+}
+
 .status-container {
   display: inline-flex;
-  align-items: center; /* 垂直居中 */
-  gap: 4px; /* 图标与文字间距 */
-  margin-top: 30px;
+  align-items: center;
+  gap: 4px;
+  margin-top: 24px;
 }
+
 .status-icon {
   color: #a8abb2;
   font-size: 18px;
 }
+
 .verification_desc {
   font-weight: bold;
-  margin-top: 30px;
+  margin-top: 24px;
   font-size: 16px;
   text-align: center;
-  margin-left: 5%;
-  margin-right: 5%;
-  word-break: break-all; /* 长字符串强制换行 */
-  white-space: normal; /* 允许自动换行 */
-}
-
-.verify_container {
-  line-height: 1.2;
-  padding-top: 30px;
-  text-align: center;
-}
-
-.verification_status img {
-  width: 20px;
-  height: 20px;
-  margin: 0 6px 0 0;
-  padding: 0;
-  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 300px;
+  word-break: break-all;
+  white-space: normal;
 }
 
 .verification_status {
@@ -135,7 +162,7 @@ export default {
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  margin-top: 5px;
+  margin-top: 8px;
 }
 
 .verification_status span {
@@ -143,12 +170,5 @@ export default {
   white-space: nowrap;
   margin-top: 0;
   line-height: 20px;
-}
-
-.login-button {
-  line-height: 20px;
-  font-size: 14px;
-  text-align: center;
-  margin-top: 30px;
 }
 </style>

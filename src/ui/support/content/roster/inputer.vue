@@ -1,15 +1,49 @@
 <template>
   <div class="inputer_frame" ref="rosterInputer">
-    <div class="input">
+    <div class="composer_surface">
       <div class="attach">
         <input @change="fileChangeHandler" ref="fileRef" type="file" />
-        <span v-popover:tooltip.top="'发送图片'" @click="imageUploadClickHandler" class="ico image"></span>
-        <span v-popover:tooltip.top="'发送文件'" @click="fileUploadClickHandler" class="ico file"></span>
+        <div class="attach_toggle" @click.stop="toggleActionMenu" tabindex="0">
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_toggle_icon">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </div>
+        <div v-if="showActionMenu" class="attach_menu" @click.stop>
+          <div @click="imageUploadClickHandler" class="attach_menu_item">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_menu_icon">
+              <rect x="4" y="5" width="16" height="14" rx="2"></rect>
+              <circle cx="9" cy="10" r="1.5"></circle>
+              <path d="M7 16l3.5-3.5L13 15l2-2 2 3"></path>
+            </svg>
+            <span>{{ $t('发送图片') }}</span>
+          </div>
+          <div @click="fileUploadClickHandler" class="attach_menu_item">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_menu_icon">
+              <path d="M8 3h6l4 4v13a1 1 0 0 1-1 1H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"></path>
+              <path d="M14 3v5h5"></path>
+            </svg>
+            <span>{{ $t('发送文件') }}</span>
+          </div>
+          <div @click="videoCallClickHandler" class="attach_menu_item">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_menu_icon">
+              <rect x="4" y="7" width="11" height="10" rx="2"></rect>
+              <path d="M15 10l5-3v10l-5-3z"></path>
+            </svg>
+            <span>{{ $t('视频通话') }}</span>
+          </div>
+          <div @click="audioCallClickHandler" class="attach_menu_item">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_menu_icon">
+              <path d="M6.5 5.5h3l2 4-2.5 2.5a14 14 0 0 0 5 5L16.5 14l4 2v3c0 1-1 2-2 2A16 16 0 0 1 3 5.5c0-1 1-2 2-2h1.5z"></path>
+            </svg>
+            <span>{{ $t('语音通话') }}</span>
+          </div>
+        </div>
       </div>
-      <div>
+      <div class="input">
         <textarea
           @blur="inputBlurHandler"
           @focus="inputFocusHandler"
+          @input="handleTextareaInput"
           @keydown="textareaKeyDown"
           @keyup="textareaKeyUp"
           class="input_text"
@@ -19,9 +53,9 @@
           ref="inputTextRef"
           focus
         ></textarea>
-        <div class="button">
-          <div id="roster_send_button" @click="handleSendMessage" class="im_send_empty" />
-        </div>
+      </div>
+      <div class="button">
+        <div id="roster_send_button" @click="handleSendMessage" class="im_send_empty" />
       </div>
     </div>
     <div class="support_link">
@@ -29,11 +63,17 @@
         <div slot="content">
           <span>AppID:{{ appid }}</span>
           <br />
-          <span>{{ verifyInfo }}</span>
+          <span>{{ verifyInfoText }}</span>
         </div>
-        <span class="im_tips"></span>
+        <span class="trust_badge">
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="trust_badge_icon">
+            <path d="M12 3l7 3v5c0 5-3.4 8.8-7 10-3.6-1.2-7-5-7-10V6l7-3z"></path>
+            <path d="M9 12.2l2 2 4-4.2"></path>
+          </svg>
+          <span class="trust_badge_text">{{ verifyInfoText || $t('认证信息') }}</span>
+        </span>
       </el-tooltip>
-      <a href="https://www.lanyingim.com" target="_blank">打造你的智能聊天APP，使用蓝莺IM SDK</a>
+      <a href="https://www.lanyingim.com" target="_blank">{{ $t('打造你的智能聊天APP，使用蓝莺IM SDK') }}</a>
     </div>
   </div>
 </template>
@@ -49,7 +89,7 @@ export default {
       message: '',
       fileType: '',
       button: null,
-      verifyInfo: ''
+      showActionMenu: false
     };
   },
   components: {},
@@ -60,10 +100,22 @@ export default {
     },
     appid() {
       return this.$store.state.im.userManage.getAppid();
+    },
+    verifyInfoText() {
+      const accountVerification = this.im.sysManage.getAccountVerification(this.im.userManage.getAppid());
+      if (!accountVerification) return '';
+      const statusPrefixMap = {
+        unverified: this.$t('未认证开发者：'),
+        verified: this.$t('已认证：'),
+        expired: this.$t('认证失败：')
+      };
+      const typePrefix = accountVerification.type && accountVerification.type === 'enterprise' ? '' : `${this.$t('个人开发者：').replace(/：$/, '')} `;
+      return `${typePrefix}${statusPrefixMap[accountVerification.status] || this.$t('未认证开发者：')}${accountVerification.name || ''}`;
     }
   },
   mounted() {
     this.initIntentMessage();
+    document.addEventListener('click', this.closeActionMenu);
     let _this = this;
 
     // paste
@@ -109,32 +161,9 @@ export default {
     this.$refs.rosterInputer.addEventListener('dragover', function (event) {
       event.preventDefault();
     });
-
-    let accountVerification = this.im.sysManage.getAccountVerification(this.im.userManage.getAppid());
-    if (accountVerification) {
-      if (accountVerification.status) {
-        switch (accountVerification.status) {
-          case 'unverified':
-            this.verifyInfo += '未认证开发者：';
-            break;
-          case 'verified':
-            this.verifyInfo += '已认证：';
-            break;
-          case 'expired':
-            this.verifyInfo += '认证失败：';
-            break;
-          default:
-            this.verifyInfo += '未认证开发者：';
-            break;
-        }
-      }
-      if (accountVerification.type && accountVerification.type == 'enterprise') {
-        //
-      } else {
-        this.verifyInfo += '个人开发者 ';
-      }
-      this.verifyInfo += accountVerification.name;
-    }
+  },
+  beforeDestroy() {
+    document.removeEventListener('click', this.closeActionMenu);
   },
   methods: {
     textareaKeyDown(evt) {
@@ -149,15 +178,42 @@ export default {
       }
     },
     textareaKeyUp() {
+      this.autoResizeTextarea();
       this.changeSendButtonBackground();
     },
+    handleTextareaInput() {
+      this.autoResizeTextarea();
+      this.changeSendButtonBackground();
+    },
+    toggleActionMenu() {
+      this.showActionMenu = !this.showActionMenu;
+    },
+    closeActionMenu() {
+      this.showActionMenu = false;
+    },
     imageUploadClickHandler() {
+      this.closeActionMenu();
       this.fileType = 'image';
       this.$refs.fileRef.click();
     },
     fileUploadClickHandler() {
+      this.closeActionMenu();
       this.fileType = 'file';
       this.$refs.fileRef.click();
+    },
+
+    videoCallClickHandler() {
+      this.closeActionMenu();
+      this.$store.dispatch('layer/actionSetShowing', 'videocall');
+      this.$store.dispatch('layer/actionSetShowmask', 'true');
+      this.$store.dispatch('contact/actionSetCallId', this.im.userManage.getUid().toString() + '_' + Date.now());
+    },
+
+    audioCallClickHandler() {
+      this.closeActionMenu();
+      this.$store.dispatch('layer/actionSetShowing', 'audiocall');
+      this.$store.dispatch('layer/actionSetShowmask', 'true');
+      this.$store.dispatch('contact/actionSetCallId', this.im.userManage.getUid().toString() + '_' + Date.now());
     },
 
     locationClickHandler() {
@@ -168,7 +224,7 @@ export default {
         attachment: {
           lat: 40.024422,
           lon: 116.398376,
-          addr: '奥林匹克森林公园'
+          addr: this.$t('奥林匹克森林公园')
         }
       };
       this.im.sysManage.sendRosterMessage(message);
@@ -188,6 +244,10 @@ export default {
       });
       setTimeout(() => {
         this.message = '';
+        this.$nextTick(() => {
+          this.autoResizeTextarea();
+          this.changeSendButtonBackground();
+        });
       }, 200);
     },
 
@@ -244,17 +304,32 @@ export default {
         this.placeholder = this.getIntentMessage;
         this.$nextTick(() => {
           this.$refs.inputTextRef.focus();
+          this.autoResizeTextarea();
         });
       }
       this.button = document.getElementById('roster_send_button');
+      this.$nextTick(() => {
+        this.autoResizeTextarea();
+        this.changeSendButtonBackground();
+      });
     },
 
     changeSendButtonBackground() {
+      if (!this.button) return;
       if (/^\s*$/.test(this.message)) {
         this.button.className = 'im_send_empty';
       } else {
         this.button.className = 'im_send_full';
       }
+    },
+
+    autoResizeTextarea() {
+      const textarea = this.$refs.inputTextRef;
+      if (!textarea) return;
+      textarea.style.height = '40px';
+      const nextHeight = Math.min(Math.max(textarea.scrollHeight, 40), 150);
+      textarea.style.height = `${nextHeight}px`;
+      textarea.style.overflowY = textarea.scrollHeight > 150 ? 'auto' : 'hidden';
     }
     //methods finish
   }

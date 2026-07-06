@@ -1,38 +1,77 @@
 <template>
-  <div class="user_setting">
-    <div class="avatar">
-      <input @change="fileChangeHandler" ref="fileRef" type="file" />
-      <img :src="groupInfo.avatar" @click="touchedAvatar" class="av" />
-      <img @click="viewQrcode" class="qrcode" src="/image/qr.png" v-if="groupInfo.member_invite" />
+  <div class="user_setting profile_panel group_profile_panel profile-container support_profile_panel">
+    <div class="profile_panel_header">
+      <span class="profile_panel_header_spacer" aria-hidden="true"></span>
+      <div class="profile_panel_header_title">{{ $t('群资料') }}</div>
+      <span class="profile_panel_header_spacer" aria-hidden="true"></span>
     </div>
+    <div class="profile_panel_card">
+      <div class="profile_panel_hero">
+        <input @change="fileChangeHandler" ref="fileRef" type="file" />
+        <div class="avatar">
+          <img :src="groupInfo.avatar" @click="touchedAvatar" class="av" />
+          <img @click="viewQrcode" class="qrcode" src="/image/qr.png" v-if="groupInfo.member_invite" />
+        </div>
+        <div class="profile_panel_name">{{ groupInfo.name }}</div>
+        <div class="profile_panel_subtext">{{ groupSubtext }}</div>
+      </div>
 
-    <div class="line">
-      <span class="ll">群名称</span>
-      <p @click="nameModifyHandler" class="lr">{{ groupInfo.name }}</p>
+      <div class="profile_panel_actions">
+        <button class="profile_action" type="button" @click="chatClickHandler">
+          <span class="profile_action_icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 6.5h14v8H8l-3 3v-11z"></path>
+            </svg>
+          </span>
+          <span class="profile_action_label">{{ $t('消息') }}</span>
+        </button>
+        <button class="profile_action" type="button" @click="viewQrcode" v-if="groupInfo.member_invite">
+          <span class="profile_action_icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v6h-6v-2h4zM14 18h2v2h-2z"></path>
+            </svg>
+          </span>
+          <span class="profile_action_label">{{ $t('二维码') }}</span>
+        </button>
+        <button class="profile_action" type="button" @click="nameModifyHandler">
+          <span class="profile_action_icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 17.5V20h2.5L18 8.5 15.5 6 4 17.5z"></path>
+            </svg>
+          </span>
+          <span class="profile_action_label">{{ $t('编辑') }}</span>
+        </button>
+      </div>
+
+      <div class="profile_panel_section">
+        <div class="line line--interactive" @click="nameModifyHandler">
+          <span class="ll">{{ $t('群名称') }}</span>
+          <p class="lr">{{ groupInfo.name }}</p>
+        </div>
+
+        <div class="line">
+          <span class="ll">{{ $t('群ID') }}</span>
+          <p class="lr">{{ getSid }}</p>
+        </div>
+
+        <div class="line line--interactive" @click="descriptionModifyHanderl">
+          <span class="ll">{{ $t('群描述') }}</span>
+          <p class="lr">{{ groupInfo.description || '-' }}</p>
+        </div>
+
+        <div class="line line--interactive" @click="cardModifyHandler">
+          <span class="ll">{{ $t('群名片') }}</span>
+          <p class="lr">{{ cardName || '-' }}</p>
+        </div>
+      </div>
+
+      <div class="profile_panel_footer_actions">
+        <button @click="destroyClickHandler" class="logout" type="button">
+          {{ dismissMessage }}
+        </button>
+        <button @click="chatClickHandler" class="logout logout-secondary" type="button">{{ $t('开始聊天') }}</button>
+      </div>
     </div>
-
-    <div class="line">
-      <span class="ll">群id</span>
-      <p class="lr">{{ getSid }}</p>
-    </div>
-
-    <div class="line">
-      <span class="ll">群描述</span>
-      <p @click="descriptionModifyHanderl" class="lr">
-        {{ groupInfo.description }}
-      </p>
-    </div>
-
-    <div class="line">
-      <span class="ll">群名片</span>
-      <p @click="cardModifyHandler" class="lr">{{ cardName }}</p>
-    </div>
-
-    <div @click="destroyClickHandler" class="logout mt15">
-      {{ dismissMessage }}
-    </div>
-
-    <div @click="chatClickHandler" class="logout mt15">开始聊天</div>
   </div>
 </template>
 
@@ -84,7 +123,10 @@ export default {
       return this.getGroupInfo.owner_id === uid;
     },
     dismissMessage() {
-      return this.isOwner ? '解散' : '退出';
+      return this.isOwner ? this.$t('解散') : this.$t('group.quit', { origin: '退出' });
+    },
+    groupSubtext() {
+      return this.$t('{count} 位成员', { count: this.getMemberList.length || 0 });
     }
   },
   methods: {
@@ -163,25 +205,33 @@ export default {
         })
         .then(() => {
           this.$store.dispatch('content/actionUpdateGroup');
-          alert('更新头像完成');
+          alert(this.$t('更新头像完成'));
         });
     },
 
     destroyClickHandler() {
-      if (this.isOwner) {
-        //dismiss
-        this.$store.getters.im.groupManage.asyncDestroy({ group_id: this.getSid }).then(() => {
-          alert('您已解散了此群。。');
-        });
-      } else {
-        //leave
-        this.$store.getters.im.groupManage.asyncLeave({ group_id: this.getSid }).then(() => {
-          alert('您已退出了此群。。');
-        });
-      }
+      const title = this.isOwner ? this.$t('解散群组') : this.$t('group.quitTitle', { origin: '退出群组' });
+      const message = this.isOwner ? this.$t('确认解散当前群组吗？此操作不可撤销。') : this.$t('group.quitConfirm', { origin: '确认退出当前群组吗？' });
+      this.$confirm(message, title, {
+        confirmButtonText: this.isOwner ? this.$t('解散') : this.$t('group.quit', { origin: '退出' }),
+        cancelButtonText: this.$t('common.cancel', { origin: '取消' }),
+        type: 'warning'
+      })
+        .then(() => {
+          if (this.isOwner) {
+            this.$store.getters.im.groupManage.asyncDestroy({ group_id: this.getSid }).then(() => {
+              this.$message.success(this.$t('群组已解散'));
+            });
+          } else {
+            this.$store.getters.im.groupManage.asyncLeave({ group_id: this.getSid }).then(() => {
+              this.$message.success(this.$t('group.quitSuccess', { origin: '您已退出群组' }));
+            });
+          }
 
-      const also_delete_other_devices = true;
-      this.$store.getters.im.sysManage.deleteConversation(this.getSid, also_delete_other_devices);
+          const also_delete_other_devices = true;
+          this.$store.getters.im.sysManage.deleteConversation(this.getSid, also_delete_other_devices);
+        })
+        .catch(() => {});
     },
     viewQrcode() {
       this.$store.dispatch('layer/actionSetShowmask', 'true');
@@ -191,9 +241,9 @@ export default {
       if (!this.isAdmin && !this.isOwner && !this.getGroupInfo.member_modify) {
         return;
       }
-      this.$prompt('请输入群名称', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消'
+      this.$prompt(this.$t('请输入群名称'), this.$t('提示'), {
+        confirmButtonText: this.$t('common.confirm', { origin: '确定' }),
+        cancelButtonText: this.$t('common.cancel', { origin: '取消' })
       })
         .then(({ value }) => {
           if (!value) return;
@@ -204,7 +254,7 @@ export default {
             })
             .then(() => {
               this.name = value;
-              alert('修改成功');
+              alert(this.$t('修改成功'));
             });
         })
         .catch(() => {});
@@ -213,9 +263,9 @@ export default {
       if (!this.isAdmin && !this.isOwner && !this.getGroupInfo.member_modify) {
         return;
       }
-      this.$prompt('请输入群描述', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消'
+      this.$prompt(this.$t('请输入群描述'), this.$t('提示'), {
+        confirmButtonText: this.$t('common.confirm', { origin: '确定' }),
+        cancelButtonText: this.$t('common.cancel', { origin: '取消' })
       })
         .then(({ value }) => {
           if (!value) return;
@@ -226,15 +276,15 @@ export default {
             })
             .then(() => {
               this.description = value;
-              alert('修改成功');
+              alert(this.$t('修改成功'));
             });
         })
         .catch(() => {});
     },
     cardModifyHandler() {
-      this.$prompt('请输入群名片', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消'
+      this.$prompt(this.$t('请输入群名片'), this.$t('提示'), {
+        confirmButtonText: this.$t('common.confirm', { origin: '确定' }),
+        cancelButtonText: this.$t('common.cancel', { origin: '取消' })
       })
         .then(({ value }) => {
           if (!value) return;
@@ -246,7 +296,7 @@ export default {
             .then(() => {
               this.$store.dispatch('content/actionUpdateMemberList');
               this.cardName = value;
-              alert('修改成功');
+              alert(this.$t('修改成功'));
             });
         })
         .catch(() => {});

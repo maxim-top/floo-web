@@ -5,11 +5,11 @@
         {{ qrtitle }}
         <div @click="clickJoinGroupCloseHandler" class="closer"></div>
       </div>
-      <div class="layer_content" :style="{ height: '200px' }">
+      <div class="layer_content qrcode_content" :style="{ height: '200px' }">
         <canvas class="canvas" ref="canvas"></canvas>
         <div v-if="wxmpShowMaskLayer" class="wxmp_mask">
-          <span class="mask_tips">二维码已过期</span>
-          <span class="mask_click" @click="requestWXMPQr">刷新</span>
+          <span class="mask_tips">{{ $t('二维码已过期') }}</span>
+          <span class="mask_click" @click="requestWXMPQr">{{ $t('刷新') }}</span>
         </div>
       </div>
     </div>
@@ -69,13 +69,13 @@ export default {
     },
     qrtitle() {
       if (this.getShowing === 'qrlogin') {
-        return '扫码登录';
+        return this.$t('扫码登录');
       } else if (this.getShowing === 'qrprofile') {
-        return '我的二维码';
+        return this.$t('我的二维码');
       } else if (this.getShowing === 'qrwxmp') {
-        return '微信小程序二维码';
+        return this.$t('微信小程序二维码');
       } else {
-        return '群二维码';
+        return this.$t('群二维码');
       }
     }
   },
@@ -91,7 +91,7 @@ export default {
     search() {
       const group_id = this.group_id - 0;
       if (group_id <= 0) {
-        alert('请输入');
+        alert(this.$t('请输入'));
         return;
       }
       this.$store.getters.im.groupManage.asyncGetInfo({ group_id }).then((res) => {
@@ -101,8 +101,8 @@ export default {
 
     clickJoinHandler() {
       const group_id = this.group_id - 0;
-      this.$store.getters.im.groupManage.asyncApply({ group_id, reason: '申请加入群' }).then(() => {
-        alert('请求已发送成功!');
+      this.$store.getters.im.groupManage.asyncApply({ group_id, reason: this.$t('申请加入群') }).then(() => {
+        alert(this.$t('请求已发送成功!'));
       });
     },
 
@@ -115,7 +115,7 @@ export default {
         const info = {
           info: {
             qrcode: qr_code,
-            app_id: this.appId
+            qrcode_app_id: this.im.userManage.getAppid()
           },
           action: 'login',
           source: 'web'
@@ -186,12 +186,12 @@ export default {
         .then((res) => {
           const { password, username } = res;
           if (!password || !username) {
-            console.log('没登录，继续');
+            console.log('QR login not completed yet, continue polling');
             this.timer = setTimeout(function () {
               _this.timerLogin();
             }, 1000);
           } else {
-            console.log('登录了....');
+            console.log('QR login completed');
             _this.im.login({ password, name: username });
           }
         })
@@ -206,26 +206,26 @@ export default {
       const _this = this;
       if (this.getShowing === 'qrlogin') {
         if (now > this.expired) {
-          console.log('过期，请求新的。。。');
+          console.log('QR code expired, requesting a new one');
           this.clearTimer();
           this.requestLoginQr();
         } else {
           this.qrtimer = setTimeout(function () {
             _this.expTimer();
-            console.log('未过期，会继续检测');
+            console.log('QR code still valid, continue checking');
           }, 1000);
         }
       }
 
       if (this.getShowing === 'qrgroup') {
         if (now > this.expired) {
-          console.log('过期，请求新的。。。');
+          console.log('Group QR code expired, requesting a new one');
           this.clearTimer();
           this.requestGroupQr();
         } else {
           this.qrtimer = setTimeout(function () {
             _this.expTimer();
-            console.log('未过期，会继续检测');
+            console.log('Group QR code still valid, continue checking');
           }, 1000);
         }
       }
@@ -234,18 +234,18 @@ export default {
         if (now > this.expired) {
           this.clearTimer();
           this.wxmpShowMaskLayer = true;
-          console.log('过期，请手动触发刷新请求。。。');
+          console.log('Mini program QR code expired, waiting for manual refresh');
         } else {
           this.qrtimer = setTimeout(function () {
             _this.expTimer();
-            console.log('未过期，会继续检测');
+            console.log('Mini program QR code still valid, continue checking');
           }, 1000);
         }
       }
     },
 
     clearTimer() {
-      console.log('clear =============....');
+      console.log('Clearing QR timers');
       this.timer && clearTimeout(this.timer);
       this.qrtimer && clearTimeout(this.qrtimer);
     }

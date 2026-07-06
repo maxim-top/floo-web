@@ -115,6 +115,18 @@ const calculateRtcOutput = (from, content, config) => {
   return output;
 };
 
+const ensureRecentTimestamp = (meta) => {
+  if (!meta) return meta;
+  const timestamp = toNumber(meta.timestamp);
+  if (timestamp && timestamp > 0) {
+    return meta;
+  }
+  return {
+    ...meta,
+    timestamp: `${Date.now()}`
+  };
+};
+
 const messageStore = {
   saveRosterRTCContentHandleMessage: (meta) => {
     const { config } = meta;
@@ -199,12 +211,13 @@ const messageStore = {
       meta.id = server_mid;
       const meta_cus = metaToCustomer(meta);
       meta_cus.status = STATIC_MESSAGE_STATUS.UNREAD;
+      const meta_recent = ensureRecentTimestamp(meta_cus);
       if (meta_cus.type === 'rtc') {
         messageStore.saveRosterRTCContentHandleMessage(meta_cus);
       }
       messageStore.saveRosterMessage(meta_cus);
-      meta_cus.toType = 'roster';
-      recentStore.saveRecent(meta_cus);
+      meta_recent.toType = 'roster';
+      recentStore.saveRecent(meta_recent);
 
       allMsg.splice(index, 1);
       saveItem('key_roster_sending_message', allMsg);
@@ -213,7 +226,7 @@ const messageStore = {
         messageStore.dealSendedRosterRTCMessage(meta_cus);
         meta_cus.isNative = true;
         messageStore.saveRosterMessage(meta_cus);
-        recentStore.saveRecent(meta_cus);
+        recentStore.saveRecent(ensureRecentTimestamp(meta_cus));
         fire('onRosterRTCMessage', meta_cus);
       }
 
@@ -336,8 +349,9 @@ const messageStore = {
       const meta_cus = metaToCustomer(meta);
       meta_cus.status = STATIC_MESSAGE_STATUS.UNREAD;
       messageStore.saveGroupMessage(meta_cus);
-      meta_cus.toType = 'group';
-      recentStore.saveRecent(meta_cus);
+      const meta_recent = ensureRecentTimestamp(meta_cus);
+      meta_recent.toType = 'group';
+      recentStore.saveRecent(meta_recent);
 
       allMsg.splice(index, 1);
       saveItem('key_group_sending_message', allMsg);
@@ -426,7 +440,9 @@ const messageStore = {
     messages.forEach((message) => {
       const { from, status, type, config, ext } = message;
       const fromUid = toNumber(from);
-      if (fromUid > 0 && fromUid !== uid && status !== STATIC_MESSAGE_STATUS.READ) {
+      const isSystemMessage = message && (message.is_system === true || message.is_system === 'true' || message.is_system === 1 || message.is_system === '1');
+      const countAsUnread = (fromUid > 0 && fromUid !== uid) || (isSystemMessage && fromUid === 0);
+      if (countAsUnread && status !== STATIC_MESSAGE_STATUS.READ) {
         ret++;
         if (type === 'rtc' && config && config.action && config.action !== 'record') {
           ret--;
@@ -483,7 +499,6 @@ const messageStore = {
       }
     }
   },
-
   clear: (id, type) => {
     if ('group' == type) {
       messageStore.deleteGroupMessageByGid(id);

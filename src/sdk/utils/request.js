@@ -7,6 +7,26 @@ let reqErr = {
   errTimer: null,
   errCount: 0
 };
+let reloginRequestState = {
+  token: '',
+  appId: ''
+};
+
+const resetReloginRequested = () => {
+  reloginRequestState = {
+    token: '',
+    appId: ''
+  };
+};
+
+bind('loginSuccess', resetReloginRequested);
+bind('loginFail', resetReloginRequested);
+bind('logout', resetReloginRequested);
+bind('flooNotice', (msg = {}) => {
+  if (msg.category === 'action' && msg.desc === 'relogin_manually') {
+    resetReloginRequested();
+  }
+});
 
 bind('refresh_ratel', (ratel) => {
   ratel && (axios.defaults.baseURL = ratel);
@@ -63,12 +83,16 @@ const isTokenRequired = (url) => {
   return isRequired;
 };
 
+const isTokenLoginUrl = (url) => url.indexOf('token/user') > -1 || url.indexOf('token/id') > -1;
+
 axios.defaults.timeout = 20000;
 // axios.defaults.headers.post["Content-Type"] = "application/x-www-form-urlencoded";
 axios.interceptors.request.use(
   (config) => {
     const token = infoStore.getToken();
     const app_id = infoStore.getAppid();
+    config.__requestToken = token || '';
+    config.__requestAppId = app_id || '';
     if (app_id) {
       config.headers.common['app_id'] = app_id;
     }
@@ -85,6 +109,28 @@ axios.interceptors.request.use(
     return Promise.reject(error);
   }
 );
+
+const shouldTriggerRelogin = (config = {}) => {
+  const sentToken = config.__requestToken || '';
+  const sentAppId = config.__requestAppId || '';
+  const currentToken = infoStore.getToken() || '';
+  const currentAppId = infoStore.getAppid() || '';
+
+  // Ignore stale 402 responses from requests sent under an older token/app context.
+  if (!sentToken || sentToken !== currentToken || sentAppId !== currentAppId) {
+    return false;
+  }
+
+  if (reloginRequestState.token === sentToken && reloginRequestState.appId === sentAppId) {
+    return false;
+  }
+
+  reloginRequestState = {
+    token: sentToken,
+    appId: sentAppId
+  };
+  return true;
+};
 
 const dealParams = (param) => {
   if (param.group_id) param.group_id = param.group_id - 0;
@@ -162,7 +208,7 @@ const request = (url, method = 'get', params = {}, checks = [], isQuery = false,
         log.log('======request success, ', url, innerData);
         return innerData;
       } else {
-        if (code === 402) {
+        if (code === 402 && !isTokenLoginUrl(url) && shouldTriggerRelogin(response.config)) {
           //triger token refresh
           fire('flooNotice', { category: 'action', desc: 'relogin' });
         }

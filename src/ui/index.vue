@@ -63,66 +63,32 @@ export default {
       sdkok: false,
       isAppInfoReady: false,
       intent: {},
+      pendingSupportNavigation: false,
       autoSkip: true,
       officialUser: false,
       linkChangeAccount: false,
-      delPass: ''
+      delPass: '',
+      wxmpLaunchUrl: '',
+      wxmpLaunchLink: '',
+      wxmpLaunchPromise: null,
+      wxmpLaunchRequestId: 0
     };
   },
-  mounted() {
-    let that = this;
-    window.addEventListener('message', function (event) {
-      if (event.data) {
-        let data = {};
-        try {
-          data = JSON.parse(event.data);
-        } catch (ex) {
-          //
-        }
-        if (data.type === 'lanying_link_support_user') {
-          if (data.link_mode === 'lanying-support') {
-            that.intent.linkMode = 'lanying-support';
-          } else {
-            that.intent.linkMode = 'lanying-link';
-            that.$store.dispatch('login/actionChangeAppStatus', 'loading');
-            parent.postMessage(
-              JSON.stringify({
-                type: 'lanying_toggle_chat',
-                size: 'large'
-              }),
-              '*'
-            );
-          }
-          if (data.data) {
-            try {
-              let info = JSON.parse(data.data);
-              that.saveLoginInfo({ username: info.username, password: info.password }, info.appid);
-              that.officialUser = true;
-            } catch (ex) {
-              console.error('Can not parse info in lanying_link_support_user');
-            }
-          }
-        } else if (data.type === 'lanying_link_toggle_chat' && data.size) {
-          switch (data.size) {
-            case 'minimize':
-              that.$store.dispatch('login/actionChangeAppStatus', 'minimize');
-              parent.postMessage(
-                JSON.stringify({
-                  type: 'lanying_toggle_chat',
-                  size: 'minimize'
-                }),
-                '*'
-              );
-              break;
-          }
-        }
-      }
-    });
+  beforeMount() {
+    window.addEventListener('message', this.handleParentMessage);
     this.loadIntent();
+    if (this.intent.action === 'support') {
+      this.applySupportEmbedShellTransparency();
+    }
+  },
+  mounted() {
     setTimeout(() => {
       this.appid = this.retrieveAppId();
       this.$store.dispatch('actionChangeAppID', this.appid);
     }, 200);
+  },
+  beforeDestroy() {
+    window.removeEventListener('message', this.handleParentMessage);
   },
   watch: {
     getAppID: {
@@ -146,6 +112,89 @@ export default {
     }
   },
   methods: {
+    handleParentMessage(event) {
+      if (!event.data) {
+        return;
+      }
+      let data = {};
+      try {
+        data = JSON.parse(event.data);
+      } catch (ex) {
+        return;
+      }
+      if (data.type === 'lanying_link_support_user') {
+        if (data.link_mode === 'lanying-support') {
+          this.intent.linkMode = 'lanying-support';
+        } else {
+          this.intent.linkMode = 'lanying-link';
+          this.$store.dispatch('login/actionChangeAppStatus', 'loading');
+          parent.postMessage(
+            JSON.stringify({
+              type: 'lanying_toggle_chat',
+              size: 'large'
+            }),
+            '*'
+          );
+        }
+        if (data.data) {
+          try {
+            let info = JSON.parse(data.data);
+            this.saveLoginInfo({ username: info.username, password: info.password }, info.appid);
+            this.officialUser = true;
+          } catch (ex) {
+            console.error('Can not parse info in lanying_link_support_user');
+          }
+        }
+      } else if (data.type === 'lanying_link_toggle_chat' && data.size) {
+        switch (data.size) {
+          case 'minimize':
+            this.$store.dispatch('login/actionChangeAppStatus', 'minimize');
+            parent.postMessage(
+              JSON.stringify({
+                type: 'lanying_toggle_chat',
+                size: 'minimize'
+              }),
+              '*'
+            );
+            break;
+        }
+      }
+    },
+
+    applySupportEmbedShellTransparency() {
+      const html = document.documentElement;
+      const body = document.body;
+      const app = document.getElementById('app');
+      const uiRoot = document.querySelector('.ui-index');
+
+      html && html.style.setProperty('background', 'transparent', 'important');
+      html && html.style.setProperty('background-color', 'transparent', 'important');
+      body && body.style.setProperty('background', 'transparent', 'important');
+      body && body.style.setProperty('background-color', 'transparent', 'important');
+      app && app.style.setProperty('background', 'transparent', 'important');
+      app && app.style.setProperty('background-color', 'transparent', 'important');
+      uiRoot && uiRoot.style.setProperty('background', 'transparent', 'important');
+      uiRoot && uiRoot.style.setProperty('background-color', 'transparent', 'important');
+    },
+
+    tryParseJson(value, fallback = null) {
+      if (typeof value !== 'string') {
+        return fallback;
+      }
+      const text = value.trim();
+      if (!text) {
+        return fallback;
+      }
+      const first = text.charAt(0);
+      if (first !== '{' && first !== '[') {
+        return fallback;
+      }
+      try {
+        return JSON.parse(text);
+      } catch (ex) {
+        return fallback;
+      }
+    },
     getIM() {
       return this.$store.state.im;
     },
@@ -172,6 +221,9 @@ export default {
       const im = this.getIM();
       //通常来讲，初始化过程会非常快，但由于涉及网络调用，这个时间并无法保证；如果你的业务非常依赖初始化成功，请等待；
       if (im && im.isAppInfoReady && im.isAppInfoReady()) {
+        if (!this.isAppInfoReady) {
+          this.saveAppIdHistory(this.appid);
+        }
         this.isAppInfoReady = true;
       }
       if (im && im.isReady && im.isReady()) {
@@ -229,12 +281,17 @@ export default {
     },
 
     flooFailError(desc) {
+      const normalizedDesc = typeof desc === 'string' ? desc.toLowerCase().trim() : '';
       switch (desc) {
         case 'exceed recall time limit':
-          this.alert('当前消息已经超出允许撤回时间');
+          this.alert(this.$t('当前消息已经超出允许撤回时间'));
           break;
         default:
-          this.alert('操作错误: ' + desc);
+          if (normalizedDesc.indexOf('account_verify_needed') > -1 || normalizedDesc.indexOf('verify_needed') > -1) {
+            this.alert(this.$t('无法发送消息，您已被限制使用，请先完成实名认证。'));
+          } else {
+            this.alert(this.$t('error.operationWithReason', { reason: desc }));
+          }
       }
       console.log('Floo Error: FAIL ' + desc);
     },
@@ -243,30 +300,23 @@ export default {
       let that = this;
       this.getIM().on({
         loginSuccess: () => {
+          autoLoginTimes = 0;
+          that.clearWXMPLaunchState();
           that.$store.dispatch('login/actionChangeLoginStatus', true);
           if (that.intent.action === 'support') {
             if (that.intent.linkMode === 'lanying-support') {
               if (!that.linkChangeAccount) {
-                if (that.checkMobile()) {
-                  that.$store.dispatch('login/actionChangeAppStatus', 'minimize');
-                  parent.postMessage(
-                    JSON.stringify({
-                      type: 'lanying_toggle_chat',
-                      size: 'minimize'
-                    }),
-                    '*'
-                  );
-                } else {
-                  that.$store.dispatch('login/actionChangeAppStatus', 'navigation');
-                  parent.postMessage(
-                    JSON.stringify({
-                      type: 'lanying_toggle_chat',
-                      size: 'navigation'
-                    }),
-                    '*'
-                  );
-                }
+                that.pendingSupportNavigation = !that.checkMobile();
+                that.$store.dispatch('login/actionChangeAppStatus', 'minimize');
+                parent.postMessage(
+                  JSON.stringify({
+                    type: 'lanying_toggle_chat',
+                    size: 'minimize'
+                  }),
+                  '*'
+                );
               } else {
+                that.pendingSupportNavigation = false;
                 that.$store.dispatch('login/actionChangeAppStatus', 'support');
                 parent.postMessage(
                   JSON.stringify({
@@ -277,6 +327,7 @@ export default {
                 );
               }
             } else {
+              that.pendingSupportNavigation = false;
               that.$store.dispatch('login/actionChangeAppStatus', 'support');
               parent.postMessage(
                 JSON.stringify({
@@ -287,8 +338,10 @@ export default {
               );
             }
           } else if (that.intent.action === 'delete') {
+            that.pendingSupportNavigation = false;
             that.asyncDeleteUser();
           } else {
+            that.pendingSupportNavigation = false;
             that.$store.dispatch('login/actionChangeAppStatus', 'chatting');
           }
           that.maybeRedirectToIntentPage();
@@ -304,9 +357,9 @@ export default {
           if (autoLoginTimes) {
             console.log('登陆失败, error: ' + msg);
           } else if (msg.includes('Operation rejected')) {
-            that.alert('登陆失败, 请检查用户名/密码/AppID是否正确');
+            that.alert(that.$t('登陆失败, 请检查用户名/密码/AppID是否正确'));
           } else {
-            that.alert('登陆失败, error: ' + msg);
+            that.alert(that.$t('login.loginFailedWithError', { message: msg }));
           }
         },
         flooNotice: (msg) => {
@@ -321,7 +374,7 @@ export default {
                   console.log('Token失效，尝试自动登录中:', autoLoginTimes);
                   if (autoLoginTimes) {
                     that.$message({
-                      message: '第' + autoLoginTimes + '登录重试中...',
+                      message: that.$t('login.retrying', { count: autoLoginTimes }),
                       type: 'warning',
                       duration: 1500
                     });
@@ -338,7 +391,7 @@ export default {
                   if (!that.linkChangeAccount) {
                     console.log('自动登录失败次数过多，请手工登录。');
                     setTimeout(() => {
-                      that.alert('自动登录失败次数过多,请重新手工登录');
+                      that.alert(that.$t('自动登录失败次数过多,请重新手工登录'));
                     }, 500);
                   }
                   if (that.intent.action === 'support') {
@@ -361,7 +414,7 @@ export default {
                   if (that.intent.action === 'support') {
                     that.imLogout(true);
                   } else {
-                    that.alert('请重新登录');
+                    that.alert(that.$t('请重新登录'));
                     that.imLogout();
                   }
                 }
@@ -386,12 +439,12 @@ export default {
           const { category, desc, code } = msg;
           switch (category) {
             case 'USER_BANNED':
-              that.alert('用户错误: ' + desc);
+              that.alert(that.$t('error.userWithReason', { reason: desc }));
               break;
             case 'DNS_FAILED':
               if (code && (code === 99998 || code === 99997)) {
                 if (that.intent && that.intent.action === 'support') {
-                  that.alert('DNS错误: 无效AppID，重置为默认AppID');
+                  that.alert(that.$t('DNS错误: 无效AppID，重置为默认AppID'));
                   setTimeout(() => {
                     that.$store.dispatch('actionChangeAppID', 'welovemaxim');
                   }, 500);
@@ -403,37 +456,37 @@ export default {
                   if (that.intent.link && !that.intent.hasParseLink) {
                     that.maybeChangeLinkAppId();
                   } else {
-                    that.alert('DNS错误: 无效AppID');
+                    that.alert(that.$t('DNS错误: 无效AppID'));
                   }
                 }
               } else {
                 if (that.intent.link && !that.intent.hasParseLink) {
                   that.maybeChangeLinkAppId();
                 } else {
-                  that.alert('DNS错误: ' + desc);
+                  that.alert(that.$t('error.dnsWithReason', { reason: desc }));
                 }
               }
               break;
             case 'APP_BANNED':
-              that.alert('APP已被封禁！');
+              that.alert(that.$t('APP已被封禁！'));
               if (this.intent.link && !this.intent.hasParseLink) {
                 this.maybeChangeLinkAppId();
               }
               break;
             case 'APP_FROZEN':
-              that.alert('APP已被冻结！');
+              that.alert(that.$t('APP已被冻结！'));
               if (this.intent.link && !this.intent.hasParseLink) {
                 this.maybeChangeLinkAppId();
               }
               break;
             case 'APP_REVOKED':
-              that.alert('AppID已失效！');
+              that.alert(that.$t('AppID已失效！'));
               if (this.intent.link && !this.intent.hasParseLink) {
                 this.maybeChangeLinkAppId();
               }
               break;
             case 'LICENSE':
-              that.alert('服务需要续费: ' + desc);
+              that.alert(that.$t('error.serviceRenewal', { reason: desc }));
               break;
             case 'FAIL':
               that.flooFailError(desc);
@@ -458,10 +511,10 @@ export default {
           notifier_name
         })
         .then(() => {
-          that.alert('设备绑定成功: ' + device_sn);
+          that.alert(that.$t('error.bindDeviceSuccess', { sn: device_sn }));
         })
         .catch((err) => {
-          that.alert('设备绑定失败: ' + err.code + ':' + err.message);
+          that.alert(that.$t('error.bindDeviceFailed', { code: err.code, message: err.message }));
         });
     },
 
@@ -474,10 +527,10 @@ export default {
           deviceSn: device_sn
         })
         .then(() => {
-          that.alert('设备解绑成功: ' + device_sn);
+          that.alert(that.$t('error.unbindDeviceSuccess', { sn: device_sn }));
         })
         .catch((err) => {
-          that.alert('设备解绑失败: ' + err.code + ':' + err.message);
+          that.alert(that.$t('error.unbindDeviceFailed', { code: err.code, message: err.message }));
         });
     },
 
@@ -503,7 +556,7 @@ export default {
           }
         })
         .catch((err) => {
-          that.alert('Link无效： ' + err.code + ':' + err.message);
+          that.alert(that.$t('error.invalidLink', { code: err.code, message: err.message }));
           let currentUrl = new URL(window.location.href);
           currentUrl.searchParams.delete('code');
           currentUrl.searchParams.set('link', '3qur4g');
@@ -525,6 +578,10 @@ export default {
           that.intent.hasParseLink = true;
           if (that.intent.app_id != that.appid) {
             that.$store.dispatch('actionChangeAppID', that.intent.app_id);
+          } else {
+            if (this.getAppStatus == 'loading') {
+              this.$store.dispatch('login/actionChangeAppStatus', 'login');
+            }
           }
         })
         .catch((err) => {});
@@ -541,17 +598,25 @@ export default {
           .then((res) => {
             try {
               const info = JSON.parse(res.secret_text);
-              that.saveLoginInfo(info, that.intent.app_id);
+              const targetAppId = `${info.app_id || that.intent.app_id || that.appid || ''}`.trim();
+              that.intent.app_id = targetAppId;
+              that.saveLoginInfo(info, targetAppId);
+              that.intent.code = '';
               let currentUrl = new URL(window.location.href);
               currentUrl.searchParams.delete('code');
               window.history.replaceState({}, document.title, currentUrl.toString());
-              that.imLogin();
+              if (targetAppId && targetAppId !== that.appid) {
+                that.$store.dispatch('actionChangeAppID', targetAppId);
+              } else {
+                that.imLogin();
+              }
             } catch (ex) {
-              console.error('Can not parse res secret_text');
+              console.error('Can not parse res secret_text', ex);
+              that.alert(that.$t('登录失败, 登录信息无效'));
             }
           })
           .catch((err) => {
-            that.alert('登录失败, code无效 : ' + err.code + ' ' + err.message);
+            that.alert(that.$t('error.loginCodeInvalid', { code: err.code, message: err.message }));
           });
       }, 100);
     },
@@ -589,19 +654,27 @@ export default {
     },
 
     switchLogin(info, linkLogin = false) {
+      const targetAppId = info.app_id || this.appid;
       this.imLogout(linkLogin);
       this.saveLoginInfo(
         {
           username: info.username,
           password: info.password
         },
-        info.app_id
+        targetAppId
       );
-      //this.$store.dispatch('actionChangeAppID', info.app_id);
+      if (targetAppId !== this.appid) {
+        this.$store.dispatch('actionChangeAppID', targetAppId);
+        return;
+      }
+      if (!linkLogin) {
+        return;
+      }
       this.imLogin();
     },
 
     imLogout(linkLogin = false, quitAllWeb = false) {
+      this.clearWXMPLaunchState();
       if (this.intent.action === 'delete') {
         this.$store.dispatch('login/actionChangeAppStatus', 'achieve');
         this.getIM().logout({ deleteUser: true });
@@ -664,9 +737,10 @@ export default {
           info_str = encryptInfo;
         }
 
-        try {
-          info = JSON.parse(info_str);
-        } catch (ex) {
+        const parsedInfo = this.tryParseJson(info_str, null);
+        if (parsedInfo && typeof parsedInfo === 'object') {
+          info = parsedInfo;
+        } else {
           console.error('Can not parse json, remove login info: ', info_str);
           this.removeLoginInfo();
         }
@@ -705,11 +779,10 @@ export default {
         } catch (ex) {
           list = encryptInfo;
         }
-        try {
-          if (list.length) {
-            infoList = JSON.parse(list);
-          }
-        } catch (ex) {
+        const parsedList = this.tryParseJson(list, null);
+        if (Array.isArray(parsedList)) {
+          infoList = parsedList;
+        } else if (list.length) {
           console.error('Can not parse info list json: ', list);
           this.removeLoginInfoList();
         }
@@ -720,8 +793,33 @@ export default {
       window.localStorage.removeItem('lanying_im_logininfo_list');
     },
     saveAppId(appid) {
-      window.localStorage.setItem('lanying_im_appid', appid);
-      window.sessionStorage.setItem('lanying_im_appid', appid);
+      const appIdValue = `${appid || ''}`.trim();
+      if (!appIdValue) {
+        return;
+      }
+      window.localStorage.setItem('lanying_im_appid', appIdValue);
+      window.sessionStorage.setItem('lanying_im_appid', appIdValue);
+    },
+    saveAppIdHistory(appid) {
+      const appIdValue = `${appid || ''}`.trim();
+      if (!appIdValue) {
+        return;
+      }
+      const appIdHistoryKey = 'lanying_im_appid_history';
+      let appIdHistory = [];
+      const savedHistory = window.localStorage.getItem(appIdHistoryKey) || '';
+      if (savedHistory) {
+        const parsedHistory = this.tryParseJson(savedHistory, []);
+        if (Array.isArray(parsedHistory)) {
+          appIdHistory = parsedHistory;
+        }
+      }
+      appIdHistory = appIdHistory.filter((item) => `${item || ''}`.trim() && item !== appIdValue);
+      appIdHistory.unshift(appIdValue);
+      if (appIdHistory.length > 10) {
+        appIdHistory = appIdHistory.slice(0, 10);
+      }
+      window.localStorage.setItem(appIdHistoryKey, JSON.stringify(appIdHistory));
     },
     retrieveAppId() {
       return this.intent.app_id || window.sessionStorage.getItem('lanying_im_appid') || window.localStorage.getItem('lanying_im_appid') || 'welovemaxim';
@@ -748,13 +846,13 @@ export default {
         })
         .catch((err) => {
           console.log('删除用户失败 code = ' + err.code + ' : ' + err.message);
-          that.alert('注销账户失败，请联系管理员');
+          that.alert(that.$t('注销账户失败，请联系管理员'));
         });
     },
     autoRegisterAndLogin() {
       const im = this.getIM();
       var username = 'anon_';
-      let password = '' + new Date().getTime() + Math.floor(Math.random() * 1000000000) + Math.floor(Math.random() * 1000000000);
+      let password = this.generateStrongPassword(24);
       let cid = this.intent.uid;
       let that = this;
       im.userManage
@@ -772,15 +870,37 @@ export default {
             console.log('用户注册失败 code = ' + err.code + ' : ' + err.message);
             if (err.code === 40002) {
               that.$store.dispatch('login/actionChangeAppStatus', that.intent.action === 'support' ? 'support' : 'chatting');
-              this.alert('当前APP用户数已达上限，请使用已有账号登录或联系管理员开通商业版');
+              this.alert(this.$t('当前APP用户数已达上限，请使用已有账号登录或联系管理员开通商业版'));
             }
           } else {
             console.log('asyncRegisterAnonymous request error, please retry later: ', err);
           }
         });
     },
+    generateStrongPassword(length = 16) {
+      const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const lower = 'abcdefghijklmnopqrstuvwxyz';
+      const digit = '0123456789';
+      const all = upper + lower + digit;
+
+      let password = upper[Math.floor(Math.random() * upper.length)] + lower[Math.floor(Math.random() * lower.length)] + digit[Math.floor(Math.random() * digit.length)];
+
+      for (let i = password.length; i < length; i++) {
+        password += all[Math.floor(Math.random() * all.length)];
+      }
+
+      return password
+        .split('')
+        .sort(() => Math.random() - 0.5)
+        .join('');
+    },
     loadIntent() {
       let params = new URL(document.location).searchParams;
+      const wxmpAutoRedirectParam = params.get('wxmp_auto_redirect');
+      if (wxmpAutoRedirectParam !== null) {
+        const value = wxmpAutoRedirectParam.toLowerCase();
+        this.autoSkip = value !== 'false' && value !== '0';
+      }
       if (params.get('action') == 'chat' || params.get('action') == 'support' || params.get('action') == 'delete') {
         this.intent = {
           app_id: params.get('app_id'),
@@ -877,19 +997,91 @@ export default {
       }
     },
 
-    setAutoSkip(auto) {
+    setAutoSkip(auto = false) {
       this.autoSkip = auto;
+    },
+
+    shouldAutoExpandSupportNavigation() {
+      return this.pendingSupportNavigation;
+    },
+
+    consumeAutoExpandSupportNavigation() {
+      this.pendingSupportNavigation = false;
     },
 
     getLinkUid() {
       return this.intent.uid;
     },
 
-    linkLaunchWXMP() {
-      let that = this;
+    clearWXMPLaunchState() {
+      this.wxmpLaunchRequestId += 1;
+      this.wxmpLaunchUrl = '';
+      this.wxmpLaunchLink = '';
+      this.wxmpLaunchPromise = null;
+    },
+
+    getWXMPEnvVersion(targetLink = '') {
+      let envVersion = '';
+      try {
+        const pageParams = new URL(document.location).searchParams;
+        envVersion = `${pageParams.get('wxmp_env') || ''}`.trim().toLowerCase();
+      } catch (err) {
+        console.log('Failed to parse wxmp env from page url:', err);
+      }
+
+      if (!envVersion && targetLink) {
+        try {
+          const linkParams = new URL(targetLink).searchParams;
+          envVersion = `${linkParams.get('wxmp_env') || ''}`.trim().toLowerCase();
+        } catch (err) {
+          console.log('Failed to parse wxmp env from target link:', err);
+        }
+      }
+
+      if (envVersion === 'trial' || envVersion === 'develop') {
+        return envVersion;
+      }
+      return '';
+    },
+
+    launchWXMPByUrl(url) {
+      this.clearWXMPLaunchState();
+      if (this.shouldWakeupParent()) {
+        parent.postMessage(
+          JSON.stringify({
+            type: 'lanying_link_wakeup',
+            data: url
+          }),
+          '*'
+        );
+      } else {
+        window.location.href = url;
+      }
+    },
+
+    prepareWXMPLaunch() {
+      const targetLink = this.intent.link;
+      if (!targetLink) {
+        return Promise.reject(new Error('wxmp_launch_link_missing'));
+      }
+      if (this.wxmpLaunchUrl && this.wxmpLaunchLink === targetLink) {
+        return Promise.resolve(this.wxmpLaunchUrl);
+      }
+      if (this.wxmpLaunchPromise && this.wxmpLaunchLink === targetLink) {
+        return this.wxmpLaunchPromise;
+      }
+
       const loginInfo = this.getLoginInfo();
+      if (!loginInfo || !loginInfo.username || !loginInfo.password) {
+        return Promise.reject(new Error('wxmp_launch_login_missing'));
+      }
       const im = this.getIM();
-      im.userManage
+      const envVersion = this.getWXMPEnvVersion(targetLink);
+      const requestId = this.wxmpLaunchRequestId + 1;
+      this.wxmpLaunchRequestId = requestId;
+      this.wxmpLaunchUrl = '';
+      this.wxmpLaunchLink = targetLink;
+      this.wxmpLaunchPromise = im.userManage
         .asyncGenerateSecretInfo({
           expire_seconds: 60,
           secret_text: JSON.stringify({
@@ -898,44 +1090,78 @@ export default {
           })
         })
         .then((res) => {
-          let query = 'link=' + this.intent.link + '&code=' + res.code;
-          im.userManage
-            .aysncGenerateWXUrlLink({
-              path: 'pages/profile/index',
-              query: query
-            })
-            .then((res) => {
-              if (that.officialUser) {
-                parent.postMessage(
-                  JSON.stringify({
-                    type: 'lanying_link_wakeup',
-                    data: res.url_link
-                  }),
-                  '*'
-                );
-              } else {
-                window.location.href = res.url_link;
-              }
-            })
-            .catch((err) => {
-              console.log('生成微信 url link 异常: code ' + err.code + ' : ' + err.message);
-            });
+          return im.userManage.aysncGenerateWXUrlLink({
+            path: 'pages/profile/index',
+            query: 'link=' + targetLink + '&code=' + res.code,
+            ...(envVersion ? { envVersion } : {})
+          });
+        })
+        .then((res) => {
+          if (this.wxmpLaunchRequestId !== requestId || this.intent.link !== targetLink) {
+            return '';
+          }
+          this.wxmpLaunchUrl = res.url_link;
+          return res.url_link;
         })
         .catch((err) => {
-          console.log('获取登录凭证 code 异常: code ' + err.code + ' : ' + err.message);
+          if (this.wxmpLaunchRequestId === requestId) {
+            this.clearWXMPLaunchState();
+          }
+          throw err;
+        })
+        .finally(() => {
+          if (this.wxmpLaunchRequestId === requestId) {
+            this.wxmpLaunchPromise = null;
+          }
+        });
+      return this.wxmpLaunchPromise;
+    },
+
+    fallbackFromWXMPSkipping(err, stage) {
+      const code = err && typeof err.code !== 'undefined' ? err.code : 'unknown';
+      const message = err && err.message ? err.message : err;
+      console.log('微信小程序跳转失败，返回 support 页面: stage ' + stage + ', code ' + code + ' : ' + message);
+      this.clearWXMPLaunchState();
+      this.setAutoSkip(false);
+      if (this.getAppStatus === 'skipping') {
+        this.$store.dispatch('login/actionChangeAppStatus', 'support');
+      }
+    },
+
+    shouldWakeupParent() {
+      if (typeof parent === 'undefined' || !parent || parent === window) {
+        return false;
+      }
+      return this.intent.linkMode === 'lanying-link' || this.intent.linkMode === 'lanying-support';
+    },
+
+    linkLaunchWXMP() {
+      const targetLink = this.intent.link;
+      this.prepareWXMPLaunch()
+        .then((url) => {
+          if (!url || this.intent.link !== targetLink) {
+            return;
+          }
+          this.launchWXMPByUrl(url);
+        })
+        .catch((err) => {
+          const code = err && typeof err.code !== 'undefined' ? err.code : 'unknown';
+          const message = err && err.message ? err.message : err;
+          console.log('微信小程序跳转异常: code ' + code + ' : ' + message);
         });
     },
     alert(msg) {
+      const translated = this.$translateText(msg);
       if (this.intent.action === 'support') {
-        this.showSnackbar(msg);
+        this.showSnackbar(translated);
       } else {
-        window.alert(msg);
+        window.alert(translated);
       }
     },
     showSnackbar(msg) {
       var x = document.getElementById('lanying-snackbar');
       x.className = 'show';
-      x.innerHTML = msg;
+      x.innerHTML = this.$translateText(msg);
       setTimeout(function () {
         x.className = x.className.replace('show', '');
       }, 2500);

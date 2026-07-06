@@ -1,5 +1,8 @@
 <template>
-  <div>
+  <div class="login-viewport">
+    <div class="login-language-switcher">
+      <LanguageSwitcher />
+    </div>
     <Login :appid="appid" :sdkok="sdkok" :isAppInfoReady="isAppInfoReady" v-if="sappStatus == 'login'" />
     <Regedit :appid="appid" :sdkok="sdkok" v-if="sappStatus == 'regedit'" />
     <VerifyInfo :appid="appid" :sdkok="sdkok" v-if="sappStatus == 'verifyinfo'" />
@@ -22,6 +25,7 @@ import Bindreg from './bindreg.vue';
 import Codelogin from './codelogin.vue';
 import Qrlogin from './qrlogin.vue';
 import Bind from './bind.vue';
+import LanguageSwitcher from '../components/languageSwitcher.vue';
 
 import { mapGetters } from 'vuex';
 
@@ -39,7 +43,8 @@ export default {
     Bindreg,
     Codelogin,
     Qrlogin,
-    Bind
+    Bind,
+    LanguageSwitcher
   },
   computed: {
     ...mapGetters('login', ['getAppStatus']),
@@ -60,4 +65,18 @@ export default {
 };
 </script>
 
-<style scoped></style>
+<style scoped>
+.login-language-switcher {
+  position: absolute;
+  top: 28px;
+  right: 28px;
+  z-index: 2;
+}
+
+@media (max-width: 768px) {
+  .login-language-switcher {
+    top: 18px;
+    right: 18px;
+  }
+}
+</style>

@@ -1,27 +1,20 @@
 <template>
-  <div class="link_login">
+  <div class="link_login" @click.self="closePop">
     <div class="layer link_layer">
-      <!--
-      <div class="change_login" @click="switchLogin">
-        <img class="interaction" src="/image/interaction.png" />
-        <span v-if="qrLogin">蓝莺账号登录</span>
-        <span v-if="!qrLogin">微信扫码登录</span>
-      </div>
-      -->
       <img class="close" @click="closePop" src="/image/close_no_circle.png" />
       <div class="link_panel">
         <div v-if="qrLogin">
           <div class="layer_content_wechat">
             <div class="layer_content">
-              <div class="we_chat_tips">微信扫码登录</div>
+              <div class="we_chat_tips">{{ $t('微信扫码登录') }}</div>
               <div class="canvas">
                 <canvas class="woa_canvas" ref="woa_canvas"></canvas>
                 <div v-if="woaShowMaskLayer" class="woa_canvas_mask">
-                  <span class="mask_tips">二维码已过期</span>
-                  <span class="mask_click" @click="requestWoaLoginQr">刷新</span>
+                  <span class="mask_tips">{{ $t('二维码已过期') }}</span>
+                  <span class="mask_click" @click="requestWoaLoginQr">{{ $t('刷新') }}</span>
                 </div>
               </div>
-              <p class="we_chat_l_tips">扫码->关注->登录，未注册的微信号将创建蓝莺账号</p>
+              <p class="we_chat_l_tips">{{ $t('扫码->关注->登录，未注册的微信号将创建蓝莺账号') }}</p>
               <br />
               <br />
               <hr style="width: 100%; border-width: 0.5px" />
@@ -30,39 +23,68 @@
         </div>
         <div v-else>
           <div class="layer_header link_header">
-            <span @click="changeAppID(appId)" class="hint">AppID: {{ appId }}</span>
+            <span @click="changeAppID(appId)" class="hint">{{ $t('AppID') }}: {{ appId }}</span>
             <!-- <img @click="changeAppID(appId)" class="edit_logo" src="/image/edit.png" /> -->
             <!-- <img @click="appQrSacnLogin()" v-if="!appQrLogin" class="link_qrcode" src="/image/qr.png" /> -->
           </div>
           <div v-if="appQrLogin">
             <div class="layer_content">
               <canvas class="canvas" ref="canvas"></canvas>
-              <p class="tab">使用「蓝莺IM」App 扫码</p>
+              <p class="tab">{{ $t('使用「蓝莺IM」App 扫码') }}</p>
               <p class="tab">
-                <intput>返回</intput>
-                <span @click="appQrSacnLogin()" class="mr5 colorb">密码登录</span>
+                <intput>{{ $t('返回') }}</intput>
+                <span @click="appQrSacnLogin()" class="mr5 colorb">{{ $t('密码登录') }}</span>
               </p>
             </div>
           </div>
           <div v-else>
             <div class="layer_content">
               <div class="logo">
-                <img src="/image/logob.png" />
+                <img src="/image/logob.png" alt="LanyingIM" />
               </div>
-              <div class="iptFrame mt21">
-                <input @keyup.enter="nameEnter" autocomplete="false" placeholder="用户名" type="text" v-model="user.username" />
-              </div>
-              <div class="iptFrame mt14">
-                <input @keyup.enter="submit" autocomplete="false" placeholder="密码" ref="password" type="password" v-model="user.password" />
-              </div>
-              <div @click="submit" class="loginBtn mt14">
-                {{ '登录' }}
+              <template v-if="loginMode === 'password'">
+                <div class="iptFrame mt21">
+                  <input @keyup.enter="nameEnter" autocomplete="false" :placeholder="$t('用户名')" type="text" v-model="user.username" />
+                </div>
+                <div class="iptFrame mt14">
+                  <input @keyup.enter="submit" autocomplete="false" :placeholder="$t('密码')" ref="password" type="password" v-model="user.password" />
+                </div>
+                <div @click="submit" class="loginBtn mt14">{{ $t('登录') }}</div>
+              </template>
+              <template v-else>
+                <div class="iptFrame mt21">
+                  <input @keyup.enter="sendSms" autocomplete="false" :placeholder="$t('请输入手机号')" type="text" v-model="mobileUser.mobile" />
+                </div>
+                <div class="cframe mt14">
+                  <div class="ipframe">
+                    <input @keyup.enter="sendSms" autocomplete="false" :placeholder="$t('图片验证码')" type="text" v-model="mobileUser.captcha" />
+                  </div>
+                  <img :src="codeImageSrc" @click="timerImage" class="captchaImage" v-if="codeImageSrc" />
+                </div>
+                <div class="cframe mt14">
+                  <div class="ipframe">
+                    <input @keyup.enter="submitMobile" autocomplete="false" :placeholder="$t('手机验证码')" type="text" v-model="mobileUser.code" />
+                  </div>
+                  <button @click="sendSms" class="smallbtn" type="button" :disabled="checkCodeTime > 0">
+                    {{ checkText }}
+                  </button>
+                </div>
+                <div @click="submitMobile" class="loginBtn mt14">{{ $t('登录') }}</div>
+              </template>
+              <div class="link_login_actions">
+                <button v-if="loginMode === 'password'" @click="switchMode('mobile')" class="link_login_action" type="button">{{ $t('手机验证码登录') }}</button>
+                <button v-else @click="switchMode('password')" class="link_login_action" type="button">{{ $t('密码登录') }}</button>
               </div>
             </div>
           </div>
         </div>
       </div>
-      <div class="tips">注册登录即代表同意《用户服务条款》《用户隐私协议》</div>
+      <div class="tips">
+        {{ $t('注册登录即代表同意') }}{{ agreementSpacer }}
+        <a :href="termsUrl" target="_blank" rel="noopener noreferrer">{{ $t('《用户服务条款》') }}</a>
+        <span v-if="agreementSpacer">{{ agreementSpacer }}</span>
+        <a :href="privacyUrl" target="_blank" rel="noopener noreferrer">{{ $t('《用户隐私协议》') }}</a>
+      </div>
     </div>
   </div>
 </template>
@@ -93,7 +115,17 @@ export default {
       user: {
         username: '',
         password: ''
-      }
+      },
+      mobileUser: {
+        mobile: '',
+        captcha: '',
+        code: '',
+        image_captcha_id: ''
+      },
+      loginMode: 'password',
+      checkCodeTime: 0,
+      checkCodeTimer: null,
+      imageTimer: null
     };
   },
 
@@ -104,15 +136,53 @@ export default {
     this.getAppId();
   },
 
+  beforeDestroy() {
+    this.clearAppTimer();
+    this.clearWechatTimer();
+    this.checkCodeTimer && clearInterval(this.checkCodeTimer);
+    this.imageTimer && clearInterval(this.imageTimer);
+  },
+
   watch: {},
 
   computed: {
     im() {
       return this.$store.state.im;
+    },
+    isEnglishLocale() {
+      return this.$i18n && this.$i18n.locale === 'en-US';
+    },
+    termsUrl() {
+      return this.isEnglishLocale ? 'https://www.lanyingim.com/en/terms/' : 'https://www.lanyingim.com/terms/';
+    },
+    privacyUrl() {
+      return this.isEnglishLocale ? 'https://www.lanyingim.com/en/privacy/' : 'https://www.lanyingim.com/privacy/';
+    },
+    agreementSpacer() {
+      return this.isEnglishLocale ? ' ' : '';
+    },
+    codeImageSrc() {
+      const image_id = this.mobileUser.image_captcha_id;
+      if (!image_id) return '';
+      const app_id = this.appId || this.im.userManage.getAppid();
+      const url = this.im.sysManage.getServers(app_id).ratel + '/app/captcha/image';
+      return url + '?image_id=' + image_id + '&app_id=' + app_id;
+    },
+    checkText() {
+      if (this.checkCodeTime > 0) {
+        return this.$t('common.seconds', { count: this.checkCodeTime });
+      }
+      return this.$t('获取验证码');
     }
   },
 
   methods: {
+    switchMode(mode) {
+      this.loginMode = mode;
+      if (mode === 'mobile') {
+        this.timerImage();
+      }
+    },
     switchLogin() {
       this.qrLogin = !this.qrLogin;
       if (this.qrLogin) {
@@ -167,8 +237,79 @@ export default {
           true
         );
       } else {
-        this.getApp().alert('用户名或密码不能为空');
+        this.getApp().alert(this.$t('用户名或密码不能为空'));
       }
+    },
+
+    submitMobile() {
+      if (!this.mobileUser.code || !this.mobileUser.mobile) {
+        this.getApp().alert(this.$t('请输入手机号和验证码'));
+        return;
+      }
+      this.im.userManage
+        .asyncUserMobileLogin({
+          captcha: this.mobileUser.code,
+          mobile: this.mobileUser.mobile
+        })
+        .then((res) => {
+          if (res.username && res.password) {
+            this.getApp().switchLogin(
+              {
+                username: res.username,
+                password: res.password,
+                app_id: this.appId
+              },
+              true
+            );
+          } else if (res.sign) {
+            this.getApp().alert(this.$t('该手机号未绑定蓝莺账号，请先在主登录页完成注册或绑定'));
+          }
+        });
+    },
+
+    getImageCode() {
+      this.im.userManage.asyncCaptchaImagePost().then((res) => {
+        this.mobileUser = Object.assign({}, this.mobileUser, { image_captcha_id: res });
+      });
+    },
+
+    timerImage() {
+      this.imageTimer && clearInterval(this.imageTimer);
+      this.getImageCode();
+      this.imageTimer = setInterval(() => {
+        this.getImageCode();
+      }, 3 * 60 * 1000);
+    },
+
+    sendSms() {
+      if (this.checkCodeTime > 0) {
+        return;
+      }
+      if (!this.mobileUser.mobile) {
+        this.$message.error(this.$t('请输入手机号'));
+        return;
+      }
+      if (!this.mobileUser.captcha || !this.mobileUser.image_captcha_id) {
+        this.$message.error(this.$t('请输入图片验证码'));
+        return;
+      }
+      this.im.userManage
+        .asyncCaptchaSms({
+          captcha: this.mobileUser.captcha,
+          image_id: this.mobileUser.image_captcha_id,
+          mobile: this.mobileUser.mobile
+        })
+        .then(() => {
+          this.checkCodeTime = 60;
+          this.checkCodeTimer && clearInterval(this.checkCodeTimer);
+          this.checkCodeTimer = setInterval(() => {
+            this.checkCodeTime -= 1;
+            if (this.checkCodeTime <= 0) {
+              this.checkCodeTime = 0;
+              clearInterval(this.checkCodeTimer);
+            }
+          }, 1000);
+        });
     },
 
     requestAppLoginQr() {
@@ -180,7 +321,7 @@ export default {
         const info = {
           info: {
             qrcode: qr_code,
-            app_id: this.appId
+            qrcode_app_id: this.appId
           },
           action: 'login',
           source: 'web'
@@ -279,7 +420,7 @@ export default {
               })
               .catch((err) => {
                 _this.clearWechatTimer();
-                _this.getApp().alert('微信公众号登录异常: ' + err.code + ': ' + err.message);
+                _this.getApp().alert(_this.$t('error.wechatLogin', { code: err.code, message: err.message }));
               });
           }
         })
@@ -291,11 +432,11 @@ export default {
               }, 2500);
             } else {
               _this.clearWechatTimer();
-              _this.getApp().alert('二维码状态错误: ' + err.code + ': ' + err.message);
+              _this.getApp().alert(_this.$t('error.qrcodeStatus', { code: err.code, message: err.message }));
             }
           } else {
             _this.clearWechatTimer();
-            _this.getApp().alert('二维码状态未知错误');
+            _this.getApp().alert(_this.$t('二维码状态未知错误'));
           }
         });
     },

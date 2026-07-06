@@ -555,6 +555,7 @@ webim.logout = function (opt) {
   io.disConnect();
   window.sessionStorage.setItem('key_stop_auto_login', true);
   isLogin = false;
+  fire('logout');
   if (opt) {
     if (opt.deleteUser) {
       // do nothing.

@@ -1,10 +1,17 @@
 <template>
   <div class="group_memberlist" v-if="!getShowMultiForwardStatus">
     <div class="infos">
-      群组成员
-      <span class="group_count">{{ getMemberList.length }}人</span>
+      {{ $t('群组成员') }}
+      <span class="group_count">{{ $t('{count}人', { count: getMemberList.length }) }}</span>
       <span class="setting">
-        <span @click="settingClicked">设置</span>
+        <button class="setting_button" type="button" @click="settingClicked">
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="setting_icon">
+            <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"></path>
+            <path
+              d="M19 12l2 1-2 3-2-.5a7.8 7.8 0 0 1-1.5 1L15 19h-6l-.5-2.5a7.8 7.8 0 0 1-1.5-1L5 16 3 13l2-1v-2L3 9l2-3 2 .5a7.8 7.8 0 0 1 1.5-1L9 3h6l.5 2.5a7.8 7.8 0 0 1 1.5 1L19 6l2 3-2 1v2z"
+            ></path>
+          </svg>
+        </button>
       </span>
     </div>
     <!-- <div class="search">
@@ -12,9 +19,11 @@
     </div> -->
     <div class="gm_list">
       <div class="gm_scroll_list" ref="imgContainer">
-        <div @click="touchRoster(roster.user_id)" class="item" v-bind:key="roster.user_id" v-for="roster in getMemberList">
+        <div @click="touchRoster(roster.user_id)" class="item member-list-item" v-bind:key="roster.user_id" v-for="roster in getMemberList">
           <img :src="rImage(roster.avatar)" class="avatar" />
-          <div class="name">{{ displayName(roster) }}</div>
+          <div class="member_meta">
+            <div class="name">{{ displayName(roster) }}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -60,7 +69,7 @@ export default {
         this.$store.dispatch('layer/actionSetShowing', 'groupsetting');
         this.$store.dispatch('layer/actionSetShowmask', 'true');
       } else {
-        alert('只有群主或管理员才可设置');
+        alert(this.$t('只有群主或管理员才可设置'));
       }
     },
 
@@ -86,10 +95,6 @@ export default {
 
     touchRoster(sid) {
       if (!this.checkHideMemberInfo(sid)) {
-        const uid = this.$store.getters.im.userManage.getUid();
-        if (uid + '' === sid + '') {
-          return;
-        }
         this.$store.dispatch('content/actionSetType', {
           sid,
           type: 'rosterinfo'
@@ -113,11 +118,15 @@ export default {
       return output;
     },
 
+    getMemberDisplayName(roster) {
+      return roster.display_name || roster.alias || roster.nick_name || roster.username || roster.user_id;
+    },
+
     displayName(roster) {
       if (this.checkHideMemberInfo(roster.user_id) && !roster.has_nick) {
         return this.calucateHideMemberName(roster);
       } else {
-        return roster.display_name;
+        return this.getMemberDisplayName(roster);
       }
     }
   }

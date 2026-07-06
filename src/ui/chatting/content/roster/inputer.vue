@@ -1,15 +1,66 @@
 <template>
-  <div class="inputer_frame" ref="rosterInputer">
-    <div class="attach">
-      <input @change="fileChangeHandler" ref="fileRef" type="file" />
-      <span v-popover:tooltip.top="'发送图片'" @click="imageUploadClickHandler" class="ico image"></span>
-      <span v-popover:tooltip.top="'发送文件'" @click="fileUploadClickHandler" class="ico file"></span>
-      <span v-popover:tooltip.top="'发送位置'" @click="locationClickHandler" class="ico location"></span>
-      <span v-popover:tooltip.top="'视频通话'" @click="videoCallClickHandler" class="ico videocall"></span>
-      <span v-popover:tooltip.top="'语音通话'" @click="audioCallClickHandler" class="ico audiocall"></span>
-    </div>
-    <div class="input">
-      <textarea @blur="inputBlurHandler" @focus="inputFocusHandler" @keydown="textareaKeyDown" class="input_text" v-model="message" wrap="hard" ref="inputTextRef"></textarea>
+  <div class="inputer_frame" ref="rosterInputer" v-if="getSid !== 0">
+    <div class="composer_surface">
+      <div class="attach">
+        <input @change="fileChangeHandler" ref="fileRef" type="file" />
+        <div class="attach_toggle" @click.stop="toggleActionMenu" tabindex="0">
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_toggle_icon">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </div>
+        <div v-if="showActionMenu" class="attach_menu" @click.stop>
+          <div @click="imageUploadClickHandler" class="attach_menu_item">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_menu_icon">
+              <rect x="4" y="5" width="16" height="14" rx="2"></rect>
+              <circle cx="9" cy="10" r="1.5"></circle>
+              <path d="M7 16l3.5-3.5L13 15l2-2 2 3"></path>
+            </svg>
+            <span>{{ $t('发送图片') }}</span>
+          </div>
+          <div @click="fileUploadClickHandler" class="attach_menu_item">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_menu_icon">
+              <path d="M8 3h6l4 4v13a1 1 0 0 1-1 1H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"></path>
+              <path d="M14 3v5h5"></path>
+            </svg>
+            <span>{{ $t('发送文件') }}</span>
+          </div>
+          <div @click="locationClickHandler" class="attach_menu_item">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_menu_icon">
+              <path d="M12 21s6-5.3 6-11a6 6 0 1 0-12 0c0 5.7 6 11 6 11z"></path>
+              <circle cx="12" cy="10" r="2"></circle>
+            </svg>
+            <span>{{ $t('发送位置') }}</span>
+          </div>
+          <div @click="videoCallClickHandler" class="attach_menu_item">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_menu_icon">
+              <rect x="4" y="7" width="11" height="10" rx="2"></rect>
+              <path d="M15 10l5-3v10l-5-3z"></path>
+            </svg>
+            <span>{{ $t('视频通话') }}</span>
+          </div>
+          <div @click="audioCallClickHandler" class="attach_menu_item">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="attach_menu_icon">
+              <path d="M6.5 5.5h3l2 4-2.5 2.5a14 14 0 0 0 5 5L16.5 14l4 2v3c0 1-1 2-2 2A16 16 0 0 1 3 5.5c0-1 1-2 2-2h1.5z"></path>
+            </svg>
+            <span>{{ $t('语音通话') }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="input">
+        <textarea
+          @blur="inputBlurHandler"
+          @focus="inputFocusHandler"
+          @input="handleTextareaInput"
+          @keydown="textareaKeyDown"
+          class="input_text"
+          v-model="message"
+          wrap="hard"
+          ref="inputTextRef"
+        ></textarea>
+      </div>
+      <div class="button">
+        <div @click="handleSendMessage" :class="message && !/^\s*$/.test(message) ? 'im_send_full' : 'im_send_empty'"></div>
+      </div>
     </div>
   </div>
 </template>
@@ -22,7 +73,9 @@ export default {
   data() {
     return {
       message: '',
-      fileType: ''
+      fileType: '',
+      showActionMenu: false,
+      rosterInputerHandlersBound: false
     };
   },
   components: {},
@@ -34,12 +87,48 @@ export default {
   },
   mounted() {
     this.initIntentMessage();
-    let _this = this;
+    document.addEventListener('click', this.closeActionMenu);
+    this.bindRosterInputerEvents();
+  },
+  beforeDestroy() {
+    document.removeEventListener('click', this.closeActionMenu);
+    this.unbindRosterInputerEvents();
+  },
+  watch: {
+    getSid() {
+      this.loadConversationDraft();
+      this.$nextTick(() => {
+        this.bindRosterInputerEvents();
+      });
+    }
+  },
+  methods: {
+    bindRosterInputerEvents() {
+      const rosterInputer = this.$refs.rosterInputer;
+      if (!rosterInputer || this.rosterInputerHandlersBound) {
+        return;
+      }
 
-    // paste
-    this.$refs.rosterInputer.addEventListener('paste', function (event) {
+      rosterInputer.addEventListener('paste', this.handleRosterInputerPaste);
+      rosterInputer.addEventListener('drop', this.handleRosterInputerDrop);
+      rosterInputer.addEventListener('dragover', this.handleRosterInputerDragover);
+      this.rosterInputerHandlersBound = true;
+    },
+    unbindRosterInputerEvents() {
+      const rosterInputer = this.$refs.rosterInputer;
+      if (!rosterInputer || !this.rosterInputerHandlersBound) {
+        this.rosterInputerHandlersBound = false;
+        return;
+      }
+
+      rosterInputer.removeEventListener('paste', this.handleRosterInputerPaste);
+      rosterInputer.removeEventListener('drop', this.handleRosterInputerDrop);
+      rosterInputer.removeEventListener('dragover', this.handleRosterInputerDragover);
+      this.rosterInputerHandlersBound = false;
+    },
+    handleRosterInputerPaste(event) {
       const clipboardData = event.clipboardData || window.clipboardData;
-      const items = clipboardData.items;
+      const items = clipboardData && clipboardData.items;
       if (items && items.length) {
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
@@ -49,38 +138,32 @@ export default {
             const file = new File([blob], blob.name, {
               type: blob.type
             });
-            _this.fileType = 'file';
+            this.fileType = 'file';
             if (item.type.indexOf('image') >= 0) {
-              _this.fileType = 'image';
+              this.fileType = 'image';
             }
-            _this.sendFileInBackground(file);
+            this.sendFileInBackground(file);
           }
         }
       }
-    });
-
-    // drop
-    this.$refs.rosterInputer.addEventListener('drop', function (event) {
+    },
+    handleRosterInputerDrop(event) {
       event.preventDefault();
       const items = event.dataTransfer.files;
       if (items && items.length) {
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
-          _this.fileType = 'file';
+          this.fileType = 'file';
           if (item.type.indexOf('image') >= 0) {
-            _this.fileType = 'image';
+            this.fileType = 'image';
           }
-          _this.sendFileInBackground(item);
+          this.sendFileInBackground(item);
         }
       }
-    });
-
-    // dragover
-    this.$refs.rosterInputer.addEventListener('dragover', function (event) {
+    },
+    handleRosterInputerDragover(event) {
       event.preventDefault();
-    });
-  },
-  methods: {
+    },
     textareaKeyDown(evt) {
       if (evt.keyCode === 13 && !evt.shiftKey) {
         this.handleSendMessage();
@@ -93,15 +176,24 @@ export default {
       }
     },
     imageUploadClickHandler() {
+      this.closeActionMenu();
       this.fileType = 'image';
       this.$refs.fileRef.click();
     },
     fileUploadClickHandler() {
+      this.closeActionMenu();
       this.fileType = 'file';
       this.$refs.fileRef.click();
     },
+    toggleActionMenu() {
+      this.showActionMenu = !this.showActionMenu;
+    },
+    closeActionMenu() {
+      this.showActionMenu = false;
+    },
 
     locationClickHandler() {
+      this.closeActionMenu();
       const message = {
         uid: this.getSid,
         content: '',
@@ -109,19 +201,21 @@ export default {
         attachment: {
           lat: 40.024422,
           lon: 116.398376,
-          addr: '奥林匹克森林公园'
+          addr: this.$t('奥林匹克森林公园')
         }
       };
       this.im.sysManage.sendRosterMessage(message);
     },
 
     videoCallClickHandler() {
+      this.closeActionMenu();
       this.$store.dispatch('layer/actionSetShowing', 'videocall');
       this.$store.dispatch('layer/actionSetShowmask', 'true');
       this.$store.dispatch('contact/actionSetCallId', this.im.userManage.getUid().toString() + '_' + Date.now());
     },
 
     audioCallClickHandler() {
+      this.closeActionMenu();
       this.$store.dispatch('layer/actionSetShowing', 'audiocall');
       this.$store.dispatch('layer/actionSetShowmask', 'true');
       this.$store.dispatch('contact/actionSetCallId', this.im.userManage.getUid().toString() + '_' + Date.now());
@@ -130,6 +224,7 @@ export default {
     handleSendMessage() {
       if (/^\s*$/.test(this.message)) {
         this.message = '';
+        this.syncDraft('');
         return;
       }
 
@@ -139,8 +234,12 @@ export default {
         uid: this.getSid
         // ext: "自定义消息字段",
       });
+      this.syncDraft('');
       setTimeout(() => {
         this.message = '';
+        this.$nextTick(() => {
+          this.autoResizeTextarea();
+        });
       }, 200);
     },
 
@@ -190,13 +289,46 @@ export default {
       this.im.sysManage.sendInputStatusMessage(this.getSid, 'nothing');
     },
 
+    handleTextareaInput() {
+      this.autoResizeTextarea();
+      this.syncDraft(this.message);
+    },
+
     initIntentMessage() {
       if (this.getIntentMessage) {
         this.message = this.getIntentMessage;
         this.$nextTick(() => {
           this.$refs.inputTextRef.focus();
+          this.autoResizeTextarea();
         });
+      } else {
+        this.loadConversationDraft();
       }
+      this.$nextTick(() => {
+        this.autoResizeTextarea();
+      });
+    },
+
+    loadConversationDraft() {
+      this.unbindRosterInputerEvents();
+      this.message = this.im.sysManage.getConversationDraft(this.getSid, 'roster');
+      this.$nextTick(() => {
+        this.autoResizeTextarea();
+      });
+    },
+
+    syncDraft(message) {
+      const draft = typeof message === 'string' ? message : '';
+      this.im.sysManage.saveConversationDraft(this.getSid, 'roster', draft, Date.now());
+    },
+
+    autoResizeTextarea() {
+      const textarea = this.$refs.inputTextRef;
+      if (!textarea) return;
+      textarea.style.height = '36px';
+      const nextHeight = Math.min(Math.max(textarea.scrollHeight, 36), 150);
+      textarea.style.height = `${nextHeight}px`;
+      textarea.style.overflowY = textarea.scrollHeight > 150 ? 'auto' : 'hidden';
     }
     //methods finish
   }

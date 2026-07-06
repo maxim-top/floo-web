@@ -189,6 +189,45 @@ i.hangup {
 
 .el-popover {
   min-width: 10px !important;
+  z-index: var(--z-overlay) !important;
+  background: var(--ly-bg-white);
+  border: 1px solid rgba(193, 198, 200, 0.7);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(19, 41, 75, 0.14);
+  color: var(--ly-text-main);
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.el-popper,
+.el-tooltip__popper,
+[data-popover='tooltip'] {
+  position: absolute !important;
+  z-index: var(--z-overlay) !important;
+  box-shadow: 0 12px 32px rgba(19, 41, 75, 0.14);
+}
+
+.el-tooltip__popper,
+[data-popover='tooltip'] {
+  max-width: min(280px, calc(100vw - 32px));
+  padding: 8px 10px;
+  background: rgba(19, 41, 75, 0.96) !important;
+  border: 1px solid rgba(19, 41, 75, 0.2) !important;
+  border-radius: 10px;
+  color: var(--ly-bg-white) !important;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+  text-align: left;
+  box-sizing: border-box;
+  backdrop-filter: blur(8px);
+}
+
+.el-tooltip__popper[x-placement^='top'],
+.el-tooltip__popper[x-placement^='bottom'],
+.el-tooltip__popper[x-placement^='left'],
+.el-tooltip__popper[x-placement^='right'] {
+  margin: 8px 0;
 }
 
 /*** public class **/

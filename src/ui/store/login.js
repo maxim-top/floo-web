@@ -4,7 +4,7 @@ const state = {
   // appStatus: 'login',  //初始化一个colects数组
   appStatus: 'login', //初始化一个colects数组
   login: false,
-  loginLog: ['这里是登录日志..'],
+  loginLog: [],
   mobileSign: '',
   signMobile: '',
   loginInfo: {},

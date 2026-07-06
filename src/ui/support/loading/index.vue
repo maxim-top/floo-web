@@ -14,10 +14,19 @@ export default {
   computed: {},
   methods: {
     initCss() {
-      document.getElementById('app').style = 'width:100%; height:100%;min-width:100px;min-height:200px;margin-left:0px;background-color: transparent;';
-      document.body.style = 'background-color: transparent; margin:0px !important;';
+      const html = document.documentElement;
+      const body = document.body;
+      const app = document.getElementById('app');
+      const uiRoot = document.querySelector('.ui-index');
+      const shellStyle =
+        'width:100%;height:100%;min-width:100px;min-height:200px;max-width:none;max-height:none;margin:0;background-color:transparent;position:fixed;left:0;top:0;right:0;bottom:0;transform:none;';
+
+      html && (html.style.cssText = 'width:100%;height:100%;margin:0;background-color: transparent;overflow:hidden;');
+      body && (body.style.cssText = 'width:100%;height:100%;margin:0 !important;background-color: transparent;overflow:hidden;');
+      app && (app.style.cssText = shellStyle);
+      uiRoot && (uiRoot.style.cssText = shellStyle);
       if (this.checkMobile()) {
-        document.getElementById('app').style.borderRadius = '0px';
+        app && (app.style.borderRadius = '0px');
       }
     },
     checkMobile() {

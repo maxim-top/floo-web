@@ -41,7 +41,7 @@ const groupStore = {
   },
 
   getGroupInfo: (group_id) => {
-    const groupInfos = getItem('key_group_infos');
+    const groupInfos = getItem('key_group_infos') || {};
     const ret = groupInfos[group_id] || {};
     return Object.assign(ret, {
       group_id

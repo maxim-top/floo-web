@@ -1,17 +1,24 @@
 <template>
-  <div class="login">
-    <p class="header">
-      <span @click="changeAppID(appid)" class="hint">AppID: {{ appid }}</span>
-      <img @click="changeAppID(appid)" class="edit_logo" src="/image/edit.png" />
-    </p>
-    <div class="layer_content">
+  <div class="login login-card">
+    <div class="login_card_header">
+      <button @click="changeAppID(appid)" class="login_appid" type="button">
+        <span>AppID: {{ appid }}</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="login_appid_icon">
+          <path d="M4 20h4l10-10-4-4L4 16v4z"></path>
+          <path d="M13 7l4 4"></path>
+        </svg>
+      </button>
+    </div>
+    <div class="logo login_brand">
+      <img src="/image/logob.png" alt="LanyingIM" />
+    </div>
+    <h2 class="login_title">{{ $t('使用蓝莺IM扫码登录') }}</h2>
+    <div class="layer_content login_qr_content">
       <canvas class="canvas" ref="canvas"></canvas>
     </div>
-    <p class="tab">使用「蓝莺IM」App 扫码</p>
-    <p class="tab">
-      <intput>返回</intput>
-      <span @click="switchLogin('login')" class="mr5 colorb">密码登录</span>
-    </p>
+    <div class="login_footer_links">
+      <button @click="switchLogin('login')" class="login_footer_link" type="button">{{ $t('密码登录') }}</button>
+    </div>
   </div>
 </template>
 
@@ -58,7 +65,7 @@ export default {
         const info = {
           info: {
             qrcode: qr_code,
-            app_id: this.appId
+            qrcode_app_id: this.appid
           },
           action: 'login',
           source: 'web'
@@ -76,12 +83,12 @@ export default {
         .then((res) => {
           const { password, username } = res;
           if (!password || !username) {
-            console.log('没登录，继续');
+            console.log('QR login not completed yet, continue polling');
             this.timer = setTimeout(function () {
               _this.timerLogin();
             }, 1000);
           } else {
-            console.log('登录了....');
+            console.log('QR login completed');
             _this.im.login({ password, name: username });
           }
         })
@@ -96,33 +103,33 @@ export default {
       const _this = this;
       if (this.getShowing === 'qrlogin') {
         if (now > this.expired) {
-          console.log('过期，请求新的。。。');
+          console.log('QR code expired, requesting a new one');
           this.clearTimer();
           this.requestLoginQr();
         } else {
           this.qrtimer = setTimeout(function () {
             _this.expTimer();
-            console.log('未过期，会继续检测');
+            console.log('QR code still valid, continue checking');
           }, 1000);
         }
       }
 
       if (this.getShowing === 'qrgroup') {
         if (now > this.expired) {
-          console.log('过期，请求新的。。。');
+          console.log('Group QR code expired, requesting a new one');
           this.clearTimer();
           this.requestGroupQr();
         } else {
           this.qrtimer = setTimeout(function () {
             _this.expTimer();
-            console.log('未过期，会继续检测');
+            console.log('Group QR code still valid, continue checking');
           }, 1000);
         }
       }
     },
 
     clearTimer() {
-      console.log('clear =============....');
+      console.log('Clearing QR login timers');
       this.timer && clearTimeout(this.timer);
       this.qrtimer && clearTimeout(this.qrtimer);
     },

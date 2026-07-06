@@ -2,62 +2,62 @@
   <div class="group_setting_layer">
     <div class="layer">
       <div class="layer_header">
-        群设置
+        {{ $t('群设置') }}
         <div @click="clickGroupsettingCloseHandler" class="closer"></div>
       </div>
       <div class="layer_content">
         <div class="group_setting_group">
           <p>
-            <span class="sl">需要邀请才能入群</span>
+            <span class="sl">{{ $t('需要邀请才能入群') }}</span>
             <span class="sr">
               <i :class="['r', groupInfo.member_invite ? 'switcher_on' : 'switcher_off']" @click="switchTouched(0)"></i>
             </span>
           </p>
 
           <p>
-            <span class="sl">允许成员修改信息</span>
+            <span class="sl">{{ $t('允许成员修改信息') }}</span>
             <span class="sr">
               <i :class="['r', groupInfo.member_modify ? 'switcher_on' : 'switcher_off']" @click="switchTouched(1)"></i>
             </span>
           </p>
 
           <p>
-            <span class="sl">开启群聊消息已读功能</span>
+            <span class="sl">{{ $t('开启群聊消息已读功能') }}</span>
             <span class="sr">
               <i :class="['r', groupInfo.read_ack ? 'switcher_on' : 'switcher_off']" @click="switchTouched(2)"></i>
             </span>
           </p>
 
           <p>
-            <span class="sl">允许成员查看历史消息</span>
+            <span class="sl">{{ $t('允许成员查看历史消息') }}</span>
             <span class="sr">
               <i :class="['r', groupInfo.history_visible ? 'switcher_on' : 'switcher_off']" @click="switchTouched(3)"></i>
             </span>
           </p>
 
           <p>
-            <span class="sl">入群需要审批</span>
+            <span class="sl">{{ $t('入群需要审批') }}</span>
             <span class="sr">
               <i :class="['r', groupInfo.apply_approval ? 'switcher_on' : 'switcher_off']" @click="switchTouched(4)"></i>
             </span>
           </p>
 
           <p>
-            <span class="sl">屏蔽此群消息</span>
+            <span class="sl">{{ $t('屏蔽此群消息') }}</span>
             <span class="sr">
               <i :class="['r', groupInfo.msg_mute_mode ? 'switcher_on' : 'switcher_off']" @click="switchTouched(5)"></i>
             </span>
           </p>
 
           <p>
-            <span class="sl">全员禁言</span>
+            <span class="sl">{{ $t('全员禁言') }}</span>
             <span class="sr">
               <i :class="['r', isGroupBanAll() ? 'switcher_on' : 'switcher_off']" @click="switchTouched(6)"></i>
             </span>
           </p>
 
           <p>
-            <span class="sl">隐藏群成员信息</span>
+            <span class="sl">{{ $t('隐藏群成员信息') }}</span>
             <span class="sr">
               <i :class="['r', groupInfo.hide_member_info ? 'switcher_on' : 'switcher_off']" @click="switchTouched(7)"></i>
             </span>
@@ -65,120 +65,126 @@
         </div>
         <div class="group_setting_group">
           <div class="category">
-            <a @click="touchedListHeader(0)">成员</a>
-            <a @click="touchedListHeader(1)">禁言</a>
-            <a @click="touchedListHeader(2)">黑名单</a>
-            <a @click="touchedListHeader(3)">公告</a>
-            <a @click="touchedListHeader(4)">文件</a>
-            <a @click="touchedListHeader(5)">添加成员</a>
+            <a @click="touchedListHeader(0)">{{ $t('成员') }}</a>
+            <a @click="touchedListHeader(1)">{{ $t('禁言') }}</a>
+            <a @click="touchedListHeader(2)">{{ $t('黑名单') }}</a>
+            <a @click="touchedListHeader(3)">{{ $t('公告') }}</a>
+            <a @click="touchedListHeader(4)">{{ $t('文件') }}</a>
+            <a @click="touchedListHeader(5)">{{ $t('添加成员') }}</a>
           </div>
           <div class="setting_lists" v-if="listTab === 0">
-            <p>请选择成员进行操作</p>
+            <p>{{ $t('请选择成员进行操作') }}</p>
             <div :key="p.user_id" class="item" v-for="p in memberList">
               <span>
                 {{ p.user_name }}
-                {{ adminList.indexOf(p.user_id) >= 0 ? '(管理员)' : '' }}
+                {{ adminList.indexOf(p.user_id) >= 0 ? $t('(管理员)') : '' }}
               </span>
               <input :checked="selIdList.indexOf(p.user_id) >= 0" @click="touchMemberCheck(p.user_id)" type="checkbox" />
             </div>
             <p v-if="this.memberList.length"></p>
             <div class="category">
-              <a @click="kickMember">踢出群</a>
-              <a @click="addBlockList">拉黑</a>
-              <a @click="removeAdminMember" v-if="userLevel === 3">删除管理</a>
-              <a @click="addAdminMember" v-if="userLevel === 3">提升管理</a>
+              <a @click="kickMember">{{ $t('踢出群') }}</a>
+              <a @click="addBlockList">{{ $t('拉黑') }}</a>
+              <a @click="removeAdminMember" v-if="userLevel === 3">{{ $t('删除管理') }}</a>
+              <a @click="addAdminMember" v-if="userLevel === 3">{{ $t('提升管理') }}</a>
             </div>
           </div>
           <div class="setting_lists" v-if="listTab === 1">
-            <p>请选择禁言的成员</p>
+            <p>{{ $t('请选择禁言的成员') }}</p>
             <div :key="p.user_id" class="item" v-for="p in this.banList">
               <span v-if="p.duration" style="color: red">
                 {{ p.user_name }}
-                {{ adminList.indexOf(p.user_id) >= 0 ? '(管理员)' : '' }}
+                {{ adminList.indexOf(p.user_id) >= 0 ? $t('(管理员)') : '' }}
                 <br />
                 {{ p.duration }}
               </span>
               <span v-else>
                 {{ p.user_name }}
-                {{ adminList.indexOf(p.user_id) >= 0 ? '(管理员)' : '' }}
+                {{ adminList.indexOf(p.user_id) >= 0 ? $t('(管理员)') : '' }}
               </span>
               <input :checked="selIdList.indexOf(p.user_id) >= 0" @click="touchMemberCheck(p.user_id)" type="checkbox" />
             </div>
             <p v-if="this.banList.length"></p>
             <div class="category">
-              <a @click="addMute">禁言</a>
-              <a @click="removeMute">解除禁言</a>
-              <input placeholder="输入分钟数" type="text" style="width: 120px; margin-left: 5px" v-model="banDuration" />
-              分钟(-1永久)
+              <a @click="addMute">{{ $t('禁言') }}</a>
+              <a @click="removeMute">{{ $t('解除禁言') }}</a>
+              <input :placeholder="$t('输入分钟数')" type="text" style="width: 120px; margin-left: 5px" v-model="banDuration" />
+              {{ $t('分钟(-1永久)') }}
             </div>
           </div>
 
           <div class="setting_lists" v-if="listTab === 2">
-            <p>请选择要移除的用户</p>
+            <p>{{ $t('请选择要移除的用户') }}</p>
             <div :key="p.user_id" class="item" v-for="p in this.blockList">
               <span>{{ p.user_name }}</span>
               <input :checked="selIdList.indexOf(p.user_id) >= 0" @click="touchMemberCheck(p.user_id)" type="checkbox" />
             </div>
             <p v-if="this.blockList.length"></p>
-            <div class="category"><a @click="removeBlock">移除黑名单</a></div>
+            <div class="category">
+              <a @click="removeBlock">{{ $t('移除黑名单') }}</a>
+            </div>
           </div>
 
           <div class="setting_lists" v-if="listTab === 3">
-            <p>请添加或选择要删除的公告</p>
+            <p>{{ $t('请添加或选择要删除的公告') }}</p>
             <div class="category">
-              <a @click="addPublic">添加</a>
-              <input placeHolder="标题" type="text" style="width: 120px; margin-left: 5px" v-model="public_title" />
-              <input placeHolder="内容" type="text" style="width: 140px; margin-left: 5px" v-model="public_content" />
+              <a @click="addPublic">{{ $t('添加') }}</a>
+              <input :placeHolder="$t('标题')" type="text" style="width: 120px; margin-left: 5px" v-model="public_title" />
+              <input :placeHolder="$t('内容')" type="text" style="width: 140px; margin-left: 5px" v-model="public_content" />
             </div>
             <p v-if="this.publicList.length"></p>
             <div :key="p.id" class="item item_list" v-for="p in this.publicList">
               <el-tooltip placement="bottom-start" effect="light" :visible-arrow="false">
                 <div slot="content">
-                  <span>title:{{ p.title }}</span>
+                  <span>{{ $t('标题：') }}{{ p.title }}</span>
                   <br />
-                  <span>content:{{ p.content }}</span>
+                  <span>{{ $t('内容：') }}{{ p.content }}</span>
                 </div>
                 <div>
-                  <span>title:{{ p.title }}</span>
+                  <span>{{ $t('标题：') }}{{ p.title }}</span>
                   <br />
-                  <span>content:{{ p.content }}</span>
+                  <span>{{ $t('内容：') }}{{ p.content }}</span>
                 </div>
               </el-tooltip>
               <div class="category r">
-                <a @click="removePublic(p.id)" class="r">删除</a>
+                <a @click="removePublic(p.id)" class="r">{{ $t('删除') }}</a>
               </div>
             </div>
           </div>
 
           <div class="setting_lists" v-if="listTab === 4">
-            <p>请选择上传的文件</p>
+            <p>{{ $t('请选择上传的文件') }}</p>
             <div class="setting_lists_bars">
               <input ref="fileRef" style="margin-left: 10px; width: 280px; height: 28px; visibility: visible; position: static" type="file" />
-              <div class="category"><a @click="uploadFile">上传</a></div>
+              <div class="category">
+                <a @click="uploadFile">{{ $t('上传') }}</a>
+              </div>
             </div>
             <p></p>
             <div :key="d.file_id" class="item item_list" v-for="d in this.fileList">
               <span class="file_span">
-                文件名:{{ d.name }}
+                {{ $t('文件名：') }}{{ d.name }}
                 <br />
-                大小:{{ d.size }}
+                {{ $t('大小：') }}{{ d.size }}
               </span>
               <input :checked="selIdList.indexOf(d.file_id) >= 0" @click="touchMemberCheck(d.file_id)" type="checkbox" />
             </div>
             <div class="category">
-              <a @click="downFile">批量下载</a>
-              <a @click="removeFile">批量删除</a>
+              <a @click="downFile">{{ $t('批量下载') }}</a>
+              <a @click="removeFile">{{ $t('批量删除') }}</a>
             </div>
           </div>
 
           <div class="setting_lists" v-if="listTab === 5">
-            <p>请选择邀请的好友</p>
+            <p>{{ $t('请选择邀请的好友') }}</p>
             <div :key="p.user_id" class="item" v-for="p in this.rosterList">
               <span>{{ p.user_name }}</span>
               <input :checked="selIdList.indexOf(p.user_id) >= 0" @click="touchMemberCheck(p.user_id)" type="checkbox" />
             </div>
             <p v-if="this.rosterList.length"></p>
-            <div class="category"><a @click="inviteRoster">邀请好友</a></div>
+            <div class="category">
+              <a @click="inviteRoster">{{ $t('邀请好友') }}</a>
+            </div>
           </div>
         </div>
       </div>
@@ -283,9 +289,9 @@ export default {
         const durItem = this.bans.find((i) => i.user_id === x.user_id);
         let duration = '';
         if (this.groupInfo.ban_expire_time && this.groupInfo.ban_expire_time === -1) {
-          duration = ' 全员禁言 ';
+          duration = this.$t('全员禁言');
         } else if (durItem) {
-          duration = durItem.expired_time === -1 ? ' 永久 ' : moment(durItem.expired_time).format('YYYY-MM-DD HH:mm:ss');
+          duration = durItem.expired_time === -1 ? this.$t('永久') : moment(durItem.expired_time).format('YYYY-MM-DD HH:mm:ss');
         }
         ret.push({
           user_name,
@@ -479,10 +485,10 @@ export default {
       let user_list = this.selIdList;
       user_list = user_list.filter((id) => this.adminList.findIndex((s) => s === id) > -1);
       if (user_list.length < 1) {
-        alert('您的选择里边没有管理员');
+        alert(this.$t('您的选择里边没有管理员'));
       } else {
         this.im.groupManage.asyncAdminRemove({ group_id: this.getSid, user_list }).then(() => {
-          alert('已经删除管理员');
+          alert(this.$t('已经删除管理员'));
           this.im.groupManage.asyncGetAdminList({ group_id: this.getSid }).then((r) => {
             this.admins = (r || []).map((i) => i.user_id);
           });
@@ -494,7 +500,7 @@ export default {
       let user_list = this.selIdList;
       user_list = user_list.filter((id) => this.adminList.findIndex((s) => s === id) === -1);
       if (user_list.length < 1) {
-        alert('您的选择里边没有非管理员');
+        alert(this.$t('您的选择里边没有非管理员'));
       } else {
         this.im.groupManage
           .asyncAdminAdd({
@@ -502,7 +508,7 @@ export default {
             user_list
           })
           .then(() => {
-            alert('已经添加管理员');
+            alert(this.$t('已经添加管理员'));
             this.admins = this.adminList.concat(user_list);
             this.requireMember();
             this.selIdList = [];
@@ -513,11 +519,11 @@ export default {
       let user_list = this.selIdList;
       const group_id = this.getSid;
       if (!user_list.length) {
-        alert('您没有选择群成员');
+        alert(this.$t('您没有选择群成员'));
         return;
       }
       this.im.groupManage.asyncKick({ group_id, user_list }).then(() => {
-        alert('已t人');
+        alert(this.$t('已踢人'));
         this.selIdList = [];
         this.requireMember();
         this.im.groupManage.asyncGetMemberList(group_id, true).then((res) => {
@@ -528,12 +534,12 @@ export default {
     addBlockList() {
       let user_list = this.selIdList;
       if (!user_list.length) {
-        alert('请选择');
+        alert(this.$t('请选择'));
         return;
       }
       const group_id = this.getSid;
       this.im.groupManage.asyncGroupBlock({ group_id, user_list }).then(() => {
-        alert('已加黑');
+        alert(this.$t('已加黑'));
         this.selIdList = [];
         this.requireMember();
       });
@@ -543,22 +549,22 @@ export default {
     addMute() {
       let user_list = this.selIdList;
       if (!user_list.length) {
-        alert('请选择');
+        alert(this.$t('请选择'));
         return;
       }
       if (!this.banDuration.length) {
-        alert('请输入禁言时间');
+        alert(this.$t('请输入禁言时间'));
         return;
       }
       if (!/^-?\d+$/.test(this.banDuration)) {
-        alert('请输入正确禁言时间');
+        alert(this.$t('请输入正确禁言时间'));
         return;
       }
 
       const duration = this.banDuration - 0;
       const group_id = this.getSid;
       this.im.groupManage.asyncGroupBab({ group_id, duration, user_list }).then(() => {
-        alert('禁言设置成功');
+        alert(this.$t('禁言设置成功'));
         this.requireBanList();
         this.selIdList = [];
       });
@@ -567,13 +573,13 @@ export default {
     removeMute() {
       let user_list = this.selIdList;
       if (!user_list.length) {
-        alert('请选择');
+        alert(this.$t('请选择'));
         return;
       }
       const group_id = this.getSid;
 
       this.im.groupManage.asyncGroupUnban({ group_id, user_list }).then(() => {
-        alert('解除禁言成功');
+        alert(this.$t('解除禁言成功'));
         this.requireBanList();
         this.selIdList = [];
       });
@@ -595,12 +601,12 @@ export default {
     removeBlock() {
       let user_list = this.selIdList;
       if (!user_list.length) {
-        alert('请选择');
+        alert(this.$t('请选择'));
         return;
       }
       const group_id = this.getSid;
       this.im.groupManage.asyncGroupUnblock({ group_id, user_list }).then(() => {
-        alert('解除黑名单成功');
+        alert(this.$t('解除黑名单成功'));
         this.requireBlockList();
       });
     },
@@ -616,19 +622,19 @@ export default {
       const title = this.public_title;
       const content = this.public_content;
       if (!title || !content) {
-        alert('请输入内容');
+        alert(this.$t('请输入内容'));
         return;
       }
       const group_id = this.getSid;
       this.im.groupManage.asyncAnnouncementEdit({ title, content, group_id }).then(() => {
-        alert('公告添加成功');
+        alert(this.$t('公告添加成功'));
         this.requirePublicList();
       });
     },
     removePublic(announcement_id) {
       const group_id = this.getSid;
       this.im.groupManage.asyncAnouncementDelete({ group_id, announcement_id }).then(() => {
-        alert('群公告删除成功');
+        alert(this.$t('群公告删除成功'));
         this.requirePublicList();
       });
     },
@@ -643,7 +649,7 @@ export default {
     uploadFile() {
       const file = this.$refs.fileRef.files[0];
       if (!file) {
-        alert('请先选择文件');
+        alert(this.$t('请先选择文件'));
         return;
       }
       this.im.sysManage
@@ -676,7 +682,7 @@ export default {
                 this.$refs.fileRef.value = null;
               })
               .catch(function (err) {
-                alert('error:' + err.message);
+                alert(err.message);
               });
           });
         });
@@ -711,7 +717,7 @@ export default {
       let user_list = this.selIdList;
       const group_id = this.getSid;
       this.im.groupManage.asyncInvite({ group_id, user_list }).then(() => {
-        alert('邀请成功');
+        alert(this.$t('邀请成功'));
         this.selIdList = [];
         this.requireMember();
       });

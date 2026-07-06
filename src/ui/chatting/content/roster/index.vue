@@ -1,8 +1,8 @@
 <template>
-  <div class="chat-index">
-    <Forward />
+  <div :class="{ 'chat-index': true, 'chat-viewport': true, 'is-selecting': getShowMultiForwardStatus }">
     <Header />
     <Chat />
+    <ForwardSelectionBar />
     <Inputer />
   </div>
 </template>
@@ -11,7 +11,7 @@
 import Chat from './chat.vue';
 import Inputer from './inputer.vue';
 import Header from './header.vue';
-import Forward from './forward.vue';
+import ForwardSelectionBar from '../components/forwardSelectionBar.vue';
 
 import { mapGetters } from 'vuex';
 
@@ -29,10 +29,11 @@ export default {
     Header,
     Chat,
     Inputer,
-    Forward
+    ForwardSelectionBar
   },
   computed: {
-    ...mapGetters('content', ['getSid', 'getMessages', 'getMessageTime'])
+    ...mapGetters('content', ['getSid', 'getMessages', 'getMessageTime']),
+    ...mapGetters('forward', ['getShowMultiForwardStatus'])
   },
   methods: {
     requireUserInfo() {

@@ -1181,7 +1181,8 @@ const changeRosterMessageStatusRead = (meta) => {
     // Only received message needs ACK.
     const cuid = infoStore.getUid();
     const fromUid = toNumber(meta.from);
-    if (fromUid > 0 && fromUid != cuid) {
+    const isSystemMessage = meta && (meta.is_system === true || meta.is_system === 'true' || meta.is_system === 1 || meta.is_system === '1');
+    if ((fromUid > 0 && fromUid != cuid) || (isSystemMessage && fromUid === 0)) {
       needAck = true;
     }
   }
@@ -1359,20 +1360,29 @@ bind('onActionMessage', (meta) => {
   const toUid = to ? numToString(to.uid) : 0;
   const fromUid = numToString(from.uid);
   const allGids = groupStore.getJoinedGroups();
-  const isGroup = Array.isArray(allGids) ? allGids.indexOf(toUid - 0) != -1 : false;
-  const messageUid = isGroup ? toUid : cuid + '' === fromUid + '' ? toUid : fromUid;
+  let isGroup = Array.isArray(allGids) ? allGids.indexOf(toUid - 0) != -1 : false;
+  let messageUid = isGroup ? toUid : cuid + '' === fromUid + '' ? toUid : fromUid;
   const editTimestamp = numToString(edit_timestamp || 0);
 
   if (type !== STATIC_MESSAGE_TYPE.OPER) return;
 
   const { type: opType, mid, xid } = operation;
-  // Why use xid.uid instead of messageUid?
-  // Action sent to other devices of the sender, its messageUid would be sender-self
+  const operationUid = xid && xid.uid ? numToString(xid.uid) : '';
+  const shouldTryOperationXidGroup = operationUid && (opType === STATIC_MESSAGE_OPTYPE.APPEND || opType === STATIC_MESSAGE_OPTYPE.REPLACE);
 
   let meta_changed;
-  if (isGroup) {
+  if (shouldTryOperationXidGroup) {
+    const groupMessage = messageStore.getGroupMessageById(operationUid, mid);
+    if (groupMessage) {
+      isGroup = true;
+      messageUid = operationUid;
+      meta_changed = groupMessage;
+    }
+  }
+
+  if (!meta_changed && isGroup) {
     meta_changed = messageStore.getGroupMessageById(messageUid, mid);
-  } else {
+  } else if (!meta_changed) {
     meta_changed = messageStore.getRosterMessageById(messageUid, mid);
   }
 
@@ -1427,6 +1437,9 @@ bind('onActionMessage', (meta) => {
     !isGroup && changeRosterMessageStatusPlayed(meta_changed);
     isGroup && changeGroupMessageStatusPlayed(meta_changed);
   } else if (opType === STATIC_MESSAGE_OPTYPE.APPEND) {
+    if (!meta_changed) {
+      return;
+    }
     if (isGroup) {
       appendGroupMessageContent(meta_changed, content, config, ext, editTimestamp);
       fire('onGroupMessageContentAppend', meta_changed);
@@ -1435,6 +1448,9 @@ bind('onActionMessage', (meta) => {
       fire('onRosterMessageContentAppend', meta_changed);
     }
   } else if (opType === STATIC_MESSAGE_OPTYPE.REPLACE) {
+    if (!meta_changed) {
+      return;
+    }
     if (isGroup) {
       replaceGroupMessage(meta_changed, content, config, ext, editTimestamp);
       fire('onGroupMessageReplace', meta_changed);

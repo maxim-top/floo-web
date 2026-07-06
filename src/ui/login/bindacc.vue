@@ -1,28 +1,35 @@
 <template>
-  <div class="login">
-    <p class="header">
-      <span class="hint">AppID: {{ appid }}</span>
-    </p>
-    <div class="logo">
-      <img src="/image/logo4.png" />
+  <div class="login login-card">
+    <div class="login_card_header">
+      <div class="login_appid" role="presentation">{{ $t('AppID') }}: {{ appid }}</div>
     </div>
-    <p class="tab">绑定已有账户</p>
-    <div class="iptFrame mt21">
-      <input autocomplete="false" placeholder="用户名" type="text" v-model="user.username" />
+    <div class="logo login_brand">
+      <img src="/image/logob.png" alt="LanyingIM" />
+    </div>
+    <h2 class="login_title">{{ $t('绑定已有账户') }}</h2>
+    <div class="field-group">
+      <label class="field-label">{{ $t('用户名') }}</label>
+      <div class="iptFrame">
+        <input autocomplete="false" :placeholder="$t('请输入用户名')" type="text" v-model="user.username" />
+      </div>
     </div>
 
-    <div class="iptFrame mt14">
-      <input @keyup.enter="submit" autocomplete="false" placeholder="密码" ref="password" type="password" v-model="user.password" />
+    <div class="field-group">
+      <label class="field-label">{{ $t('密码') }}</label>
+      <div class="iptFrame">
+        <input @keyup.enter="submit" autocomplete="false" :placeholder="$t('请输入密码')" ref="password" type="password" v-model="user.password" />
+      </div>
     </div>
-    <div @click="submit" class="loginBtn mt14">绑定</div>
-    <p class="tab">
-      <span @click="switchLogin('bindreg')" class="mr5 colorb">注册并绑定</span>
-    </p>
+    <button @click="submit" class="loginBtn" type="button">{{ $t('绑定') }}</button>
+    <div class="login_footer_links">
+      <button @click="switchLogin('bindreg')" class="login_footer_link" type="button">{{ $t('注册并绑定') }}</button>
+    </div>
   </div>
 </template>
 
 <script>
 import { mapGetters } from 'vuex';
+import { canLoginAfterRegisterError, getRegisterErrorMessage } from './registerError';
 
 export default {
   name: 'bindacc',
@@ -51,7 +58,7 @@ export default {
       this.user.username = this.user.username.replace(/\s*/g, '');
       this.user.password = this.user.password.replace(/\s*/g, '');
       if (!this.user.username || !this.user.password) {
-        this.$message.error('请输入用户名或密码');
+        this.$message.error(this.$t('请输入用户名或密码'));
         return;
       }
       const im = this.$store.state.im;
@@ -73,21 +80,18 @@ export default {
         .catch((err) => {
           if (err && err.code) {
             console.log('用户注册失败 code = ' + err.code + ' : ' + err.message);
-            if (err.code === 40002) {
-              this.getApp().alert('当前APP用户数已达上限，请使用已有账号登录或联系管理员开通商业版');
-            } else {
+            if (canLoginAfterRegisterError(err)) {
               this.serr(err);
               im.login({
                 name: this.user.username,
                 password: this.user.password
               });
+            } else {
+              this.getApp().alert(getRegisterErrorMessage(err));
             }
           } else {
-            this.serr(err);
-            im.login({
-              name: this.user.username,
-              password: this.user.password
-            });
+            console.log('asyncRegister request error, please retry later: ', err);
+            this.getApp().alert(getRegisterErrorMessage(err));
           }
         });
     },

@@ -1,40 +1,53 @@
 <template>
-  <div class="login">
-    <p class="header">
-      <span @click="changeAppID(appid)" class="hint">AppID: {{ appid }}</span>
-      <img @click="changeAppID(appid)" class="edit_logo" src="/image/edit.png" />
-      <img @click="switchLogin('qrlogin')" class="qrcode" src="/image/qr.png" title="扫码登录" />
-    </p>
-    <div class="logo">
-      <img src="/image/logob.png" />
+  <div class="login login-card">
+    <div class="login_card_header">
+      <button @click="changeAppID(appid)" class="login_appid" type="button">
+        <span>{{ $t('AppID') }}: {{ appid }}</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="login_appid_icon">
+          <path d="M4 20h4l10-10-4-4L4 16v4z"></path>
+          <path d="M13 7l4 4"></path>
+        </svg>
+      </button>
+      <button @click="switchLogin('qrlogin')" class="login_header_icon" type="button" :aria-label="$t('扫码登录')">
+        <img class="qrcode" src="/image/qr.png" :title="$t('扫码登录')" />
+      </button>
     </div>
-    <div class="iptFrame mt21">
-      <input @keyup.enter="nameEnter" autocomplete="false" placeholder="手机号" type="text" v-model="user.mobile" />
+    <div class="logo login_brand">
+      <img src="/image/logob.png" alt="LanyingIM" />
     </div>
-
-    <div class="cframe mt14">
-      <div class="ipframe">
-        <input @keyup.enter="submit" autocomplete="false" placeholder="图片验证码" type="text" v-model="user.captcha" />
+    <h2 class="login_title">{{ $t('验证码登录') }}</h2>
+    <div class="field-group">
+      <label class="field-label">{{ $t('手机号') }}</label>
+      <div class="iptFrame">
+        <input @keyup.enter="nameEnter" autocomplete="false" :placeholder="$t('请输入手机号')" type="text" v-model="user.mobile" />
       </div>
-      <img :src="codeImageSrc" @click="timerImage" class="vm ml15 w150 h45 pointer" v-if="codeImageSrc" />
     </div>
 
-    <div class="cframe mt14">
-      <div class="ipframe">
-        <input @keyup.enter="submit" autocomplete="false" placeholder="手机验证码" type="text" v-model="user.code" />
+    <div class="field-group">
+      <label class="field-label">{{ $t('图片验证码') }}</label>
+      <div class="cframe">
+        <div class="ipframe">
+          <input @keyup.enter="submit" autocomplete="false" :placeholder="$t('图片验证码')" type="text" v-model="user.captcha" />
+        </div>
+        <img :src="codeImageSrc" @click="timerImage" class="vm ml15 w150 h45 pointer" v-if="codeImageSrc" />
       </div>
-      <div @click="sendSms" class="smallbtn">{{ checkText }}</div>
     </div>
 
-    <div @click="submit" class="loginBtn mt14">登录</div>
-    <!-- <div class="log">
-      <p v-for="(txt, index) in getLoginLog" :key="index">{{txt}}</p>
-    </div> -->
-    <p class="tab">
-      <span @click="switchLogin('login')" class="mr5 colorb">密码登录</span>
-      |
-      <span @click="switchLogin('regedit')" class="ml5">注册</span>
-    </p>
+    <div class="field-group">
+      <label class="field-label">{{ $t('手机验证码') }}</label>
+      <div class="cframe">
+        <div class="ipframe">
+          <input @keyup.enter="submit" autocomplete="false" :placeholder="$t('手机验证码')" type="text" v-model="user.code" />
+        </div>
+        <div @click="sendSms" class="smallbtn">{{ checkText }}</div>
+      </div>
+    </div>
+
+    <button @click="submit" class="loginBtn" type="button">{{ $t('登录') }}</button>
+    <div class="login_footer_links">
+      <button @click="switchLogin('login')" class="login_footer_link" type="button">{{ $t('密码登录') }}</button>
+      <button @click="switchLogin('regedit')" class="login_footer_link" type="button">{{ $t('注册') }}</button>
+    </div>
   </div>
 </template>
 
@@ -72,9 +85,9 @@ export default {
     },
     checkText() {
       if (this.checkCodeTime > 0) {
-        return `${this.checkCodeTime} 秒`;
+        return this.$t('common.seconds', { count: this.checkCodeTime });
       }
-      return '获取验证码';
+      return this.$t('获取验证码');
     }
   },
   methods: {
@@ -85,7 +98,7 @@ export default {
     },
     submit() {
       if (!this.user.code || !this.user.mobile) {
-        alert('请输入手机号和验证码');
+        alert(this.$t('请输入手机号和验证码'));
         return;
       }
       const im = this.$store.state.im;
@@ -126,7 +139,7 @@ export default {
     },
     sendSms() {
       if (!this.user.mobile) {
-        this.$message.error('请输入手机号');
+        this.$message.error(this.$t('请输入手机号'));
         return;
       }
 

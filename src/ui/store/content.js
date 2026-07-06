@@ -1,4 +1,5 @@
 //collection.js
+import { t } from '../../i18n';
 import { toLong, toNumber } from '../third/tools';
 // import axios from 'axios'
 
@@ -34,7 +35,8 @@ const state = {
   scroll: 0,
 
   queryHistoryMessageId: 0,
-  queryHistoryRecords: {} // map of sid:queryTimes
+  queryHistoryRecords: {}, // map of sid:queryTimes
+  autoReadSuppressed: false
 };
 
 const getters = {
@@ -75,6 +77,10 @@ const getters = {
 
   getScroll(state) {
     return state.scroll;
+  },
+
+  getAutoReadSuppressed(state) {
+    return state.autoReadSuppressed;
   }
 };
 
@@ -142,6 +148,10 @@ const mutations = {
     let times = state.queryHistoryRecords[state.sid] || 0;
     times++;
     state.queryHistoryRecords[state.sid] = times;
+  },
+
+  setAutoReadSuppressed(state, x) {
+    state.autoReadSuppressed = !!x;
   }
 };
 
@@ -194,6 +204,85 @@ const actions = {
       });
   },
 
+  actionEnsureConversationEntry(context, x = {}) {
+    const { rootState } = context;
+    const sid = x.sid;
+    const type = x.type;
+    if (typeof sid === 'undefined' || sid === null || sid < 0 || !type) {
+      return Promise.resolve();
+    }
+
+    const existing = (rootState.im.userManage.getConversationList() || []).find((item) => `${item.id}` === `${sid}` && item.type === type);
+    if (existing) {
+      return Promise.resolve(existing);
+    }
+
+    if (type === 'group') {
+      return rootState.im.groupManage
+        .asyncGetGroupInfo(sid, true)
+        .catch(() => null)
+        .then((groupInfo) => {
+          rootState.im.sysManage.touchConversation(sid, 'group');
+          return groupInfo;
+        });
+    }
+
+    return rootState.im.rosterManage
+      .asyncGetRosterInfo(sid, true)
+      .catch(() => null)
+      .then((rosterInfo) => {
+        rootState.im.sysManage.touchConversation(sid, 'roster');
+        return rosterInfo;
+      });
+  },
+
+  actionTouchConversationEntry(context, x = {}) {
+    const { rootState } = context;
+    const sid = x.sid;
+    const type = x.type;
+    if (typeof sid === 'undefined' || sid === null || sid < 0 || !type) {
+      return;
+    }
+    rootState.im.sysManage.touchConversation(sid, type, Date.now());
+  },
+
+  actionSuppressAutoRead(context) {
+    context.commit('setAutoReadSuppressed', true);
+  },
+
+  actionResumeAutoRead(context) {
+    context.commit('setAutoReadSuppressed', false);
+  },
+
+  actionMarkCurrentMessageUnread(context, x = {}) {
+    const { state, rootState } = context;
+    const mid = x.mid;
+    const isGroup = state.viewType === 'groupchat';
+    if (!mid || (state.viewType !== 'rosterchat' && state.viewType !== 'groupchat')) {
+      return;
+    }
+
+    rootState.im.sysManage.markMessageUnread(state.sid, mid, isGroup);
+
+    const oldMessages = state.messages || [];
+    const updatedMessages = oldMessages.map((message) => {
+      if (`${message.id}` !== `${mid}`) {
+        return message;
+      }
+      return {
+        ...message,
+        status: rootState.im.sysManage.getStaticVars().STATIC_MESSAGE_STATUS.UNREAD
+      };
+    });
+    context.commit('setMessage', updatedMessages);
+    context.commit('setAutoReadSuppressed', true);
+
+    rootState.im.sysManage.touchConversation(state.sid, isGroup ? 'group' : 'roster', Date.now());
+    if (rootState.contact) {
+      context.dispatch('contact/actionGetConversationList', null, { root: true });
+    }
+  },
+
   actionGetGroupAdminList(context, x) {
     const { rootState } = context;
     rootState.im.groupManage
@@ -215,12 +304,14 @@ const actions = {
     if (typeof x.sid === 'undefined' || x.sid < 0) {
       context.commit('setMessage', []);
       context.commit('setViewType', '');
+      context.commit('setAutoReadSuppressed', false);
     }
 
     if (state.sid !== x.sid || state.viewType !== x.type) {
+      context.commit('setAutoReadSuppressed', false);
       context.commit('setSid', x.sid);
       x.type && context.commit('setViewType', x.type);
-      x.sid && context.commit('setMessage', []);
+      typeof x.sid !== 'undefined' && x.sid !== null && context.commit('setMessage', []);
       state.time = [];
       if (x.type == 'groupchat' || x.type == 'rosterchat') {
         if (state.lastSid !== x.sid || state.lastViewType !== x.type) {
@@ -240,6 +331,16 @@ const actions = {
 
   actionUpdateRoster(context) {
     const { rootState, state } = context;
+    if (state.sid === 0) {
+      context.commit('setRosterInfo', {
+        user_id: 0,
+        username: t('系统通知'),
+        nick_name: t('系统通知'),
+        alias: '',
+        avatar: '/image/setting.png'
+      });
+      return;
+    }
     rootState.im.rosterManage.asyncGetRosterInfo(state.sid, true).then((res) => {
       context.commit('setRosterInfo', res);
     });
@@ -269,7 +370,13 @@ const actions = {
     } else; //undefined type
 
     if (localMessages) {
-      context.dispatch('actionAppendMessage', { messages: localMessages });
+      // Messages restored while re-entering a session should not replay the
+      // typing animation from the beginning if an AI stream never closed.
+      const restoredMessages = localMessages.map((message) => ({
+        ...message,
+        skipStreamReplayOnMount: true
+      }));
+      context.dispatch('actionAppendMessage', { messages: restoredMessages });
     }
 
     const historyQueryTimes = state.queryHistoryRecords[state.sid] || 0;
@@ -338,7 +445,7 @@ const actions = {
     }
 
     if (j < oldMessages.length) {
-      allMessages = allMessages.concat(oldMessages.slice(i, oldMessages.length));
+      allMessages = allMessages.concat(oldMessages.slice(j, oldMessages.length));
     }
 
     if (sendingMessages.length) {

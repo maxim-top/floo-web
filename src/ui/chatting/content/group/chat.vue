@@ -1,9 +1,23 @@
 <template>
-  <div class="list" ref="listg" v-if="!forceRefresh">
-    <div @click="requestHistory" id="roster_history_btn">
-      {{ queryingHistory ? '正在拉取历史消息，请稍候' : '点击拉取历史消息' }}
+  <div class="list" ref="listg" v-if="!forceRefresh" @scroll="handleListScroll" @touchstart="handlePullStart" @touchmove="handlePullMove" @touchend="handlePullEnd">
+    <div class="message-history-slot">
+      <div
+        @click="requestHistory"
+        id="roster_history_btn"
+        class="message-history-trigger"
+        :class="{ 'is-visible': showHistoryTrigger || queryingHistory || isPulling, 'is-pulling': isPulling, 'is-loading': queryingHistory }"
+        :style="{ '--pull-distance': `${pullDistance}px` }"
+      >
+        <svg v-if="!queryingHistory" viewBox="0 0 24 24" aria-hidden="true" class="message-history-trigger__icon">
+          <path d="M12 7v5l3 2"></path>
+          <path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"></path>
+          <path d="M4.5 5.5v3.5H8"></path>
+        </svg>
+        <span v-else class="message-history-trigger__spinner" aria-hidden="true"></span>
+        <span>{{ queryingHistory ? $t('正在拉取历史消息') : $t('查看历史消息') }}</span>
+      </div>
     </div>
-    <div>
+    <div class="message-stream">
       <Message ref="vMessages" :message="message" v-bind:key="message.id" v-for="message in allMessages" />
     </div>
   </div>
@@ -29,6 +43,10 @@ export default {
 
     this.$store.getters.im.on('onGroupMessageContentAppend', (message) => {
       if (this.$refs.vMessages) {
+        this.$store.dispatch('content/actionUpdateMessage', {
+          message,
+          mid: message.id
+        });
         let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
         if (msg) {
           msg.messageContentAppend(message);
@@ -39,6 +57,10 @@ export default {
 
     this.$store.getters.im.on('onGroupMessageReplace', (message) => {
       if (this.$refs.vMessages) {
+        this.$store.dispatch('content/actionUpdateMessage', {
+          message,
+          mid: message.id
+        });
         let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
         if (msg) {
           msg.messageReplace(message);
@@ -58,10 +80,13 @@ export default {
 
     this.$store.getters.im.on('onMessageStatusChanged', ({ mid }) => {
       console.log('Message status changed, mid: ', mid);
+      if (!this.shouldRefreshMessageStatus(mid)) {
+        return;
+      }
       this.requireMessage();
     });
 
-    this.$store.getters.im.on('onSendingMessageStatusChanged', ({ status, mid, message }) => {
+    this.$store.getters.im.on('onSendingMessageStatusChanged', ({ status, mid, message, errorCode, errorReason }) => {
       // this.requireMessage();
       if (status === 'sending') {
         console.log('Sending Message status changed to sending mid: ', mid);
@@ -78,8 +103,7 @@ export default {
           mid
         });
       } else if (status === 'failed') {
-        // do nothing
-        this.deleteMessage(mid);
+        this.handleSendingMessageFailed({ mid, message, errorCode, errorReason });
       }
     });
 
@@ -121,7 +145,11 @@ export default {
       queryingHistory: false,
       scrollTimer: null,
       reloadList: [],
-      forceRefresh: false
+      forceRefresh: false,
+      showHistoryTrigger: false,
+      isPulling: false,
+      pullStartY: 0,
+      pullDistance: 0
     };
   },
 
@@ -130,7 +158,7 @@ export default {
   },
 
   computed: {
-    ...mapGetters('content', ['getSid', 'getMessages', 'getMessageTime', 'getScroll']),
+    ...mapGetters('content', ['getSid', 'getMessages', 'getMessageTime', 'getScroll', 'getAutoReadSuppressed']),
     im() {
       return this.$store.state.im;
     },
@@ -171,6 +199,78 @@ export default {
     }
   },
   methods: {
+    parseMessageExt(message) {
+      if (!message || !message.ext) {
+        return {};
+      }
+      try {
+        return typeof message.ext === 'string' ? JSON.parse(message.ext) : message.ext;
+      } catch (ex) {
+        return {};
+      }
+    },
+
+    isAiStreamMessage(message) {
+      const ext = this.parseMessageExt(message);
+      return !!(ext && ext.ai && ext.ai.stream);
+    },
+
+    shouldRefreshMessageStatus(mid) {
+      const messages = this.getMessages || [];
+      const currentMessage = messages.find((item) => `${item.id}` === `${mid}`);
+      if (currentMessage && this.isAiStreamMessage(currentMessage)) {
+        return false;
+      }
+      return true;
+    },
+
+    getFailedErrorInfo({ message, errorCode, errorReason }) {
+      let reason = errorReason;
+      const status = message && message.status;
+      if (!reason && status && status.reason) {
+        reason = status.reason;
+      }
+
+      const normalizedReason = (reason || '').toLowerCase().trim();
+      let reasonText = reason;
+      if (normalizedReason.indexOf('antispam') > -1) {
+        reasonText = this.$t('消息包含敏感词，请修改后再发送');
+      } else if (normalizedReason.indexOf('account_verify_needed') > -1 || normalizedReason.indexOf('verify_needed') > -1) {
+        reasonText = this.$t('无法发送消息，您已被限制使用，请先完成实名认证。');
+      } else if (normalizedReason.indexOf('you have been blocked by the recipient') > -1) {
+        reasonText = this.$t('你已被对方加入黑名单，无法发送消息');
+      } else if (normalizedReason.indexOf('your relation with target does not allow chat') > -1) {
+        reasonText = this.$t('你与对方还不是好友，请先添加对方为好友后再聊天');
+      }
+      if (!reasonText) {
+        reasonText = this.$t('消息发送失败');
+      }
+      return { errorCode, reason: reasonText, rawReason: reason };
+    },
+
+    handleSendingMessageFailed({ mid, message, errorCode, errorReason }) {
+      const messages = this.getMessages || [];
+      const oldMessage = messages.find((item) => item.id + '' === mid + '');
+      if (!oldMessage) {
+        return;
+      }
+      const { reason, rawReason } = this.getFailedErrorInfo({ message, errorCode, errorReason });
+      const failedMessage = {
+        ...(oldMessage || {}),
+        sendFailed: true,
+        sendFailedCode: errorCode,
+        sendFailedRawReason: rawReason,
+        sendFailedReason: reason
+      };
+
+      console.error('Sending Message status changed to failed mid: ', mid, 'code:', errorCode, 'reason:', rawReason || reason);
+      this.$store.dispatch('content/actionUpdateMessage', {
+        message: failedMessage,
+        mid
+      });
+      this.$message.error(reason);
+    },
+
     isMessageInCurrentConv(message) {
       const toUid = toNumber(message.to);
       const pid = this.getSid;
@@ -201,23 +301,21 @@ export default {
       const pid = this.getSid;
       const uid = this.$store.getters.im.userManage.getUid();
       if (toUid === pid) {
-        if (uid + '' !== message.from + '') {
+        if (uid + '' !== message.from + '' && !this.getAutoReadSuppressed) {
           this.$store.getters.im.groupManage.readGroupMessage(this.getSid);
         }
-        this.requireMessage();
-        if (message.ext && !message.isHistory) {
-          let ext = {};
-          try {
-            ext = JSON.parse(message.ext);
-          } catch (ex) {
-            //
-          }
-          if (ext && ext.ai && ext.ai.stream && !ext.ai.finish) {
+        const ext = this.parseMessageExt(message);
+        if (ext && ext.ai && ext.ai.stream) {
+          this.$store.dispatch('content/actionAppendMessage', {
+            messages: [message]
+          });
+          if (!ext.ai.finish) {
             this.calculateScroll(message);
           } else {
             this.scroll();
           }
         } else {
+          this.requireMessage();
           this.scroll();
         }
       }
@@ -231,14 +329,62 @@ export default {
       this.queryHistoryTimer && clearTimeout(this.queryHistoryTimer);
       this.queryHistoryTimer = setTimeout(() => {
         this.queryingHistory = false;
-      }, 10000);
+      }, 15000);
       this.$store.dispatch('content/queryHistory');
+    },
+
+    handleListScroll() {
+      const list = this.$refs.listg;
+      if (!list) return;
+      if (this.isPulling) return;
+      const showThreshold = 10;
+      const hideThreshold = 28;
+      if (this.showHistoryTrigger || this.isPulling || this.queryingHistory) {
+        this.showHistoryTrigger = list.scrollTop <= hideThreshold;
+      } else {
+        this.showHistoryTrigger = list.scrollTop <= showThreshold;
+      }
+      if (list.scrollTop > hideThreshold && !this.queryingHistory) {
+        this.pullDistance = 0;
+        this.isPulling = false;
+      }
+    },
+
+    handlePullStart(event) {
+      const list = this.$refs.listg;
+      if (!list || list.scrollTop > 0) return;
+      this.pullStartY = event.touches[0].clientY;
+      this.pullDistance = 0;
+      this.isPulling = true;
+    },
+
+    handlePullMove(event) {
+      const list = this.$refs.listg;
+      if (!list || list.scrollTop > 0 || !this.pullStartY) return;
+      const delta = event.touches[0].clientY - this.pullStartY;
+      if (delta <= 0) {
+        this.pullDistance = 0;
+        return;
+      }
+      this.pullDistance = Math.min(delta * 0.6, 84);
+    },
+
+    handlePullEnd() {
+      if (this.pullDistance >= 56 && !this.queryingHistory) {
+        this.requestHistory();
+      }
+      this.pullStartY = 0;
+      this.pullDistance = 0;
+      if (!this.queryingHistory) {
+        this.isPulling = false;
+      }
     },
 
     scroll() {
       let that = this;
       setTimeout(() => {
         that.$refs.listg && (that.$refs.listg.scrollTop = that.$refs.listg.scrollHeight);
+        that.handleListScroll();
       }, 200);
     },
 
@@ -252,7 +398,7 @@ export default {
         }
         if (ext && ext.ai && ext.ai.stream) {
           this.scrollTimer && clearInterval(this.scrollTimer);
-          let interval = ext.ai.stream_interval ? ext.ai.stream_interval : 20;
+          let interval = ext.ai.stream_interval ? ext.ai.stream_interval : 3;
           let count = interval * 5;
           if (count) {
             let that = this;

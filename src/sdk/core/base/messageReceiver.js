@@ -23,9 +23,15 @@ import { makeSyncul, makeUnreadUl, makeUnreadULTimer } from './messageMaker';
 const noticeXids = {}; //
 let isKick = false;
 
+const isClientSendFailure = (messageObj = {}) => {
+  const { client_mid } = messageObj;
+  return !!(client_mid && toLong(client_mid).gt(0));
+};
+
 const checkSuccess = (messageObj) => {
   const { status = {} } = messageObj;
   const { code, reason } = status;
+  const clientSendFailure = isClientSendFailure(messageObj);
   if (code === STATIC_FRAME_ERROR_STATUS.OK) return true;
   if (typeof status.code === 'undefined') return true; // 对于没有这个的，基本就是出错了
 
@@ -46,31 +52,31 @@ const checkSuccess = (messageObj) => {
   if (code === STATIC_FRAME_ERROR_STATUS.USER_BANNED) {
     const category = 'USER_BANNED';
     const desc = '用户被禁言';
-    fire('flooError', { category, desc });
+    !clientSendFailure && fire('flooError', { category, desc });
   } else if (code === STATIC_FRAME_ERROR_STATUS.USER_FROZEN) {
     const category = 'USER_FROZEN';
     const desc = '用户被冻结，请联系App管理员。';
-    fire('flooError', { category, desc });
+    !clientSendFailure && fire('flooError', { category, desc });
   } else if (code === STATIC_FRAME_ERROR_STATUS.APP_FROZEN) {
     const category = 'APP_FROZEN';
     const desc = 'APP 被冻结，请登陆蓝莺IM控制台查看详情。';
-    fire('flooError', { category, desc });
+    !clientSendFailure && fire('flooError', { category, desc });
   } else if (code === STATIC_FRAME_ERROR_STATUS.INVALID_LICENSE) {
     const category = 'LICENSE';
     const desc = '无效 LICENSE，请确认服务已按时付费。';
-    fire('flooError', { category, desc });
+    !clientSendFailure && fire('flooError', { category, desc });
   } else if (code === STATIC_FRAME_ERROR_STATUS.LICENSE_LIMIT) {
     const category = 'LICENSE';
     const desc = '超出 LICENSE 用户数限制，请购买更高规格服务。';
-    fire('flooError', { category, desc });
+    !clientSendFailure && fire('flooError', { category, desc });
   } else if (code === STATIC_FRAME_ERROR_STATUS.FAIL) {
     const category = 'FAIL';
     const desc = reason;
-    fire('flooError', { category, desc });
+    !clientSendFailure && fire('flooError', { category, desc });
   } else {
     const category = code;
     const desc = reason;
-    fire('flooError', { category, desc });
+    !clientSendFailure && fire('flooError', { category, desc });
   }
 
   const { client_mid } = messageObj;
@@ -79,7 +85,9 @@ const checkSuccess = (messageObj) => {
     fire('onSendingMessageStatusChanged', {
       status: 'failed',
       mid: toNumber(client_mid),
-      message: metaToCustomer(messageObj)
+      message: metaToCustomer(messageObj),
+      errorCode: code,
+      errorReason: reason
     });
   }
 

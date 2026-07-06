@@ -1,10 +1,13 @@
 <template>
-  <div class="chat-index support-content-chat-index">
-    <Header />
-    <Content />
+  <div class="chat-index support-content-chat-index support-shell">
+    <Header class="app-topbar" />
+    <div class="support-body">
+      <div class="support-main">
+        <Content />
+      </div>
+    </div>
   </div>
 </template>
-
 <script>
 import Header from './header';
 import Content from './content';
@@ -46,10 +49,19 @@ export default {
   computed: {},
   methods: {
     initCss() {
-      document.getElementById('app').style = 'width:100%; height:100%;min-width:100px;min-height:200px;margin-left:0px;background-color: transparent;';
-      document.body.style = 'background-color: transparent; margin:0px !important;';
+      const app = document.getElementById('app');
+      const html = document.documentElement;
+      const body = document.body;
+      const uiRoot = document.querySelector('.ui-index');
+      const shellStyle =
+        'width:100%;height:100%;min-width:100px;min-height:200px;margin:0;background-color:transparent;position:fixed;left:0;top:0;right:0;bottom:0;transform:none;';
+
+      html && (html.style.cssText = 'background-color: transparent;');
+      app && (app.style.cssText = shellStyle);
+      uiRoot && (uiRoot.style.cssText = 'width:100%;height:100%;margin:0;background-color:transparent;overflow:hidden;');
+      body && (body.style.cssText = 'background-color: transparent; margin:0px !important;');
       if (this.checkMobile()) {
-        document.getElementById('app').style.borderRadius = '0px';
+        app && (app.style.borderRadius = '0px');
       }
     },
 

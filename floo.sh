@@ -19,6 +19,7 @@ cp babel.config.js $pdir/
 cp vue.config.js $pdir/
 
 cp package.json $pdir/
+cp yarn.lock $pdir/
 
 cp -R ./src $pdir/
 cp -R ./public $pdir/

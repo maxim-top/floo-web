@@ -30,6 +30,9 @@ const recentStore = {
     if (checkTyping(meta)) return;
     // 改为 从 meta 取 from, to， roster 消息，from是要存的，group消息，to 是要存的
     const { from, to, type, toType, attach, config, ext, timestamp, isHistory } = meta;
+    const isSystemMessage = meta && (meta.is_system === true || meta.is_system === 'true' || meta.is_system === 1 || meta.is_system === '1');
+    const isSystemConversationMessage = isSystemMessage && toType === 'roster' && toNumber(from) === 0;
+    if (isSystemMessage && !isSystemConversationMessage) return;
     let content = meta.content;
     if (!content && !attach) {
       //两者都无，那就不是正常的消息了
@@ -59,8 +62,12 @@ const recentStore = {
     let updateRecent = false;
     const allRecents = getItem('key_recent_store') || [];
     const index = allRecents.findIndex((item) => item.type === toType && item.id === savedUid);
+    let draft = '';
+    let draftTimestamp = '';
     if (index > -1) {
       let item = allRecents[index];
+      draft = item.draft || '';
+      draftTimestamp = item.draftTimestamp || '';
       if (toNumber(timestamp) > toNumber(item.timestamp)) {
         updateRecent = true;
         allRecents.splice(index, 1);
@@ -86,27 +93,33 @@ const recentStore = {
         content,
         ext,
         timestamp,
-        hasAt
+        hasAt,
+        draft,
+        draftTimestamp
       });
       saveItem('key_recent_store', allRecents);
       fire('recentlistUpdate');
     }
   },
 
-  saveUnreadRecent: (xids, stype) => {
+  saveUnreadRecent: (xids, stype, forcedTimestamp = '') => {
     xids.forEach((xid) => {
       const type = stype; // 'group' : 'roster';
       const allRecents = getItem('key_recent_store') || [];
       let content = '';
-      let timestamp = '';
+      let timestamp = forcedTimestamp || '';
       let hasAt = false;
       let ext = {};
+      let draft = '';
+      let draftTimestamp = '';
       const index = allRecents.findIndex((item) => item.type === type && item.id === xid);
       if (index > -1) {
         content = allRecents[index].content;
         ext = allRecents[index].ext;
-        timestamp = allRecents[index].timestamp;
+        timestamp = forcedTimestamp || allRecents[index].timestamp;
         hasAt = allRecents[index].hasAt;
+        draft = allRecents[index].draft || '';
+        draftTimestamp = allRecents[index].draftTimestamp || '';
         allRecents.splice(index, 1);
       }
 
@@ -116,10 +129,59 @@ const recentStore = {
         content,
         ext,
         timestamp,
-        hasAt
+        hasAt,
+        draft,
+        draftTimestamp
       });
       saveItem('key_recent_store', allRecents);
     });
+    fire('recentlistUpdate');
+  },
+
+  saveDraft: (id, type, draft, forcedTimestamp = '') => {
+    if (!type || typeof id === 'undefined' || id === null || id === '') {
+      return;
+    }
+
+    const allRecents = getItem('key_recent_store') || [];
+    const index = allRecents.findIndex((item) => item.type === type && item.id === id);
+    const normalizedDraft = typeof draft === 'string' ? draft : '';
+    const hasDraft = !!normalizedDraft.trim();
+    const nextDraftTimestamp = hasDraft ? forcedTimestamp || Date.now() : '';
+
+    if (index < 0) {
+      if (!hasDraft) {
+        return;
+      }
+      allRecents.unshift({
+        type,
+        id,
+        content: '',
+        ext: {},
+        timestamp: '',
+        hasAt: false,
+        draft: normalizedDraft,
+        draftTimestamp: nextDraftTimestamp
+      });
+      saveItem('key_recent_store', allRecents);
+      fire('recentlistUpdate');
+      return;
+    }
+
+    const current = allRecents[index];
+    const next = {
+      ...current,
+      draft: hasDraft ? normalizedDraft : '',
+      draftTimestamp: hasDraft ? nextDraftTimestamp : ''
+    };
+
+    if (current.draft === next.draft && current.draftTimestamp === next.draftTimestamp) {
+      return;
+    }
+
+    allRecents.splice(index, 1);
+    allRecents.unshift(next);
+    saveItem('key_recent_store', allRecents);
     fire('recentlistUpdate');
   },
 
@@ -136,12 +198,19 @@ const recentStore = {
           content: item.content,
           ext: item.ext,
           timestamp: item.timestamp,
-          hasAt: status
+          hasAt: status,
+          draft: item.draft || '',
+          draftTimestamp: item.draftTimestamp || ''
         });
         saveItem('key_recent_store', allRecents);
         fire('recentlistUpdate');
       }
     }
+  },
+
+  getRecentByConversation: (id, type) => {
+    const list = getItem('key_recent_store') || [];
+    return list.find((item) => item.id + '' === id + '' && item.type === type) || null;
   },
 
   getRecents: () => {
