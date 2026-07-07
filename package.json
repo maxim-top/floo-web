@@ -107,10 +107,10 @@
     }
   },
   "eslintIgnore": [
-    "/src/im/",
-    "/src/ui/third/marked.min.js",
-    "/dist/",
-    "/node_modules/"
+    "src/im/**",
+    "src/ui/third/marked.min.js",
+    "dist/**",
+    "node_modules/**"
   ],
   "husky": {
     "hooks": {
