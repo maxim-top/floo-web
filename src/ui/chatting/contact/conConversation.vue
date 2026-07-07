@@ -76,6 +76,7 @@ export default {
   computed: {
     ...mapGetters('contact', ['getConversationList', 'getConversationScroll', 'getSearchKeyword', 'getSkipConversationAutoSelectOnce']),
     ...mapGetters('content', ['getSid']),
+    ...mapGetters('header', ['getHeaderStatus']),
     systemRoster() {
       return {
         name: this.$t('系统通知'),
@@ -98,6 +99,12 @@ export default {
   watch: {
     getConversationList() {
       this.ensureActiveConversation();
+    },
+    getHeaderStatus(status) {
+      if (status === 'conversation') {
+        this.restoreScroll();
+        this.ensureActiveConversation();
+      }
     },
     getSid(newSid) {
       if (newSid === undefined || newSid === null || newSid === '' || newSid === -1) {
@@ -131,6 +138,7 @@ export default {
     ensureActiveConversation() {
       this.$nextTick(() => {
         if (window.innerWidth <= 768) return;
+        if (this.getHeaderStatus !== 'conversation') return;
         if (!Array.isArray(this.filteredConversationList) || !this.filteredConversationList.length) return;
         if (this.getSkipConversationAutoSelectOnce) {
           this.$store.dispatch('contact/actionSetSkipConversationAutoSelectOnce', false);

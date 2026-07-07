@@ -171,7 +171,10 @@ export default {
 .verification_panel {
   width: 100%;
   height: 100%;
-  padding: 40px 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(20px, 4vh, 40px) clamp(16px, 5vw, 48px);
   box-sizing: border-box;
   background: #f7f8fa;
   overflow-y: auto;
@@ -179,9 +182,10 @@ export default {
 }
 
 .verification_panel_card {
+  width: min(100%, 560px);
   max-width: 560px;
-  margin: 10vh auto;
-  padding: 36px 32px;
+  margin: 0;
+  padding: clamp(20px, 4vh, 36px) clamp(20px, 4vw, 32px);
   background: var(--ly-bg-white);
   border: 1px solid rgba(193, 198, 200, 0.7);
   border-radius: 24px;
@@ -369,13 +373,48 @@ export default {
   font-size: 16px;
 }
 
+@media (min-width: 769px) and (max-height: 720px) {
+  .verification_panel_card {
+    padding: 20px 20px 24px;
+  }
+
+  .verification_provider {
+    margin-top: 14px;
+    font-size: 24px;
+  }
+
+  .verification_panel_metrics {
+    margin-top: 20px;
+    gap: 12px;
+  }
+
+  .verification_metric_card {
+    padding: 14px 16px;
+  }
+
+  .verification_metric_value {
+    font-size: 16px;
+  }
+
+  .verification_panel_note {
+    margin-top: 18px;
+    padding: 16px 18px;
+  }
+
+  .status-container {
+    margin-top: 18px;
+  }
+}
+
 @media (max-width: 768px) {
   .verification_panel {
+    display: block;
     padding: 0;
     background: var(--ly-bg-white);
   }
 
   .verification_panel_card {
+    width: 100%;
     margin: 0;
     max-width: 100%;
     min-height: 100%;

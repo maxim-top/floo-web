@@ -119,15 +119,18 @@ export default {
   data() {
     return {
       activeCategory: 'support',
-      staticList: []
+      staticList: [],
+      contactDataLoaded: false
     };
   },
   mounted() {
-    this.$store.dispatch('contact/actionLazyGetRosterList');
-    this.$store.dispatch('contact/actionLazyGetGroupList');
-    this.asyncGetStatics();
-    this.ensureActiveCategory();
-    this.ensureActiveContact();
+    this.$nextTick(() => {
+      if (this.getHeaderStatus === 'contact') {
+        this.ensureContactDataLoaded();
+      }
+      this.ensureActiveCategory();
+      this.ensureActiveContact();
+    });
   },
 
   computed: {
@@ -225,6 +228,9 @@ export default {
       }
     },
     getHeaderStatus() {
+      if (this.getHeaderStatus === 'contact') {
+        this.ensureContactDataLoaded();
+      }
       if (this.getHeaderStatus !== 'contact' && this.getSkipAutoSelectOnce) {
         this.$store.dispatch('contact/actionSetSkipAutoSelectOnce', false);
       }
@@ -243,6 +249,16 @@ export default {
   },
 
   methods: {
+    ensureContactDataLoaded() {
+      if (this.contactDataLoaded) {
+        return;
+      }
+      this.contactDataLoaded = true;
+      this.$store.dispatch('contact/actionLazyGetRosterList');
+      this.$store.dispatch('contact/actionLazyGetGroupList');
+      this.asyncGetStatics();
+    },
+
     ensureActiveCategory() {
       this.$nextTick(() => {
         const options = [

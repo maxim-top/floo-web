@@ -42,6 +42,8 @@
 <script>
 import { mapGetters } from 'vuex';
 
+const DEFAULT_APP_ID = 'welovemaxim';
+
 export default {
   name: 'changeappid',
   data() {
@@ -70,17 +72,21 @@ export default {
   methods: {
     loadAppIdHistory() {
       const savedHistory = window.localStorage.getItem('lanying_im_appid_history') || '';
+      let appIDHistory = [];
       if (!savedHistory) {
-        this.appIDHistory = [];
+        this.appIDHistory = [DEFAULT_APP_ID];
         return;
       }
       try {
         const parsedHistory = JSON.parse(savedHistory);
-        this.appIDHistory = Array.isArray(parsedHistory) ? parsedHistory.filter((item) => `${item || ''}`.trim()) : [];
+        appIDHistory = Array.isArray(parsedHistory) ? parsedHistory.filter((item) => `${item || ''}`.trim()) : [];
       } catch (ex) {
         console.error('Can not parse appid history: ', savedHistory);
-        this.appIDHistory = [];
       }
+      if (!appIDHistory.includes(DEFAULT_APP_ID)) {
+        appIDHistory.push(DEFAULT_APP_ID);
+      }
+      this.appIDHistory = appIDHistory;
     },
     toggleHistoryMenu() {
       if (!this.appIDHistory.length) {

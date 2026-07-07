@@ -1,7 +1,7 @@
 <template>
   <div class="contact">
-    <ConContact v-if="showContact" />
-    <ConConversation v-if="showConversation" />
+    <ConContact v-show="showContact" />
+    <ConConversation v-show="showConversation" />
   </div>
 </template>
 

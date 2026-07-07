@@ -181,8 +181,16 @@ const actions = {
       const id = item.id;
       const draft = typeof item.draft === 'string' ? item.draft : '';
       const hasDraft = !!draft.trim();
-      const fallbackMessages = item.type === 'roster' ? rootState.im.rosterManage.getRosterMessageByRid(id) : rootState.im.groupManage.getGruopMessage(id);
-      const fallbackPreview = deriveRecentPreviewFromMessage(fallbackMessages && fallbackMessages.length ? fallbackMessages[fallbackMessages.length - 1] : null);
+      const needsFallbackContent = !hasDraft && !item.content;
+      const needsFallbackTimestamp = (!hasDraft && !item.timestamp) || (hasDraft && !item.draftTimestamp && !item.timestamp);
+      let fallbackPreview = {
+        content: '',
+        timestamp: ''
+      };
+      if (needsFallbackContent || needsFallbackTimestamp) {
+        const fallbackMessages = item.type === 'roster' ? rootState.im.rosterManage.getRosterMessageByRid(id) : rootState.im.groupManage.getGruopMessage(id);
+        fallbackPreview = deriveRecentPreviewFromMessage(fallbackMessages && fallbackMessages.length ? fallbackMessages[fallbackMessages.length - 1] : null);
+      }
       const content = hasDraft ? draft : item.content || fallbackPreview.content;
       const timestamp = hasDraft ? item.draftTimestamp || item.timestamp || fallbackPreview.timestamp : item.timestamp || fallbackPreview.timestamp;
       const hasAt = item.hasAt;
