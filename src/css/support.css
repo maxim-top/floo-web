@@ -955,9 +955,16 @@
   word-wrap: break-word;
   overflow-wrap: break-word;
   word-break: break-word;
-  white-space: pre-wrap;
+  white-space: normal;
   text-align: left;
   text-indent: 0;
+}
+
+.support-content .c_content .c_plaintext {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .support-content .list .messageFrame .support-contentFrame .c_content {

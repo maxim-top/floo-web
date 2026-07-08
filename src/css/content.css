@@ -1105,10 +1105,17 @@
   word-wrap: break-word;
   overflow-wrap: break-word;
   word-break: break-word;
-  white-space: pre-wrap;
+  white-space: normal;
   text-align: left;
   text-indent: 0;
   position: relative;
+}
+
+.content .c_content .c_plaintext {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .content .self .c_content {

@@ -32,7 +32,7 @@
               <div class="send_failed" v-if="isSelf && isSendFailed" @click="showSendFailedReason">!</div>
               <div v-if="message.type === 'text'">
                 <div v-if="showMarkdown" v-html="showMarkdownContent" class="c_markdown" />
-                <div v-else>{{ showContent }}</div>
+                <div v-else class="c_plaintext">{{ showContent }}</div>
                 <div class="c_content_ext" v-if="showExt">ext: {{ message.ext }}</div>
               </div>
               <div v-if="message.type === 'rtc'" class="rtc_message">
