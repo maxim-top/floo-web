@@ -1,6 +1,13 @@
 <template>
   <div class="inputer_frame" ref="groupInputer">
+    <ChatFileUploadStatus :tasks="visibleChatFileUploadTasks(getSid, 'group')" @retry="retryChatFileUpload" @dismiss="dismissChatFileUpload" />
     <div class="composer_surface">
+      <div v-if="canUseQuickReply" class="composer_toolbar">
+        <button class="quick_reply_button" type="button" @click="quickReplyVisible = true">
+          <span class="quick_reply_icon_text" aria-hidden="true">⚡</span>
+          <span>{{ $t('快捷回复') }}</span>
+        </button>
+      </div>
       <div class="attach">
         <input @change="fileChangeHandler" ref="fileRef" type="file" />
         <div class="attach_toggle" @click.stop="toggleActionMenu" tabindex="0">
@@ -30,7 +37,6 @@
         <textarea
           @input="handleTextareaInput"
           @keydown="textareaKeyDown"
-          @keyup="textareaKeyUp"
           class="input_text"
           :placeholder="[[placeholder]]"
           v-model="message"
@@ -43,6 +49,7 @@
         <div id="group_send_button" @click="handleSendMessage" class="im_send_empty" />
       </div>
     </div>
+    <QuickReplyPanel :im="im" :visible="quickReplyVisible" @close="quickReplyVisible = false" @select="handleQuickReplySelect" />
     <div class="support_link">
       <el-tooltip placement="top" effect="light" :visible-arrow="false">
         <div slot="content">
@@ -65,19 +72,29 @@
 
 <script>
 import { mapGetters } from 'vuex';
+import QuickReplyPanel from '../../../components/quickReplyPanel';
+import ChatFileUploadStatus from '../../../components/chatFileUploadStatus';
+import chatFileUpload from '../../../mixins/chatFileUpload';
 
 export default {
   name: 'groupInputer',
+  mixins: [chatFileUpload],
   data() {
     return {
       placeholder: '',
       message: '',
       fileType: '',
       button: null,
-      showActionMenu: false
+      showActionMenu: false,
+      canUseQuickReply: false,
+      quickReplyVisible: false,
+      textareaResizeFrame: null
     };
   },
-  components: {},
+  components: {
+    QuickReplyPanel,
+    ChatFileUploadStatus
+  },
   computed: {
     ...mapGetters('content', ['getSid', 'getIntentMessage']),
     im() {
@@ -101,6 +118,7 @@ export default {
   mounted() {
     this.initIntentMessage();
     document.addEventListener('click', this.closeActionMenu);
+    this.initQuickReplyEligibility();
     let _this = this;
 
     // paste
@@ -149,9 +167,14 @@ export default {
   },
   beforeDestroy() {
     document.removeEventListener('click', this.closeActionMenu);
+    if (this.textareaResizeFrame) {
+      cancelAnimationFrame(this.textareaResizeFrame);
+      this.textareaResizeFrame = null;
+    }
   },
   methods: {
     textareaKeyDown(evt) {
+      if (evt.isComposing || evt.keyCode === 229) return;
       if (evt.keyCode === 13 && !evt.shiftKey) {
         this.handleSendMessage();
         if (evt && evt.stopPropagation) {
@@ -163,12 +186,8 @@ export default {
       }
     },
 
-    textareaKeyUp() {
-      this.autoResizeTextarea();
-      this.changeSendButtonBackground();
-    },
     handleTextareaInput() {
-      this.autoResizeTextarea();
+      this.scheduleTextareaResize();
       this.changeSendButtonBackground();
     },
     toggleActionMenu() {
@@ -176,6 +195,31 @@ export default {
     },
     closeActionMenu() {
       this.showActionMenu = false;
+    },
+    initQuickReplyEligibility() {
+      this.im.sysManage
+        .asyncCanUseQuickReply()
+        .then((value) => {
+          this.canUseQuickReply = !!value;
+        })
+        .catch(() => {
+          this.canUseQuickReply = false;
+        });
+    },
+    handleQuickReplySelect(content) {
+      const nextMessage = `${content || ''}`.trim();
+      this.quickReplyVisible = false;
+      if (!nextMessage) {
+        return;
+      }
+      this.message = nextMessage;
+      this.$nextTick(() => {
+        this.autoResizeTextarea();
+        this.changeSendButtonBackground();
+        if (this.$refs.inputTextRef) {
+          this.$refs.inputTextRef.focus();
+        }
+      });
     },
 
     imageUploadClickHandler() {
@@ -219,38 +263,8 @@ export default {
     },
 
     sendFileInBackground(file) {
-      this.im.sysManage
-        .asyncFileUpload({
-          file,
-          fileType: this.fileType,
-          to_id: this.getSid,
-          toType: 'chat',
-          chatType: 'group',
-          processCallback: function (res) {
-            console.log('fileChangeHandler group chat file upload percent :' + 100 * (res.loaded / res.total));
-          }
-        })
-        .then((res) => {
-          const fileInfo = {
-            dName: file.name,
-            fLen: file.size,
-            width: 0,
-            height: 0
-          };
-          fileInfo.url = res.url;
-          this.im.sysManage.sendGroupMessage({
-            type: this.fileType,
-            gid: this.getSid,
-            content: '',
-            attachment: fileInfo,
-            //ext: '自定义消息字段',
-            priority: 0
-          });
-          this.$refs.fileRef.value = '';
-        })
-        .catch(() => {
-          this.$refs.fileRef.value = '';
-        });
+      this.startChatFileUpload(file, this.fileType, 'group', this.getSid);
+      if (this.$refs.fileRef) this.$refs.fileRef.value = '';
     },
 
     initIntentMessage() {
@@ -277,17 +291,60 @@ export default {
       }
     },
 
+    scheduleTextareaResize() {
+      if (this.textareaResizeFrame) return;
+      this.textareaResizeFrame = requestAnimationFrame(() => {
+        this.textareaResizeFrame = null;
+        this.autoResizeTextarea();
+      });
+    },
+
     autoResizeTextarea() {
       const textarea = this.$refs.inputTextRef;
       if (!textarea) return;
       textarea.style.height = '40px';
-      const nextHeight = Math.min(Math.max(textarea.scrollHeight, 40), 150);
+      const scrollHeight = textarea.scrollHeight;
+      const nextHeight = Math.min(Math.max(scrollHeight, 40), 150);
       textarea.style.height = `${nextHeight}px`;
-      textarea.style.overflowY = textarea.scrollHeight > 150 ? 'auto' : 'hidden';
+      textarea.style.overflowY = scrollHeight > 150 ? 'auto' : 'hidden';
     }
     //methods finish
   }
 };
 </script>
 
-<style scoped></style>
+<style scoped>
+.composer_toolbar {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 6;
+}
+
+.quick_reply_button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #c4daf8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1862cc;
+  height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 3px 8px rgba(60, 115, 186, 0.18);
+}
+
+.quick_reply_icon_text {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.composer_surface {
+  position: relative;
+}
+</style>

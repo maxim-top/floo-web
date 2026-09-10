@@ -43,23 +43,16 @@
           </p>
 
           <p>
-            <span class="sl">{{ $t('屏蔽此群消息') }}</span>
+            <span class="sl">{{ $t('groupSetting.muteAll', { origin: '全员禁言' }) }}</span>
             <span class="sr">
-              <i :class="['r', groupInfo.msg_mute_mode ? 'switcher_on' : 'switcher_off']" @click="switchTouched(5)"></i>
-            </span>
-          </p>
-
-          <p>
-            <span class="sl">{{ $t('全员禁言') }}</span>
-            <span class="sr">
-              <i :class="['r', isGroupBanAll() ? 'switcher_on' : 'switcher_off']" @click="switchTouched(6)"></i>
+              <i :class="['r', isGroupBanAll() ? 'switcher_on' : 'switcher_off']" @click="switchTouched(5)"></i>
             </span>
           </p>
 
           <p>
             <span class="sl">{{ $t('隐藏群成员信息') }}</span>
             <span class="sr">
-              <i :class="['r', groupInfo.hide_member_info ? 'switcher_on' : 'switcher_off']" @click="switchTouched(7)"></i>
+              <i :class="['r', groupInfo.hide_member_info ? 'switcher_on' : 'switcher_off']" @click="switchTouched(6)"></i>
             </span>
           </p>
         </div>
@@ -72,16 +65,36 @@
             <a @click="touchedListHeader(4)">{{ $t('文件') }}</a>
             <a @click="touchedListHeader(5)">{{ $t('添加成员') }}</a>
           </div>
-          <div class="setting_lists" v-if="listTab === 0">
+          <div key="member-list" class="setting_lists" v-if="listTab === 0">
             <p>{{ $t('请选择成员进行操作') }}</p>
-            <div :key="p.user_id" class="item" v-for="p in memberList">
+            <div class="group-setting-search">
+              <input
+                v-model="memberSearchKeyword"
+                :placeholder="$t('groupSetting.memberSearchPlaceholder', { origin: '搜索成员名称或用户 ID' })"
+                autocomplete="off"
+                type="search"
+              />
+              <button
+                v-if="memberSearchKeyword"
+                :aria-label="$t('groupSetting.clearSearch', { origin: '清除搜索' })"
+                :title="$t('groupSetting.clearSearch', { origin: '清除搜索' })"
+                type="button"
+                @click="memberSearchKeyword = ''"
+              >
+                ×
+              </button>
+            </div>
+            <div :key="p.user_id" class="item" v-for="p in filteredMemberList">
               <span>
                 {{ p.user_name }}
                 {{ adminList.indexOf(p.user_id) >= 0 ? $t('(管理员)') : '' }}
               </span>
               <input :checked="selIdList.indexOf(p.user_id) >= 0" @click="touchMemberCheck(p.user_id)" type="checkbox" />
             </div>
-            <p v-if="this.memberList.length"></p>
+            <div v-if="memberSearchKeyword && !filteredMemberList.length" class="group-setting-search-empty">
+              {{ $t('groupSetting.noMatchingMembers', { origin: '没有匹配的成员' }) }}
+            </div>
+            <p v-if="filteredMemberList.length"></p>
             <div class="category">
               <a @click="kickMember">{{ $t('踢出群') }}</a>
               <a @click="addBlockList">{{ $t('拉黑') }}</a>
@@ -89,9 +102,21 @@
               <a @click="addAdminMember" v-if="userLevel === 3">{{ $t('提升管理') }}</a>
             </div>
           </div>
-          <div class="setting_lists" v-if="listTab === 1">
+          <div key="mute-list" class="setting_lists" v-if="listTab === 1">
             <p>{{ $t('请选择禁言的成员') }}</p>
-            <div :key="p.user_id" class="item" v-for="p in this.banList">
+            <div class="group-setting-search">
+              <input v-model="banSearchKeyword" :placeholder="$t('groupSetting.memberSearchPlaceholder', { origin: '搜索成员名称或用户 ID' })" autocomplete="off" type="search" />
+              <button
+                v-if="banSearchKeyword"
+                :aria-label="$t('groupSetting.clearSearch', { origin: '清除搜索' })"
+                :title="$t('groupSetting.clearSearch', { origin: '清除搜索' })"
+                type="button"
+                @click="banSearchKeyword = ''"
+              >
+                ×
+              </button>
+            </div>
+            <div :key="p.user_id" class="item" v-for="p in filteredBanList">
               <span v-if="p.duration" style="color: red">
                 {{ p.user_name }}
                 {{ adminList.indexOf(p.user_id) >= 0 ? $t('(管理员)') : '' }}
@@ -104,7 +129,10 @@
               </span>
               <input :checked="selIdList.indexOf(p.user_id) >= 0" @click="touchMemberCheck(p.user_id)" type="checkbox" />
             </div>
-            <p v-if="this.banList.length"></p>
+            <div v-if="banSearchKeyword && !filteredBanList.length" class="group-setting-search-empty">
+              {{ $t('groupSetting.noMatchingMembers', { origin: '没有匹配的成员' }) }}
+            </div>
+            <p v-if="filteredBanList.length"></p>
             <div class="category">
               <a @click="addMute">{{ $t('禁言') }}</a>
               <a @click="removeMute">{{ $t('解除禁言') }}</a>
@@ -113,19 +141,34 @@
             </div>
           </div>
 
-          <div class="setting_lists" v-if="listTab === 2">
+          <div key="block-list" class="setting_lists" v-if="listTab === 2">
             <p>{{ $t('请选择要移除的用户') }}</p>
-            <div :key="p.user_id" class="item" v-for="p in this.blockList">
+            <div class="group-setting-search">
+              <input v-model="blockSearchKeyword" :placeholder="$t('groupSetting.memberSearchPlaceholder', { origin: '搜索成员名称或用户 ID' })" autocomplete="off" type="search" />
+              <button
+                v-if="blockSearchKeyword"
+                :aria-label="$t('groupSetting.clearSearch', { origin: '清除搜索' })"
+                :title="$t('groupSetting.clearSearch', { origin: '清除搜索' })"
+                type="button"
+                @click="blockSearchKeyword = ''"
+              >
+                ×
+              </button>
+            </div>
+            <div :key="p.user_id" class="item" v-for="p in filteredBlockList">
               <span>{{ p.user_name }}</span>
               <input :checked="selIdList.indexOf(p.user_id) >= 0" @click="touchMemberCheck(p.user_id)" type="checkbox" />
             </div>
-            <p v-if="this.blockList.length"></p>
+            <div v-if="blockSearchKeyword && !filteredBlockList.length" class="group-setting-search-empty">
+              {{ $t('groupSetting.noMatchingMembers', { origin: '没有匹配的成员' }) }}
+            </div>
+            <p v-if="filteredBlockList.length"></p>
             <div class="category">
               <a @click="removeBlock">{{ $t('移除黑名单') }}</a>
             </div>
           </div>
 
-          <div class="setting_lists" v-if="listTab === 3">
+          <div key="announcement-list" class="setting_lists" v-if="listTab === 3">
             <p>{{ $t('请添加或选择要删除的公告') }}</p>
             <div class="category">
               <a @click="addPublic">{{ $t('添加') }}</a>
@@ -152,7 +195,7 @@
             </div>
           </div>
 
-          <div class="setting_lists" v-if="listTab === 4">
+          <div key="file-list" class="setting_lists" v-if="listTab === 4">
             <p>{{ $t('请选择上传的文件') }}</p>
             <div class="setting_lists_bars">
               <input ref="fileRef" style="margin-left: 10px; width: 280px; height: 28px; visibility: visible; position: static" type="file" />
@@ -175,13 +218,33 @@
             </div>
           </div>
 
-          <div class="setting_lists" v-if="listTab === 5">
+          <div key="invite-list" class="setting_lists" v-if="listTab === 5">
             <p>{{ $t('请选择邀请的好友') }}</p>
-            <div :key="p.user_id" class="item" v-for="p in this.rosterList">
+            <div class="group-setting-search">
+              <input
+                v-model="rosterSearchKeyword"
+                :placeholder="$t('groupSetting.memberSearchPlaceholder', { origin: '搜索成员名称或用户 ID' })"
+                autocomplete="off"
+                type="search"
+              />
+              <button
+                v-if="rosterSearchKeyword"
+                :aria-label="$t('groupSetting.clearSearch', { origin: '清除搜索' })"
+                :title="$t('groupSetting.clearSearch', { origin: '清除搜索' })"
+                type="button"
+                @click="rosterSearchKeyword = ''"
+              >
+                ×
+              </button>
+            </div>
+            <div :key="p.user_id" class="item" v-for="p in filteredRosterList">
               <span>{{ p.user_name }}</span>
               <input :checked="selIdList.indexOf(p.user_id) >= 0" @click="touchMemberCheck(p.user_id)" type="checkbox" />
             </div>
-            <p v-if="this.rosterList.length"></p>
+            <div v-if="rosterSearchKeyword && !filteredRosterList.length" class="group-setting-search-empty">
+              {{ $t('groupSetting.noMatchingMembers', { origin: '没有匹配的成员' }) }}
+            </div>
+            <p v-if="filteredRosterList.length"></p>
             <div class="category">
               <a @click="inviteRoster">{{ $t('邀请好友') }}</a>
             </div>
@@ -213,6 +276,10 @@ export default {
       publicList: [], //公告列表
       banDuration: '',
       listTab: 0,
+      memberSearchKeyword: '',
+      banSearchKeyword: '',
+      blockSearchKeyword: '',
+      rosterSearchKeyword: '',
 
       public_title: '',
       public_content: '',
@@ -271,9 +338,11 @@ export default {
         if (x && x.user_id) {
           const sxuid = x.user_id || x;
           const user_name = this.displayName(x);
+          const roster = allMaps[sxuid] || {};
           ret.push({
             user_id: sxuid,
-            user_name
+            user_name,
+            search_text: this.buildMemberSearchText(x, roster, user_name, sxuid)
           });
         }
       });
@@ -289,17 +358,30 @@ export default {
         const durItem = this.bans.find((i) => i.user_id === x.user_id);
         let duration = '';
         if (this.groupInfo.ban_expire_time && this.groupInfo.ban_expire_time === -1) {
-          duration = this.$t('全员禁言');
+          duration = this.$t('groupSetting.muteAll', { origin: '全员禁言' });
         } else if (durItem) {
           duration = durItem.expired_time === -1 ? this.$t('永久') : moment(durItem.expired_time).format('YYYY-MM-DD HH:mm:ss');
         }
         ret.push({
           user_name,
           user_id,
+          search_text: x.search_text,
           duration
         });
       });
       return [].concat(ret);
+    },
+    filteredMemberList() {
+      return this.filterMembers(this.memberList, this.memberSearchKeyword);
+    },
+    filteredBanList() {
+      return this.filterMembers(this.banList, this.banSearchKeyword);
+    },
+    filteredBlockList() {
+      return this.filterMembers(this.blockList, this.blockSearchKeyword);
+    },
+    filteredRosterList() {
+      return this.filterMembers(this.rosterList, this.rosterSearchKeyword);
     },
     blockList() {
       let ret = [];
@@ -311,7 +393,8 @@ export default {
         const user_name = this.displayRosterName(mapUser);
         ret.push({
           user_name,
-          user_id
+          user_id,
+          search_text: this.buildMemberSearchText(mapUser, {}, user_name, user_id)
         });
       });
       return ret;
@@ -329,7 +412,8 @@ export default {
         const user_name = this.displayRosterName(mapUser);
         ret.push({
           user_id,
-          user_name
+          user_name,
+          search_text: this.buildMemberSearchText(mapUser, {}, user_name, user_id)
         });
       });
       return ret;
@@ -337,6 +421,30 @@ export default {
     //computed over...
   },
   methods: {
+    buildMemberSearchText(member, roster, displayName, userId) {
+      return [
+        displayName,
+        member && member.display_name,
+        member && member.alias,
+        member && member.nick_name,
+        member && member.username,
+        roster && roster.display_name,
+        roster && roster.alias,
+        roster && roster.nick_name,
+        roster && roster.username,
+        userId
+      ]
+        .filter((value) => value !== null && typeof value !== 'undefined')
+        .join(' ')
+        .toLowerCase();
+    },
+    filterMembers(list, keyword) {
+      const normalizedKeyword = `${keyword || ''}`.trim().toLowerCase();
+      if (!normalizedKeyword) {
+        return list;
+      }
+      return list.filter((member) => (member.search_text || `${member.user_name || ''} ${member.user_id || ''}`.toLowerCase()).includes(normalizedKeyword));
+    },
     touchedListHeader(idx) {
       this.listTab = idx;
     },
@@ -402,18 +510,6 @@ export default {
       } //
 
       if (index === 5) {
-        //屏蔽消息
-        this.im.groupManage
-          .asyncGroupMsgMutemode({
-            group_id: this.getSid,
-            msg_mute_mode: this.groupInfo.msg_mute_mode ? 0 : 2
-          })
-          .then(() => {
-            this.groupInfo.msg_mute_mode = this.groupInfo.msg_mute_mode ? 0 : 2;
-          });
-      } //
-
-      if (index === 6) {
         //全员禁言
         if (this.isGroupBanAll()) {
           this.im.groupManage
@@ -435,7 +531,7 @@ export default {
         }
       } //
 
-      if (index === 7) {
+      if (index === 6) {
         // 群组是否对普通成员隐藏其它群成员详情
         this.im.groupManage
           .asyncHideMemberInfo({
@@ -731,11 +827,15 @@ export default {
       return banExpireTime < 0 || new Date().getTime() < banExpireTime;
     },
 
-    checkHideMemberInfo(user_id) {
+    checkHideMemberName(user_id) {
+      const isOwner = this.groupInfo.owner_id === user_id;
+      const isAdmin = this.adminList.includes(user_id);
+      if (this.userLevel > 1 || isOwner || isAdmin) {
+        return false;
+      }
       let hide = true;
       let hide_member_info = this.groupInfo.hide_member_info;
       let app_hide_member_info = false;
-      const uid = this.im.userManage.getUid();
       let appConfig = this.im.sysManage.getAppConfig(this.im.userManage.getAppid());
       if (appConfig) {
         app_hide_member_info = appConfig.hide_member_info;
@@ -762,7 +862,7 @@ export default {
     },
 
     displayName(roster) {
-      if (this.checkHideMemberInfo(roster.user_id) && !roster.has_nick) {
+      if (this.checkHideMemberName(roster.user_id) && !roster.has_nick) {
         return this.calucateHideMemberName(roster);
       } else {
         return roster.display_name;
@@ -770,7 +870,7 @@ export default {
     },
 
     displayRosterName(roster) {
-      if (this.checkHideMemberInfo(roster.user_id)) {
+      if (this.checkHideMemberName(roster.user_id)) {
         if (roster.nick_name) {
           return roster.nick_name;
         } else {
@@ -785,6 +885,18 @@ export default {
   },
 
   watch: {
+    memberSearchKeyword() {
+      this.selIdList = [];
+    },
+    banSearchKeyword() {
+      this.selIdList = [];
+    },
+    blockSearchKeyword() {
+      this.selIdList = [];
+    },
+    rosterSearchKeyword() {
+      this.selIdList = [];
+    },
     listTab(a, b) {
       if (a !== b) {
         this.checkedIds = [];
@@ -800,4 +912,62 @@ export default {
 };
 </script>
 
-<style scoped></style>
+<style scoped>
+.group-setting-search {
+  position: relative;
+  margin: 0 0 10px;
+}
+
+.group-setting-search input {
+  width: 100%;
+  height: 36px;
+  padding: 0 38px 0 12px;
+  border: 1px solid var(--ly-border-light);
+  border-radius: 10px;
+  background: var(--ly-bg-white);
+  color: var(--ly-text-main);
+  font-size: 13px;
+  line-height: 36px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.group-setting-search input:focus {
+  border-color: rgba(51, 51, 204, 0.45);
+  box-shadow: 0 0 0 3px rgba(51, 51, 204, 0.08);
+}
+
+.group-setting-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.group-setting-search button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 50%;
+  background: rgba(100, 116, 139, 0.1);
+  color: #64748b;
+  font-size: 17px;
+  line-height: 24px;
+  cursor: pointer;
+}
+
+.group-setting-search button:hover {
+  background: rgba(100, 116, 139, 0.16);
+  color: var(--ly-text-main);
+}
+
+.group-setting-search-empty {
+  padding: 24px 12px;
+  color: #8a94a6;
+  font-size: 13px;
+  text-align: center;
+}
+</style>

@@ -100,7 +100,8 @@ export default {
     return {
       userInfo: {},
       isDesktop: false,
-      supportContacts: []
+      supportContacts: [],
+      pendingUserInfoSid: null
     };
   },
   mounted() {
@@ -109,14 +110,16 @@ export default {
     this.refreshUserInfo(this.getSid);
     this.refreshSupportContacts();
 
-    this.$store.getters.im.on('onRosterInfoUpdate', (ids) => {
-      if (Array.isArray(ids) && ids.includes(this.getSid)) {
-        this.refreshUserInfo(this.getSid);
-      }
-    });
+    this.$store.getters.im.on('onRosterInfoUpdate', this.handleRosterInfoUpdate);
+    this.$store.getters.im.on('onRosterListUpdate', this.handleRosterListUpdate);
   },
   beforeDestroy() {
     window.removeEventListener('resize', this.updateDesktopMode);
+    const im = this.$store.getters.im;
+    if (im) {
+      im.off('onRosterInfoUpdate', this.handleRosterInfoUpdate);
+      im.off('onRosterListUpdate', this.handleRosterListUpdate);
+    }
   },
   watch: {
     getSid(newSid) {
@@ -153,8 +156,10 @@ export default {
       return this.getHeaderStatus === 'contact' || this.isDesktop;
     },
     isFriend() {
-      const index = this.getRosterList.findIndex((x) => x.user_id === this.getSid);
-      return index >= 0;
+      if (`${this.userInfo.user_id || ''}` === `${this.getSid}` && this.userInfo.relation !== undefined && this.userInfo.relation !== null) {
+        return Number(this.userInfo.relation) === 0;
+      }
+      return this.getRosterList.some((x) => `${x.user_id}` === `${this.getSid}`);
     },
     isSupportContact() {
       return !!this.currentSupportContact;
@@ -174,6 +179,36 @@ export default {
     }
   },
   methods: {
+    handleRosterInfoUpdate(ids) {
+      if (Array.isArray(ids) && ids.some((id) => `${id}` === `${this.getSid}`)) {
+        this.applyCachedUserInfo(this.getSid);
+      }
+    },
+    handleRosterListUpdate() {
+      if (!this.userInfo.user_id || `${this.userInfo.user_id}` !== `${this.getSid}`) return;
+      const userId = this.getSid;
+      this.$store.getters.im.rosterManage.asyncGetRosterIdList().then((ids = []) => {
+        if (`${this.getSid}` !== `${userId}`) return;
+        const listed = ids.some((id) => `${id}` === `${userId}`);
+        if (listed !== (Number(this.userInfo.relation) === 0)) {
+          this.refreshUserInfo(userId);
+        }
+      });
+    },
+    applyCachedUserInfo(userId) {
+      if (typeof userId === 'undefined' || userId === null || userId === '' || `${userId}` !== `${this.getSid}`) {
+        return;
+      }
+      const cachedInfo = this.$store.getters.im.rosterManage.getRosterInfo(userId) || {};
+      const nextInfo = Object.assign({}, this.userInfo, cachedInfo, {
+        user_id: userId
+      });
+      nextInfo.avatar = this.$store.getters.im.sysManage.getImage({
+        avatar: nextInfo.avatar,
+        type: 'roster'
+      });
+      this.userInfo = nextInfo;
+    },
     updateDesktopMode() {
       this.isDesktop = typeof window !== 'undefined' && window.innerWidth > 768;
     },
@@ -191,9 +226,23 @@ export default {
       });
     },
     refreshUserInfo(newSid) {
-      this.$store.getters.im.rosterManage
-        .asyncSearchRosterById({ user_id: newSid })
+      if (typeof newSid === 'undefined' || newSid === null || newSid === '' || Number(newSid) < 0) {
+        this.userInfo = {};
+        this.pendingUserInfoSid = null;
+        return Promise.resolve();
+      }
+      const targetSid = `${newSid}`;
+      this.pendingUserInfoSid = targetSid;
+      if (`${this.userInfo.user_id || ''}` !== targetSid) {
+        this.userInfo = {};
+      }
+      const rosterManage = this.$store.getters.im.rosterManage;
+      const request = this.isFriend ? rosterManage.asyncGetRosterInfo(newSid, true) : rosterManage.asyncSearchRosterById({ user_id: newSid });
+      return request
         .then((res) => {
+          if (this.pendingUserInfoSid !== targetSid || `${this.getSid}` !== targetSid) {
+            return;
+          }
           res.avatar = this.$store.getters.im.sysManage.getImage({
             avatar: res.avatar,
             type: 'roster'
@@ -201,6 +250,9 @@ export default {
           this.userInfo = res;
         })
         .catch((err) => {
+          if (this.pendingUserInfoSid !== targetSid || `${this.getSid}` !== targetSid) {
+            return;
+          }
           if (err && [USER_NOT_EXIST_ERROR_CODE, DELETED_ROSTER_ERROR_CODE].includes(err.code)) {
             this.userInfo = this.buildDeletedUserInfo(newSid, err);
             return;

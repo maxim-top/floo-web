@@ -13,9 +13,10 @@ import {
   makeTypingMessage,
   makeConversationOperation
 } from '../core/base/messageMaker';
-import { fire } from '../utils/cusEvent';
+import { bind, fire } from '../utils/cusEvent';
 import { STATIC_MESSAGE_STATUS } from '../utils/static';
 import { tryUrlsWithTimeout } from '../utils/speedTest';
+import { createHistoryRequestGate } from '../utils/historyRequestGate';
 
 /**
  * @module sysManage
@@ -28,8 +29,181 @@ const getConversationDraft = (id, type) => {
   return (conversation && conversation.draft) || '';
 };
 
-const saveConversationDraft = (id, type, draft, forcedTimestamp = '') => {
-  recentStore.saveDraft(id, type, draft, forcedTimestamp);
+const getConversationDraftMention = (id, type) => {
+  const conversation = recentStore.getRecentByConversation(id, type);
+  const draftMention = (conversation && conversation.draftMention) || {};
+  return {
+    mentionAll: draftMention.mentionAll === true,
+    mentionList: Array.isArray(draftMention.mentionList) ? [].concat(draftMention.mentionList) : [],
+    tokens: Array.isArray(draftMention.tokens) ? draftMention.tokens.map((token) => Object.assign({}, token)) : []
+  };
+};
+
+const saveConversationDraft = (id, type, draft, forcedTimestamp = '', draftMention = {}) => {
+  recentStore.saveDraft(id, type, draft, forcedTimestamp, draftMention);
+};
+
+const staticContactCache = {
+  appId: '',
+  token: '',
+  list: null,
+  promise: null
+};
+
+const quickReplyCache = {
+  appId: '',
+  token: '',
+  uid: '',
+  list: null,
+  promise: null
+};
+
+const clearStaticContactCache = () => {
+  staticContactCache.appId = '';
+  staticContactCache.token = '';
+  staticContactCache.list = null;
+  staticContactCache.promise = null;
+};
+
+const clearQuickReplyCache = () => {
+  quickReplyCache.appId = '';
+  quickReplyCache.token = '';
+  quickReplyCache.uid = '';
+  quickReplyCache.list = null;
+  quickReplyCache.promise = null;
+};
+
+const asyncGetStaticContact = (force) => {
+  const appId = infoStore.getAppid() || '';
+  const token = infoStore.getToken() || '';
+
+  if (!force && staticContactCache.list && staticContactCache.appId === appId && staticContactCache.token === token) {
+    return Promise.resolve(staticContactCache.list);
+  }
+
+  if (!force && staticContactCache.promise && staticContactCache.appId === appId && staticContactCache.token === token) {
+    return staticContactCache.promise;
+  }
+
+  if (staticContactCache.appId !== appId || staticContactCache.token !== token) {
+    clearStaticContactCache();
+    staticContactCache.appId = appId;
+    staticContactCache.token = token;
+  }
+
+  staticContactCache.promise = io
+    .getStaticContact()
+    .then((res) => {
+      staticContactCache.list = Array.isArray(res) ? res : [];
+      return staticContactCache.list;
+    })
+    .catch((err) => {
+      staticContactCache.promise = null;
+      throw err;
+    });
+
+  return staticContactCache.promise.finally(() => {
+    staticContactCache.promise = null;
+  });
+};
+
+const asyncGetQuickReplyList = (force) => {
+  const appId = infoStore.getAppid() || '';
+  const token = infoStore.getToken() || '';
+  const uid = infoStore.getUid() || '';
+
+  if (!force && quickReplyCache.list && quickReplyCache.appId === appId && quickReplyCache.token === token && quickReplyCache.uid === uid) {
+    return Promise.resolve(quickReplyCache.list);
+  }
+
+  if (!force && quickReplyCache.promise && quickReplyCache.appId === appId && quickReplyCache.token === token && quickReplyCache.uid === uid) {
+    return quickReplyCache.promise;
+  }
+
+  if (quickReplyCache.appId !== appId || quickReplyCache.token !== token || quickReplyCache.uid !== uid) {
+    clearQuickReplyCache();
+    quickReplyCache.appId = appId;
+    quickReplyCache.token = token;
+    quickReplyCache.uid = uid;
+  }
+
+  quickReplyCache.promise = io
+    .quickReplyList()
+    .then((res) => {
+      quickReplyCache.list = Array.isArray(res && res.list) ? res.list : [];
+      return quickReplyCache.list;
+    })
+    .catch((err) => {
+      quickReplyCache.promise = null;
+      throw err;
+    });
+
+  return quickReplyCache.promise.finally(() => {
+    quickReplyCache.promise = null;
+  });
+};
+
+const asyncCreateQuickReply = (params = {}) => {
+  return io.quickReplyCreate(params).then((res) => {
+    clearQuickReplyCache();
+    return res;
+  });
+};
+
+const asyncUpdateQuickReply = (id, params = {}) => {
+  return io.quickReplyUpdate(id, params).then((res) => {
+    clearQuickReplyCache();
+    return res;
+  });
+};
+
+const asyncDeleteQuickReply = (id) => {
+  return io.quickReplyDelete(id).then((res) => {
+    clearQuickReplyCache();
+    return res;
+  });
+};
+
+const asyncCanUseQuickReply = (forceSupportRefresh = false) => {
+  const appId = infoStore.getAppid();
+  const uid = `${infoStore.getUid() || ''}`;
+  if (!uid) {
+    return Promise.resolve(false);
+  }
+
+  const readEnableCs = () => {
+    const appConfig = dnsManager.getAppConfig(appId) || {};
+    if (typeof appConfig.enable_cs === 'boolean') {
+      return appConfig.enable_cs;
+    }
+    return null;
+  };
+
+  const checkSupportIdentity = () => {
+    return asyncGetStaticContact(forceSupportRefresh).then((list = []) => {
+      return list.some((item) => `${item.user_id || ''}` === uid);
+    });
+  };
+
+  const enableCs = readEnableCs();
+  if (enableCs === false) {
+    return Promise.resolve(false);
+  }
+
+  if (enableCs === true) {
+    return checkSupportIdentity();
+  }
+
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(readEnableCs() === true);
+    }, 400);
+  }).then((enabled) => {
+    if (!enabled) {
+      return false;
+    }
+    return checkSupportIdentity();
+  });
 };
 
 const touchConversation = (id, type, forcedTimestamp = '') => {
@@ -73,8 +247,13 @@ const sendRosterMessage = (msg) => {
   const msgFrm = makeRosterMessage(msg);
   const meta = msgFrm.payload.meta;
   messageStore.saveSendingRosterMessage(meta);
-  io.sendMessage(msgFrm);
   const { id } = meta;
+  if (!io.isConnected()) {
+    messageStore.failSendingRosterMessage(meta);
+    return id;
+  }
+  io.sendMessage(msgFrm);
+  fire('prioritizeUnreadSync', msg.uid);
   return id;
 };
 
@@ -96,8 +275,13 @@ const sendGroupMessage = (msg) => {
   const msgFrm = makeGroupMessage(msg);
   const meta = msgFrm.payload.meta;
   messageStore.saveSendingGroupMessage(meta);
-  io.sendMessage(msgFrm);
   const { id } = meta;
+  if (!io.isConnected()) {
+    messageStore.failSendingGroupMessage(meta);
+    return id;
+  }
+  io.sendMessage(msgFrm);
+  fire('prioritizeUnreadSync', msg.gid);
   return id;
 };
 
@@ -110,9 +294,53 @@ const sendGroupMessage = (msg) => {
  * @example
  * {% lanying_code_snippet repo="lanying-im-web",class="sysManage",function="requireHistoryMessage" %}{% endlanying_code_snippet %}
  */
+const historyRequestGate = createHistoryRequestGate();
+const HISTORY_REQUEST_TIMEOUT = 30000;
+const historyRequestTimers = new Map();
+
+const finishHistoryRequest = (sid) => {
+  const key = `${sid}`;
+  const timer = historyRequestTimers.get(key);
+  if (timer) clearTimeout(timer);
+  historyRequestTimers.delete(key);
+  historyRequestGate.finish(key);
+};
+
+const resetHistoryRequests = () => {
+  historyRequestTimers.forEach((timer) => clearTimeout(timer));
+  historyRequestTimers.clear();
+  historyRequestGate.reset();
+};
+
+bind('imHistoryBatchComplete', ({ sid } = {}) => finishHistoryRequest(sid));
+bind('imHistoryBatchFailed', ({ sid } = {}) => finishHistoryRequest(sid));
+bind('loginSuccess', resetHistoryRequests);
+bind('logout', resetHistoryRequests);
+
 const requireHistoryMessage = (uid, sid, amount) => {
-  const msgFrm = makeHistorySyncul(uid, sid, amount);
-  io.sendMessage(msgFrm);
+  if (!io.isConnected()) return false;
+  if (!historyRequestGate.begin(uid)) {
+    log.warn('History request is already in flight:', `${uid}`);
+    return false;
+  }
+  try {
+    const msgFrm = makeHistorySyncul(uid, sid, amount);
+    io.sendMessage(msgFrm);
+    fire('prioritizeUnreadSync', uid);
+    const key = `${uid}`;
+    historyRequestTimers.set(
+      key,
+      setTimeout(() => {
+        historyRequestTimers.delete(key);
+        log.warn('History request timeout, wait for response or reconnect before retrying:', key, `${sid}`);
+        fire('imHistoryRequestBlocked', { sid: key, reason: 'history_request_timeout' });
+      }, HISTORY_REQUEST_TIMEOUT)
+    );
+    return true;
+  } catch (error) {
+    finishHistoryRequest(uid);
+    throw error;
+  }
 };
 
 /**
@@ -134,8 +362,12 @@ const sendMentionMessage = (params) => {
   const msgFrm = makeMentionMessage(params);
   const meta = msgFrm.payload.meta;
   messageStore.saveSendingGroupMessage(meta);
-  io.sendMessage(msgFrm);
   const { id } = meta;
+  if (!io.isConnected()) {
+    messageStore.failSendingGroupMessage(meta);
+    return id;
+  }
+  io.sendMessage(msgFrm);
   return id;
 };
 
@@ -171,6 +403,33 @@ const sendInputStatusMessage = (uid, status) => {
 const forwardMessage = function (param) {
   //FIXME: bad style param
   const { uid, gid, message } = param;
+  const msgFrm = makeForwardMessage(uid, gid, message);
+  const meta = msgFrm.payload.meta;
+  const { id } = meta;
+  let forwardMessageSaved = false;
+  const saveForwardMessage = () => {
+    if (forwardMessageSaved) return;
+    forwardMessageSaved = true;
+    if (uid) {
+      messageStore.saveSendingRosterMessage(meta);
+    } else {
+      messageStore.saveSendingGroupMessage(meta);
+    }
+  };
+  const failForwardMessage = (errorReason) => {
+    if (uid) {
+      messageStore.failSendingRosterMessage(meta, errorReason);
+    } else {
+      messageStore.failSendingGroupMessage(meta, errorReason);
+    }
+  };
+
+  if (!io.isConnected()) {
+    saveForwardMessage();
+    failForwardMessage();
+    return id;
+  }
+
   const attach = message.attach;
   if (attach && attach.url) {
     let sign = attach.url.split('sign=')[1];
@@ -180,31 +439,28 @@ const forwardMessage = function (param) {
       'access-token': atoken,
       to_id: (uid || gid) - 0,
       to_type: uid ? 1 : 2
-    }).then((res) => {
-      message.attach.url = res;
-      const msgFrm = makeForwardMessage(uid, gid, message);
-      const smeta = msgFrm.payload.meta;
-      if (uid) {
-        messageStore.saveSendingRosterMessage(smeta);
-      } else {
-        messageStore.saveSendingGroupMessage(smeta);
-      }
-      io.sendMessage(msgFrm);
-      const { id } = smeta;
-      return id;
-    });
+    })
+      .then((res) => {
+        meta.payload.attachment = JSON.stringify({
+          ...attach,
+          url: res
+        });
+        saveForwardMessage();
+        if (!io.isConnected()) {
+          failForwardMessage();
+          return;
+        }
+        io.sendMessage(msgFrm);
+      })
+      .catch((error) => {
+        saveForwardMessage();
+        failForwardMessage(error && error.message ? error.message : 'Forward file failed');
+      });
   } else {
-    const msgFrm = makeForwardMessage(uid, gid, message);
-    const smeta = msgFrm.payload.meta;
-    if (uid) {
-      messageStore.saveSendingRosterMessage(smeta);
-    } else {
-      messageStore.saveSendingGroupMessage(smeta);
-    }
+    saveForwardMessage();
     io.sendMessage(msgFrm);
-    const { id } = smeta;
-    return id;
   }
+  return id;
 };
 
 const makeSearch = (kw) => {
@@ -320,7 +576,8 @@ const asyncFileUpload = (param) => {
     const { group_id, to_id, toType, file: origFile, fileType, chatType, processCallback } = param;
 
     preprocessImage(origFile, fileType, toType)
-      .then(function (file) {
+      .then(function (preprocessed) {
+        const { file, width, height } = preprocessed;
         let target = '';
         if (toType === 'rosterAvatar') {
           target = 'fileUploadAvatarUrl';
@@ -341,8 +598,10 @@ const asyncFileUpload = (param) => {
         // 200: 普通共享文件, 201: 语音共享文件, 202: 图片共享文件, 203: 视频共享文件
         const fileTypes = ['file', 'audio', 'image', 'video', 'audio-mp3'];
         const fileTypes2 = ['shareFile', 'shareAudio', 'shareImage', 'shareVideo'];
-        if (fileType) sendParam.file_type = fileTypes.indexOf(fileType) + 100;
-        if (sendParam < 100) sendParam.file_type = fileTypes2.indexOf(fileType) + 200;
+        const chatFileTypeIndex = fileTypes.indexOf(fileType);
+        const sharedFileTypeIndex = fileTypes2.indexOf(fileType);
+        if (chatFileTypeIndex >= 0) sendParam.file_type = chatFileTypeIndex + 100;
+        else if (sharedFileTypeIndex >= 0) sendParam.file_type = sharedFileTypeIndex + 200;
 
         if (group_id) sendParam.group_id = group_id;
         if (chatType == 'group') sendParam.to_type = 2;
@@ -367,10 +626,11 @@ const asyncFileUpload = (param) => {
 
             io.asyncFileUpload(res.upload_url, param, config, processCallback)
               .then(() => {
-                success({ url: res.download_url });
+                success({ url: res.download_url, name: file.name, size: file.size, width, height });
               })
               .catch((err) => {
                 log.error('Fail to upload file due to ', err);
+                rej(err);
               });
           })
           .catch((err) => {
@@ -394,7 +654,7 @@ const asyncFileUpload = (param) => {
  * {% lanying_code_snippet repo="lanying-im-web",class="sysManage",function="getImage" %}{% endlanying_code_snippet %}
  */
 const getImage = ({ avatar = '', type = 'roster', thumbnail = true, sdefault = '' }) => {
-  if (/^\//.test(avatar)) {
+  if (/^(\/|data:|blob:)/.test(avatar)) {
     return avatar;
   }
   if (!avatar) {
@@ -475,7 +735,8 @@ const downloadChatFile = ({ url = '', type = '', params = {}, processCallback = 
   console.log('Download chat file: ', type, ' ', url);
   if (!url) return '';
   let config = {
-    operation: 'download_file'
+    operation: 'download_file',
+    responseType: 'blob'
   };
   return io.fileDownloadChatFileUrl(url, params, config, processCallback);
 };
@@ -517,64 +778,206 @@ const aysncParseLinkV2 = function (link) {
 // ==============================
 // 图片预处理函数
 // ==============================
-const preprocessImage = function (file, fileType, toType) {
-  return new Promise(function (resolve, reject) {
-    if (fileType != 'image' && fileType != 'shareImage' && toType != 'rosterAvatar' && toType != 'groupAvatar') return resolve(file);
-    if (!file.type.startsWith('image/')) return resolve(file);
+const EMPTY_IMAGE_SIZE = { width: 0, height: 0 };
+const MAX_MAIN_THREAD_IMAGE_PIXELS = 16 * 1024 * 1024;
 
-    if (file.type === 'image/webp') {
-      isExtendedWebP(file)
-        .then(function (isExtendedWebP) {
-          if (isExtendedWebP) return webpToPng(file);
-          return file;
-        })
-        .then(resolve)
-        .catch(reject);
-    } else {
-      resolve(file);
+const preprocessImage = function (file, fileType, toType) {
+  const isImageTarget = fileType == 'image' || fileType == 'shareImage' || toType == 'rosterAvatar' || toType == 'groupAvatar';
+  if (!isImageTarget || !file.type.startsWith('image/')) return Promise.resolve({ file, ...EMPTY_IMAGE_SIZE });
+
+  if (file.type !== 'image/webp') {
+    return getImageDimensions(file)
+      .catch(() => EMPTY_IMAGE_SIZE)
+      .then((size) => ({ file, ...size }));
+  }
+
+  return getExtendedWebPInfo(file).then(function (info) {
+    if (!info.isExtended) {
+      return getImageDimensions(file)
+        .catch(() => EMPTY_IMAGE_SIZE)
+        .then((size) => ({ file, ...size }));
     }
+    return webpToPng(file, info);
   });
 };
 
-const isExtendedWebP = function (file) {
+const getExtendedWebPInfo = function (file) {
   return new Promise(function (resolve, reject) {
     const reader = new FileReader();
     reader.onload = function (e) {
       const bytes = new Uint8Array(e.target.result);
       const header = String.fromCharCode(...bytes.slice(8, 16)); // 取 WEBP + VP8X
-      resolve(header === 'WEBPVP8X');
+      const isExtended = header === 'WEBPVP8X';
+      resolve({
+        isExtended,
+        width: isExtended ? 1 + bytes[24] + (bytes[25] << 8) + (bytes[26] << 16) : 0,
+        height: isExtended ? 1 + bytes[27] + (bytes[28] << 8) + (bytes[29] << 16) : 0
+      });
     };
     reader.onerror = reject;
-    reader.readAsArrayBuffer(file);
+    reader.readAsArrayBuffer(file.slice(0, 30));
   });
 };
 
-const webpToPng = function (file) {
+const getImageDimensionsWithElement = function (file) {
   return new Promise(function (resolve, reject) {
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      const img = new Image();
-      img.onload = function () {
+    const objectUrl = window.URL.createObjectURL(file);
+    const img = new Image();
+    const cleanup = () => window.URL.revokeObjectURL(objectUrl);
+    img.onload = function () {
+      const size = { width: img.naturalWidth || img.width, height: img.naturalHeight || img.height };
+      cleanup();
+      resolve(size);
+    };
+    img.onerror = function (error) {
+      cleanup();
+      reject(error);
+    };
+    img.src = objectUrl;
+  });
+};
+
+const getImageDimensions = function (file) {
+  if (typeof window.createImageBitmap !== 'function') return getImageDimensionsWithElement(file);
+  return window
+    .createImageBitmap(file)
+    .then((bitmap) => {
+      const size = { width: bitmap.width, height: bitmap.height };
+      if (bitmap.close) bitmap.close();
+      return size;
+    })
+    .catch(() => getImageDimensionsWithElement(file));
+};
+
+const canConvertImageInWorker = function () {
+  return (
+    typeof window.Worker === 'function' &&
+    typeof window.OffscreenCanvas === 'function' &&
+    typeof window.createImageBitmap === 'function' &&
+    typeof window.OffscreenCanvas.prototype.convertToBlob === 'function'
+  );
+};
+
+const pngFileName = function (name) {
+  const sourceName = typeof name === 'string' && name ? name : 'image';
+  if (/\.[^./\\]+$/.test(sourceName)) return sourceName.replace(/\.[^./\\]+$/, '.png');
+  return `${sourceName}.png`;
+};
+
+const webpToPngInWorker = function (file) {
+  return new Promise(function (resolve, reject) {
+    const workerSource = `
+      self.onmessage = function (event) {
+        createImageBitmap(event.data)
+          .then(function (bitmap) {
+            var width = bitmap.width;
+            var height = bitmap.height;
+            var canvas = new OffscreenCanvas(width, height);
+            canvas.getContext('2d').drawImage(bitmap, 0, 0);
+            if (bitmap.close) bitmap.close();
+            return canvas.convertToBlob({ type: 'image/png' }).then(function (blob) {
+              self.postMessage({ blob: blob, width: width, height: height });
+            });
+          })
+          .catch(function (error) {
+            self.postMessage({ error: error && error.message ? error.message : 'Fail to convert WebP image' });
+          });
+      };
+    `;
+    const workerUrl = window.URL.createObjectURL(new Blob([workerSource], { type: 'application/javascript' }));
+    let worker;
+    try {
+      worker = new window.Worker(workerUrl);
+    } catch (error) {
+      window.URL.revokeObjectURL(workerUrl);
+      reject(error);
+      return;
+    }
+    const cleanup = () => {
+      worker.terminate();
+      window.URL.revokeObjectURL(workerUrl);
+    };
+    worker.onmessage = function (event) {
+      const result = event.data || {};
+      cleanup();
+      if (result.error || !result.blob) {
+        reject(new Error(result.error || 'Fail to convert WebP image'));
+        return;
+      }
+      resolve({
+        file: new File([result.blob], pngFileName(file.name), { type: 'image/png' }),
+        width: result.width,
+        height: result.height
+      });
+    };
+    worker.onerror = function (error) {
+      cleanup();
+      reject(error);
+    };
+    worker.postMessage(file);
+  });
+};
+
+const webpToPngOnMainThread = function (file) {
+  return new Promise(function (resolve, reject) {
+    const objectUrl = window.URL.createObjectURL(file);
+    const img = new Image();
+    const cleanup = () => window.URL.revokeObjectURL(objectUrl);
+    img.onload = function () {
+      try {
         const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
+        const width = img.naturalWidth || img.width;
+        const height = img.naturalHeight || img.height;
+        canvas.width = width;
+        canvas.height = height;
         canvas.getContext('2d').drawImage(img, 0, 0);
         canvas.toBlob(function (blob) {
-          const newFile = new File([blob], file.name.replace(/\.webp$/i, '.png'), { type: 'image/png' });
-          resolve(newFile);
+          cleanup();
+          if (!blob) {
+            reject(new Error('Fail to convert WebP image'));
+            return;
+          }
+          const newFile = new File([blob], pngFileName(file.name), { type: 'image/png' });
+          resolve({ file: newFile, width, height });
         }, 'image/png');
-      };
-      img.onerror = reject;
-      img.src = e.target.result;
+      } catch (error) {
+        cleanup();
+        reject(error);
+      }
     };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    img.onerror = function (error) {
+      cleanup();
+      reject(error);
+    };
+    img.src = objectUrl;
   });
+};
+
+const imageTooLargeForMainThread = function () {
+  const error = new Error('Image is too large to convert safely in this browser');
+  error.code = 'IMAGE_CONVERSION_TOO_LARGE';
+  return error;
+};
+
+const webpToPng = function (file, info) {
+  if (canConvertImageInWorker()) {
+    return webpToPngInWorker(file).catch(() => {
+      if (info.width * info.height > MAX_MAIN_THREAD_IMAGE_PIXELS) {
+        throw imageTooLargeForMainThread();
+      }
+      return webpToPngOnMainThread(file);
+    });
+  }
+  if (info.width * info.height > MAX_MAIN_THREAD_IMAGE_PIXELS) {
+    return Promise.reject(imageTooLargeForMainThread());
+  }
+  return webpToPngOnMainThread(file);
 };
 
 export default {
   getStaticVars,
   getConversationDraft,
+  getConversationDraftMention,
   saveConversationDraft,
   touchConversation,
   markMessageUnread,
@@ -619,7 +1022,12 @@ export default {
   asyncWoaIsBind: io.woaIsBind,
   asyncWxlogin: io.wxlogin,
   asyncWxbind: io.wxbind,
-  asyncGetStaticContact: io.getStaticContact,
+  asyncGetStaticContact,
+  asyncCanUseQuickReply,
+  asyncGetQuickReplyList,
+  asyncCreateQuickReply,
+  asyncUpdateQuickReply,
+  asyncDeleteQuickReply,
   getImage,
   getAudio,
   getChatFile,

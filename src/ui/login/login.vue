@@ -1,14 +1,14 @@
 <template>
   <div class="login login-card login-card--primary">
     <div class="login_card_header">
-      <button @click="changeAppID(appid)" class="login_appid" type="button">
+      <button @click="changeAppID(appid)" class="login_appid" type="button" :disabled="loginAttemptBusy">
         <span>AppID: {{ appid }}</span>
         <svg viewBox="0 0 24 24" aria-hidden="true" class="login_appid_icon">
           <path d="M4 20h4l10-10-4-4L4 16v4z"></path>
           <path d="M13 7l4 4"></path>
         </svg>
       </button>
-      <button @click="switchLogin('qrlogin')" class="login_header_icon" type="button" :aria-label="$t('扫码登录')">
+      <button @click="switchLogin('qrlogin')" class="login_header_icon" type="button" :aria-label="$t('扫码登录')" :disabled="loginAttemptBusy">
         <img class="qrcode" src="/image/qr.png" :title="$t('扫码登录')" />
       </button>
     </div>
@@ -19,21 +19,42 @@
     <div class="field-group">
       <label class="field-label">{{ $t('用户名') }}</label>
       <div class="iptFrame">
-        <input @keyup.enter="nameEnter" autocomplete="false" :placeholder="$t('请输入用户名')" type="text" v-model="user.username" />
+        <input
+          @focus="handleLoginContextChange"
+          @input="handleLoginContextChange"
+          @keyup.enter="nameEnter"
+          autocomplete="false"
+          :placeholder="$t('请输入用户名')"
+          type="text"
+          v-model="user.username"
+          :disabled="loginAttemptBusy"
+        />
       </div>
     </div>
     <div class="field-group">
       <label class="field-label">{{ $t('密码') }}</label>
       <div class="iptFrame">
-        <input @keyup.enter="submit" autocomplete="false" :placeholder="$t('请输入密码')" ref="password" type="password" v-model="user.password" />
+        <input
+          @focus="handleLoginContextChange"
+          @input="handleLoginContextChange"
+          @keyup.enter="submit"
+          autocomplete="false"
+          :placeholder="$t('请输入密码')"
+          ref="password"
+          type="password"
+          v-model="user.password"
+          :disabled="loginAttemptBusy"
+        />
       </div>
     </div>
-    <button @click="submit" class="loginBtn" type="button">
-      {{ sdkok || isAppInfoReady ? $t('登录') : $t('加载中...') }}
+    <button @click="submit" class="loginBtn" type="button" :disabled="loginAttemptBusy" :aria-busy="loginAttemptBusy">
+      <span class="login_button_spinner" v-if="loginAttemptBusy" aria-hidden="true"></span>
+      <span>{{ loginActionText }}</span>
     </button>
+    <p class="login_attempt_status" v-if="loginAttemptStatusText" role="status" aria-live="polite">{{ loginAttemptStatusText }}</p>
     <div class="login_footer_links">
-      <button @click="switchLogin('codelogin')" class="login_footer_link" type="button">{{ $t('手机验证码登录') }}</button>
-      <button @click="switchLogin('regedit')" class="login_footer_link" type="button">{{ $t('注册') }}</button>
+      <button @click="switchLogin('codelogin')" class="login_footer_link" type="button" :disabled="loginAttemptBusy">{{ $t('手机验证码登录') }}</button>
+      <button @click="switchLogin('regedit')" class="login_footer_link" type="button" :disabled="loginAttemptBusy">{{ $t('注册') }}</button>
     </div>
     <p class="tab verify" v-if="isAppInfoReady && verifyInfo && verifyInfo.length">
       <span :class="['auth_status_badge', 'auth_status_badge--' + verifyState]" v-if="isAppInfoReady" aria-hidden="true">
@@ -52,7 +73,9 @@
           <path d="M12 16h.01"></path>
         </svg>
       </span>
-      <span @click="switchLogin('verifyinfo')" class="verify_info">{{ verifyInfo }}</span>
+      <span @click="switchLogin('verifyinfo')" :class="['verify_info', { 'verify_info--disabled': loginAttemptBusy }]" :aria-disabled="loginAttemptBusy">
+        {{ verifyInfo }}
+      </span>
     </p>
   </div>
 </template>
@@ -62,7 +85,7 @@ import { mapGetters } from 'vuex';
 
 export default {
   name: 'login',
-  props: ['sdkok', 'appid', 'isAppInfoReady'],
+  props: ['sdkok', 'appid', 'isAppInfoReady', 'imInitLoading', 'loginAttemptState', 'loginRetryCount', 'initRetryCount'],
   data() {
     return {
       user: {
@@ -81,7 +104,46 @@ export default {
   },
 
   computed: {
-    ...mapGetters('login', ['getShowLayerFlag', 'getLoginLog'])
+    ...mapGetters('login', ['getShowLayerFlag', 'getLoginLog']),
+
+    loginAttemptBusy() {
+      return ['submitting', 'retrying', 'initializing', 'init_retrying'].includes(this.loginAttemptState);
+    },
+
+    loginActionText() {
+      if (this.loginAttemptState === 'retrying') {
+        return this.$t('login.submittingAction', { origin: '登录中...' });
+      }
+      if (this.loginAttemptState === 'initializing' || this.loginAttemptState === 'init_retrying') {
+        return this.$t('login.initializingAction', { origin: '初始化中...' });
+      }
+      if (this.loginAttemptState === 'submitting') {
+        return this.$t('login.submittingAction', { origin: '登录中...' });
+      }
+      return this.$t('登录');
+    },
+
+    loginAttemptStatusText() {
+      if (this.loginAttemptState === 'retrying') {
+        return this.$t('login.networkRetryStatus', {
+          count: this.loginRetryCount,
+          origin: `网络不稳定，正在自动重试（第${this.loginRetryCount}次），请稍候`
+        });
+      }
+      if (this.loginAttemptState === 'init_retrying') {
+        return this.$t('login.initNetworkRetrying', {
+          count: this.initRetryCount,
+          origin: `网络异常，正在进行第${this.initRetryCount}次初始化重试`
+        });
+      }
+      if (this.loginAttemptState === 'submitting') {
+        return this.$t('login.submittingHint', { origin: '正在验证登录信息，请稍候' });
+      }
+      if (this.loginAttemptState === 'initializing') {
+        return this.$t('login.initializing', { origin: '初始化中，请稍候' });
+      }
+      return '';
+    }
   },
   watch: {
     isAppInfoReady(val) {
@@ -136,54 +198,72 @@ export default {
       }
     },
     nameEnter() {
+      if (this.loginAttemptBusy) {
+        return;
+      }
       this.$refs.password.focus();
     },
     getApp() {
       return this.$parent.$parent;
     },
+    handleLoginContextChange() {
+      this.getApp().discardExhaustedLoginAttempts();
+    },
     submit() {
+      if (this.loginAttemptBusy) {
+        return;
+      }
+      this.handleLoginContextChange();
       if (this.sdkok) {
         this.user.username = this.user.username.replace(/\s*/g, '');
         this.user.password = this.user.password.replace(/\s*/g, '');
         this.getApp().saveLoginInfo(this.user, this.appid);
         this.getApp().imLogin();
-      } else if (this.appStatus == 'banned') {
-        this.$message({
-          message: this.$t('APP已被封禁！'),
-          type: 'error',
-          duration: 2000
-        });
-      } else if (this.appStatus == 'frozen') {
-        this.$message({
-          message: this.$t('APP已被冻结！'),
-          type: 'error',
-          duration: 2000
-        });
-      } else if (this.appStatus == 'revoked') {
-        this.$message({
-          message: this.$t('AppID已失效！'),
-          type: 'error',
-          duration: 2000
-        });
       } else {
+        this.user.username = this.user.username.replace(/\s*/g, '');
+        this.user.password = this.user.password.replace(/\s*/g, '');
+        if (this.user.username || this.user.password) {
+          this.getApp().saveLoginInfo(this.user, this.appid);
+        }
+        if (this.getApp().retryIMInit('login_submit')) {
+          return;
+        }
+        let message = this.$t('初始化异常,请检查 appid 是否正确！');
+        let type = 'warning';
+        if (this.appStatus == 'banned') {
+          message = this.$t('APP已被封禁！');
+          type = 'error';
+        } else if (this.appStatus == 'frozen') {
+          message = this.$t('APP已被冻结！');
+          type = 'error';
+        } else if (this.appStatus == 'revoked') {
+          message = this.$t('AppID已失效！');
+          type = 'error';
+        }
         this.$message({
-          message: this.$t('初始化异常,请检查 appid 是否正确！'),
-          type: 'warning',
+          message,
+          type,
           duration: 2000
         });
       }
     },
 
     changeAppID(presentAppID) {
+      if (this.loginAttemptBusy) {
+        return;
+      }
+      this.handleLoginContextChange();
       this.$store.dispatch('layer/actionSetAppID', presentAppID);
       this.$store.dispatch('layer/actionSetShowing', 'changeappid');
       this.$store.dispatch('layer/actionSetShowmask', 'true');
     },
 
     switchLogin(type) {
-      if (this.isAppInfoReady) {
-        this.$store.dispatch('login/actionChangeAppStatus', type);
+      if (this.loginAttemptBusy) {
+        return;
       }
+      this.handleLoginContextChange();
+      this.getApp().openLoginMode(type);
     }
   }
 };

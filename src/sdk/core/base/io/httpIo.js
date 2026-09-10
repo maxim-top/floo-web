@@ -2,6 +2,11 @@ import { request } from '../../../utils/request';
 import dnsManager from '../../../manage/dnsManager';
 import { infoStore } from '../../../utils/store';
 
+// File bodies have no total-duration limit, but a connection with no progress should be recoverable.
+const FILE_TRANSFER_STALL_TIMEOUT = 2 * 60 * 1000;
+const FILE_TRANSFER_RESPONSE_TIMEOUT = 5 * 60 * 1000;
+const fileTransferConfig = (config = {}) => Object.assign({}, config, { timeout: 0, stallTimeout: FILE_TRANSFER_STALL_TIMEOUT, responseTimeout: FILE_TRANSFER_RESPONSE_TIMEOUT });
+
 // dns
 const getServers = (url, params) => request(url, 'get', params, ['app_id'], true);
 
@@ -12,7 +17,7 @@ const getAppConfig = (params) => request('/app/config', 'get', params, ['platfor
 const parseLink = (url, params) => request(url, 'get', params, ['link'], true);
 
 // logins
-const tokenUser = (params) => request('/token/user', 'post', params, [['mobile', 'name'], 'password']);
+const tokenUser = (params, requestContext) => request('/token/user', 'post', params, [['mobile', 'name'], 'password'], false, {}, undefined, requestContext);
 const tokenId = (params) => request('/token/id', 'post', params, ['user_id', 'password']);
 const userRegister = (params) => request('/user/register/v2', 'post', params, ['username', 'password']);
 const userRegisterAnonymous = (params) => request('/user/register/anonymous', 'post', params, ['username', 'password']);
@@ -40,10 +45,11 @@ const rosterAccept = (params) => request('/roster/accept', 'post', params, ['use
 const rosterApply = (params) => request('/roster/apply', 'post', params, ['user_id', 'alias']);
 const rosterDecline = (params) => request('/roster/decline', 'post', params, ['user_id']);
 const rosterDelete = (params) => request('/roster/delete', 'post', params, ['user_id'], true);
-const rosterExt = (params) => request('/roster/ext', 'post', params, ['user_id', 'ext']);
+const rosterExt = (params) => request('/roster/ext', 'post', params, ['user_id', ['ext', 'mute_notification']]);
 const rosterAlias = (params) => request('/roster/ext', 'post', params, ['user_id', 'alias']);
 const rosterId = (params) => request('/roster/id', 'get', params, ['user_id']); // 暂时没用
 const rosterList = (params) => request('/roster/list', 'get', params, []);
+const rosterListPage = (params) => request('/roster/list', 'get', params, [], false, {}, undefined, { returnEnvelope: true });
 const rosterListPost = (params) => request('/roster/list', 'post', params, ['list']);
 const rosterName = (params) => request('/roster/name', 'get', params, ['username']);
 const rosterApplylist = (params) => request('/roster/apply/list', 'get', params, ['cursor'], true);
@@ -66,7 +72,18 @@ const groupInfoAvatar = (params) => request('/group/info/avatar', 'post', params
 const groupInfoDdscription = (params) => request('/group/info/description', 'post', params, ['group_id', 'value']);
 const groupInfoExt = (params) => request('/group/info/ext', 'post', params, ['group_id', 'value']);
 const groupInfoName = (params) => request('/group/info/name', 'post', params, ['group_id', 'value']);
-const groupMemberlist = (params) => request('/group/member_list', 'get', params, ['group_id']);
+const fetchGroupMemberlist = (params, members = []) => {
+  const pageParams = Object.assign({ limit: 1000 }, params);
+  return request('/group/member_list', 'get', pageParams, ['group_id'], false, {}, undefined, { returnEnvelope: true }).then(({ data = [], cursor }) => {
+    const allMembers = members.concat(data);
+    if (!cursor) return allMembers;
+    if (pageParams.cursor !== undefined && `${cursor}` === `${pageParams.cursor}`) {
+      return Promise.reject(new Error('Group member list cursor did not advance'));
+    }
+    return fetchGroupMemberlist(Object.assign({}, pageParams, { cursor }), allMembers);
+  });
+};
+const groupMemberlist = (params) => fetchGroupMemberlist(params);
 const groupMsgMutemode = (params) => request('/group/msg/mute_mode', 'post', params, ['group_id', 'msg_mute_mode']);
 const groupMsgNotdisturb = (params) => request('/group/msg/not_disturb', 'post', params, ['group_id', 'value']);
 const groupPubliclist = () => request('/group/public_list', 'get', {}, []);
@@ -133,7 +150,8 @@ const userKick = (params) => request('/user/kick', 'post', params, ['device_sn']
 
 // file upload
 const fileForward = (params) => maybeUpdateDownloadUrl(request('/file/upload/forward', 'get', params, ['file_sign', 'access-token', 'to_id', 'to_type'], true));
-const asyncFileUpload = (url, params, config, processCallback) => maybeUpdateDownloadUrl(request(maybeRemoveFileDomain(url), 'post', params, [], false, config, processCallback));
+const asyncFileUpload = (url, params, config, processCallback) =>
+  maybeUpdateDownloadUrl(request(maybeRemoveFileDomain(url), 'post', params, [], false, fileTransferConfig(config), processCallback));
 
 //avatar ....
 const fileUploadAvatarUrl = (params) => maybeUpdateDownloadUrl(request('/file/upload/avatar/user', 'get', params, [], true));
@@ -141,7 +159,7 @@ const fileUploadGroupAvatarUrl = (params) => maybeUpdateDownloadUrl(request('/fi
 const fileUploadChatFileUrl = (params) => maybeUpdateDownloadUrl(request('/file/upload/chat', 'get', params, ['file_type', 'to_id', 'to_type'], true));
 
 // file download
-const fileDownloadChatFileUrl = (url, params, config, processCallback) => request(maybeRemoveFileDomain(url), 'get', params, [], true, config, processCallback);
+const fileDownloadChatFileUrl = (url, params, config, processCallback) => request(maybeRemoveFileDomain(url), 'get', params, [], true, fileTransferConfig(config), processCallback);
 
 // qrcode
 const qrcode = (params) => request('/app/qr_code', 'get', params, []);
@@ -166,6 +184,10 @@ const wechatBind = (params) => request('/app/wechat/bind', 'post', params, ['ope
 
 const getUserVerification = () => request('/app/user_verification', 'get');
 const userVerificationByMobile = (params) => request('/app/user_verification_by_mobile', 'post', params, ['mobile', 'captcha']);
+const quickReplyList = () => request('/app/quick_replies', 'get', {}, []);
+const quickReplyCreate = (params) => request('/app/quick_replies', 'post', params, ['group', 'text']);
+const quickReplyUpdate = (id, params) => request(`/app/quick_replies/${id}`, 'put', params, ['group', 'text']);
+const quickReplyDelete = (id) => request(`/app/quick_replies/${id}`, 'delete', {});
 
 const maybeRemoveFileDomain = (url) => {
   if (url && (url.includes('maximtop.com.cn') || url.includes('maximtop.cn'))) {
@@ -223,6 +245,7 @@ export {
   rosterAlias,
   rosterId,
   rosterList,
+  rosterListPage,
   rosterListPost,
   rosterName,
   rosterApplylist,
@@ -320,6 +343,10 @@ export {
   wechatBind,
   getUserVerification,
   userVerificationByMobile,
+  quickReplyList,
+  quickReplyCreate,
+  quickReplyUpdate,
+  quickReplyDelete,
   userChangeMobileCheckPassword,
   userChangeMobileCheckMobile,
   userChangeMobile

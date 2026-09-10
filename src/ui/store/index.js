@@ -26,12 +26,20 @@ export default new Vuex.Store({
 
   state: {
     appID: '',
+    appIDSeq: 0,
     im: {}
   },
 
   getters: {
     getAppID(state) {
       return state.appID;
+    },
+
+    getAppIDState(state) {
+      return {
+        appID: state.appID,
+        seq: state.appIDSeq
+      };
     },
 
     wim(state) {
@@ -45,6 +53,7 @@ export default new Vuex.Store({
   mutations: {
     changeAppID(state, newAppID) {
       state.appID = newAppID;
+      state.appIDSeq += 1;
     },
 
     saveIm(state, pim) {

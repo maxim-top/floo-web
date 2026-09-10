@@ -207,6 +207,7 @@ button:active,
     width: 100vw;
     max-width: none;
     height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: row;
     overflow: hidden;
@@ -242,6 +243,7 @@ button:active,
     width: 72px;
     min-width: 72px;
     height: 100vh;
+    height: 100dvh;
   }
 
   .app-sidebar {

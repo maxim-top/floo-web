@@ -31,11 +31,13 @@
               :class="{
                 c_content: true,
                 'message-bubble-self': isSelf,
-                'message-bubble-other': !isSelf
+                'message-bubble-other': !isSelf,
+                'message-content-image': message.type === 'image'
               }"
               :style="{ 'padding-bottom': showMarkdown ? '0px' : '' }"
             >
               <div class="send_failed" v-if="isSelf && isSendFailed" @click="showSendFailedReason">!</div>
+              <div class="send_sending" v-else-if="isSelf && isSending" :title="$t('message.sending', { origin: '发送中' })"></div>
               <div v-if="message.type === 'text'">
                 <div v-if="showMarkdown" v-html="showMarkdownContent" class="c_markdown" />
                 <div v-else class="c_plaintext">{{ showContent }}</div>
@@ -47,13 +49,13 @@
                 </svg>
                 <span>{{ message.content }}</span>
               </div>
-              <div v-if="message.type === 'image'">
+              <div v-if="message.type === 'image'" class="message-media-frame" :style="mediaFrameStyle">
                 <img class="c_image" :src="attachImage" @click="touchImage" v-if="attachImage !== ''" />
               </div>
               <div @click="playAudio" class="audio_frame" v-if="message.type === 'audio'">
                 <img class="audio" src="/image/audio.png" />
               </div>
-              <div @click="playVideo" class="video_frame" v-if="message.type === 'video'">
+              <div @click="playVideo" class="video_frame message-media-frame" :style="mediaFrameStyle" v-if="message.type === 'video'">
                 <img :src="videoImage" class="preview" />
                 <img class="play" src="/image/play.png" />
               </div>
@@ -110,6 +112,7 @@ import { Marked } from '../../../third/marked.min.js';
 import { markedHighlight } from 'marked-highlight';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/atom-one-light.css';
+import { messageMediaFrameStyle } from '../../../utils/messageMedia';
 
 export default {
   name: 'GroupChat',
@@ -139,56 +142,26 @@ export default {
       appendMarkdownTimer: null
     };
   },
-  mounted() {
-    this.showExtTitle = this.$t('显示扩展');
-    this.showMarkdownTitle = this.$t('显示原文');
-    const im = this.$store.getters.im;
-    if (!im) return;
-
-    let { timestamp } = this.message;
-    timestamp = toNumber(timestamp);
-    const savedMessageTime = this.getMessageTime;
-    const last = (savedMessageTime.length && savedMessageTime[savedMessageTime.length - 1]) || 0;
-    if (timestamp - last > 5 * 60 * 1000) {
-      this.$store.dispatch('content/actionUpdateMessageTime', timestamp);
-    }
-
-    // Message displayed as read
-    const fromUid = toNumber(this.message.from);
-    const uid = this.$store.getters.im.userManage.getUid();
-    if (fromUid !== uid) {
-      const im = this.$store.getters.im;
-      if (im) im.groupManage.readGroupMessage(this.getSid, this.message.id);
-    }
-
+  created() {
     let { type } = this.message;
     if (type === 'text') {
       this.calculateContent(this.message.content);
     }
-
+    if (!this.shouldReplayInitialAIStream()) {
+      this.showMarkdownContent = this.markContent;
+      this.showContent = this.message.content;
+    }
+  },
+  mounted() {
+    this.showExtTitle = this.$t('显示扩展');
+    this.showMarkdownTitle = this.$t('显示原文');
     if (this.shouldReplayInitialAIStream()) {
       if (this.showMarkdown) {
         this.calculateMarkdownAppend(this.message.content, this.message.ext);
       }
       this.appendContent = this.content;
       this.calculateAppend(this.content, this.message.ext);
-    } else {
-      this.showMarkdownContent = this.markContent;
-      this.showContent = this.message.content;
     }
-
-    window.addEventListener('copy', function (event) {
-      if (navigator.userAgent.indexOf('Safari') > -1 && navigator.userAgent.indexOf('Chrome') == -1) {
-        const selection = window.getSelection();
-        const range = selection.getRangeAt(0);
-        const div = document.createElement('div');
-        div.appendChild(range.cloneContents());
-        const text = div.innerHTML.replace('<br>', /\n/g).replace(/<[^>]*>/g, '');
-        event.clipboardData.setData('text/html', text);
-        event.clipboardData.setData('text/plain', text);
-        event.preventDefault();
-      }
-    });
   },
   watch: {
     '$localeState.locale'() {
@@ -200,14 +173,17 @@ export default {
     // Chat,
     // Inputer
   },
-  props: ['message'],
+  props: {
+    message: Object,
+    showTime: Boolean
+  },
   computed: {
-    ...mapGetters('content', ['getSid', 'getMessageTime', 'getMemberList', 'getGroupInfo', 'getAdminList']),
+    ...mapGetters('content', ['getSid', 'getMessageTime', 'getMemberMap', 'getGroupInfo', 'getAdminList']),
     ...mapGetters('header', ['getUserProfile']),
     timeMessage() {
       let { timestamp } = this.message;
       timestamp = toNumber(timestamp);
-      if (this.getMessageTime.indexOf(timestamp) >= 0) {
+      if (this.showTime) {
         return moment(timestamp).calendar('', {
           sameDay: 'HH:mm',
           lastDay: 'HH:mm',
@@ -248,17 +224,14 @@ export default {
       const umaps = this.im.rosterManage.getAllRosterDetail() || {};
       const fromUid = toNumber(this.message.from);
       const fromUserObj = umaps[fromUid] || {};
-      let username = '';
-      for (let i = 0; i < this.getMemberList.length; i++) {
-        if (this.getMemberList[i].user_id === fromUid) {
-          username = this.getMemberList[i].display_name;
-          break;
-        }
-      }
+      const member = this.getMemberMap[`${fromUid}`] || {};
+      let username = member.display_name || member.alias || member.nick_name || member.username || '';
       let avatar = this.im.sysManage.getImage({ avatar: fromUserObj.avatar });
       if (fromUid === cuid) {
         username = this.$t('我');
         avatar = this.im.sysManage.getImage({ avatar: this.getUserProfile.avatar });
+      } else {
+        username = username || fromUserObj.alias || fromUserObj.nick_name || fromUserObj.username || `${fromUid}`;
       }
       return { username, avatar };
     },
@@ -281,6 +254,10 @@ export default {
 
     attachImage() {
       return this.getImage({});
+    },
+
+    mediaFrameStyle() {
+      return messageMediaFrameStyle(this.message);
     },
 
     attachAudio() {
@@ -337,6 +314,9 @@ export default {
 
     isSendFailed() {
       return !!this.message.sendFailed;
+    },
+    isSending() {
+      return !!this.message.isSending;
     },
     parsedMessageExt() {
       if (!this.message.ext || typeof this.message.ext !== 'string') {
@@ -691,7 +671,7 @@ export default {
             that.appendTimer = null;
             that.stableContent = that.content;
             that.showContent = that.content;
-            that.ensureStreamingMessageVisible();
+            if (!that.showMarkdown) that.$emit('content-resize');
           } else {
             const count = that.resolveStreamStepCount(that.appendContent.length, ext);
             if (that.showContent.length && that.showContent.charAt(that.showContent.length - 1) === '｜') {
@@ -699,7 +679,7 @@ export default {
             }
             that.showContent += that.appendContent.slice(0, count) + '｜';
             that.appendContent = that.appendContent.slice(count);
-            that.ensureStreamingMessageVisible();
+            if (!that.showMarkdown) that.$emit('content-resize');
           }
         }, period);
       } else {
@@ -719,46 +699,18 @@ export default {
             that.appendMarkdownTimer = null;
             that.stableMarkdownContent = that.showTotalContent;
             that.showMarkdownContent = that.parseMarkdownContent(that.showTotalContent + '｜');
-            that.ensureStreamingMessageVisible();
+            if (that.showMarkdown) that.$emit('content-resize');
           } else {
             const count = that.resolveStreamStepCount(that.showAppendContent.length, ext);
             that.showTotalContent += that.showAppendContent.slice(0, count);
             that.showAppendContent = that.showAppendContent.slice(count);
             that.showMarkdownContent = that.parseMarkdownContent(that.showTotalContent);
-            that.ensureStreamingMessageVisible();
+            if (that.showMarkdown) that.$emit('content-resize');
           }
         }, period);
       } else {
         this.showMarkdownContent = this.markContent;
       }
-    },
-
-    findMessageScrollContainer() {
-      let node = this.$el;
-      while (node) {
-        if (node.classList && node.classList.contains('list')) {
-          return node;
-        }
-        node = node.parentElement;
-      }
-      return null;
-    },
-
-    ensureStreamingMessageVisible() {
-      this.$nextTick(() => {
-        const container = this.findMessageScrollContainer();
-        const messageEl = this.$el;
-        if (!container || !messageEl) return;
-        const containerRect = container.getBoundingClientRect();
-        const messageRect = messageEl.getBoundingClientRect();
-        const overflowBottom = messageRect.bottom - containerRect.bottom;
-        const nearBottom = container.scrollHeight - (container.scrollTop + container.clientHeight) <= 96;
-        if (overflowBottom > 0) {
-          container.scrollTop += overflowBottom + 24;
-        } else if (nearBottom) {
-          container.scrollTop = container.scrollHeight;
-        }
-      });
     },
 
     messageContentAppend(message) {

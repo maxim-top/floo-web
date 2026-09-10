@@ -5,7 +5,9 @@ import queryString from 'query-string';
 import { bind, fire } from './cusEvent';
 let reqErr = {
   errTimer: null,
-  errCount: 0
+  errCount: 0,
+  appId: '',
+  ratel: ''
 };
 let reloginRequestState = {
   token: '',
@@ -21,7 +23,10 @@ const resetReloginRequested = () => {
 
 bind('loginSuccess', resetReloginRequested);
 bind('loginFail', resetReloginRequested);
-bind('logout', resetReloginRequested);
+bind('logout', () => {
+  resetReloginRequested();
+  clearErrCounter();
+});
 bind('flooNotice', (msg = {}) => {
   if (msg.category === 'action' && msg.desc === 'relogin_manually') {
     resetReloginRequested();
@@ -85,6 +90,22 @@ const isTokenRequired = (url) => {
 
 const isTokenLoginUrl = (url) => url.indexOf('token/user') > -1 || url.indexOf('token/id') > -1;
 
+const isAbsoluteUrl = (url) => /^[a-z][a-z\d+\-.]*:\/\//i.test(url) || /^\/\//.test(url);
+
+const isRatelNetworkError = (error) => {
+  if (!error || !error.isAxiosError || axios.isCancel(error)) {
+    return false;
+  }
+  if (error.response) {
+    return [502, 503, 504].includes(error.response.status);
+  }
+  return !!(error.request || error.code === 'ECONNABORTED' || error.message === 'Network Error');
+};
+
+const isCurrentRequestContext = (requestContext = {}) => {
+  return typeof requestContext.isCurrent !== 'function' || requestContext.isCurrent();
+};
+
 axios.defaults.timeout = 20000;
 // axios.defaults.headers.post["Content-Type"] = "application/x-www-form-urlencoded";
 axios.interceptors.request.use(
@@ -93,6 +114,7 @@ axios.interceptors.request.use(
     const app_id = infoStore.getAppid();
     config.__requestToken = token || '';
     config.__requestAppId = app_id || '';
+    config.__requestRatel = config.baseURL || axios.defaults.baseURL || '';
     if (app_id) {
       config.headers.common['app_id'] = app_id;
     }
@@ -147,7 +169,7 @@ const dealParams = (param) => {
   return param;
 };
 
-const request = (url, method = 'get', params = {}, checks = [], isQuery = false, config = {}, processCallback = undefined) => {
+const request = (url, method = 'get', params = {}, checks = [], isQuery = false, config = {}, processCallback = undefined, requestContext = {}) => {
   log.log('========request=============', url, method, params, checks, isQuery);
   const arr = paramCheck(params, checks);
   if (arr.length) {
@@ -169,29 +191,82 @@ const request = (url, method = 'get', params = {}, checks = [], isQuery = false,
     params2 = dealParams(params);
   }
 
-  if (processCallback) {
+  const requestConfig = Object.assign({}, config);
+  const stallTimeout = requestConfig.stallTimeout;
+  const responseTimeout = requestConfig.responseTimeout;
+  delete requestConfig.stallTimeout;
+  delete requestConfig.responseTimeout;
+  let stallTimer = null;
+  let responseTimer = null;
+  let cancelSource = null;
+  const clearStallTimer = () => {
+    if (stallTimer) clearTimeout(stallTimer);
+    stallTimer = null;
+  };
+  const clearResponseTimer = () => {
+    if (responseTimer) clearTimeout(responseTimer);
+    responseTimer = null;
+  };
+  const clearTransferTimers = () => {
+    clearStallTimer();
+    clearResponseTimer();
+  };
+  const resetStallTimer = () => {
+    if (!cancelSource || !(stallTimeout > 0)) return;
+    clearStallTimer();
+    stallTimer = setTimeout(() => cancelSource.cancel('File transfer stalled'), stallTimeout);
+  };
+  const startResponseTimer = () => {
+    if (!cancelSource) return;
+    clearStallTimer();
+    if (!(responseTimeout > 0)) return;
+    clearResponseTimer();
+    responseTimer = setTimeout(() => cancelSource.cancel('File transfer response timeout'), responseTimeout);
+  };
+  const updateTransferTimer = (progressEvent) => {
+    if (progressEvent.lengthComputable && progressEvent.total > 0 && progressEvent.loaded >= progressEvent.total) {
+      startResponseTimer();
+    } else {
+      resetStallTimer();
+    }
+  };
+  if ((stallTimeout > 0 || responseTimeout > 0) && !requestConfig.cancelToken) {
+    cancelSource = axios.CancelToken.source();
+    requestConfig.cancelToken = cancelSource.token;
+    resetStallTimer();
+  }
+  if (processCallback || cancelSource) {
     if (!isQuery) {
-      axios.defaults.onUploadProgress = function (progressEvent) {
-        if (progressEvent.lengthComputable) {
+      requestConfig.onUploadProgress = function (progressEvent) {
+        updateTransferTimer(progressEvent);
+        if (processCallback && progressEvent.lengthComputable) {
           processCallback(progressEvent);
         }
       };
     } else {
-      axios.defaults.onDownloadProgress = function (progressEvent) {
-        if (progressEvent.lengthComputable) {
+      requestConfig.onDownloadProgress = function (progressEvent) {
+        updateTransferTimer(progressEvent);
+        if (processCallback && progressEvent.lengthComputable) {
           processCallback(progressEvent);
         }
       };
     }
   }
-  return axios[_method](url, params2, config)
+  const isRatelRequest = Object.keys(config).length === 0 && !isAbsoluteUrl(url);
+  return axios[_method](url, params2, requestConfig)
     .then((response) => {
-      clearErrCounter();
+      if (isRatelRequest && isCurrentRequestContext(requestContext)) {
+        clearErrCounterForRequest(response.config);
+      }
       const { data = {} } = response;
 
       if (Object.keys(config).length !== 0) {
         // Request with additional config means will call the 3rd party, i.e. aliyun,
         // in which it's difficult to check success
+
+        if (config.operation === 'download_file') {
+          return data;
+        }
 
         if (typeof data.data === 'boolean' && data.data) {
           //ceph
@@ -206,7 +281,7 @@ const request = (url, method = 'get', params = {}, checks = [], isQuery = false,
       const { data: innerData, code, message } = data;
       if (code === 200) {
         log.log('======request success, ', url, innerData);
-        return innerData;
+        return requestContext.returnEnvelope ? data : innerData;
       } else {
         if (code === 402 && !isTokenLoginUrl(url) && shouldTriggerRelogin(response.config)) {
           //triger token refresh
@@ -217,24 +292,77 @@ const request = (url, method = 'get', params = {}, checks = [], isQuery = false,
       }
     })
     .catch((error) => {
-      checkErrCounter();
+      if (isRatelRequest && isRatelNetworkError(error)) {
+        if (isTokenLoginUrl(url)) {
+          if (!isCurrentRequestContext(requestContext)) {
+            log.warn('Ignore network error from superseded token login');
+            return Promise.reject(error);
+          }
+          if (!isCurrentRatelRequest(error.config)) {
+            log.warn('Ignore stale token login network error for Ratel: ', error.config && error.config.__requestRatel);
+            return Promise.reject(error);
+          }
+          clearErrCounter();
+          log.warn('Token login network error, switch Ratel endpoint before retry: ', error.message);
+          return new Promise((resolve) => {
+            fire('ratelError', {
+              appID: error.config && error.config.__requestAppId,
+              onReady: resolve
+            });
+          }).then(() => Promise.reject(error));
+        } else {
+          checkErrCounter(error);
+        }
+      }
       return Promise.reject(error);
-    });
+    })
+    .finally(clearTransferTimers);
 };
 
 function clearErrCounter() {
   reqErr.errTimer && clearTimeout(reqErr.errTimer);
   reqErr.errTimer = null;
   reqErr.errCount = 0;
+  reqErr.appId = '';
+  reqErr.ratel = '';
 }
 
-function checkErrCounter() {
+function isCurrentRatelRequest(requestConfig = {}) {
+  const requestAppID = requestConfig.__requestAppId || '';
+  const requestRatel = requestConfig.__requestRatel || '';
+  const currentAppID = infoStore.getAppid() || '';
+  const currentRatel = axios.defaults.baseURL || '';
+  return !!requestAppID && requestAppID === currentAppID && !!requestRatel && requestRatel === currentRatel;
+}
+
+function clearErrCounterForRequest(requestConfig = {}) {
+  if (!isCurrentRatelRequest(requestConfig)) {
+    log.warn('Ignore stale Ratel response: ', requestConfig.__requestAppId, requestConfig.__requestRatel);
+    return;
+  }
+  clearErrCounter();
+}
+
+function checkErrCounter(error) {
+  const requestConfig = (error && error.config) || {};
+  const requestAppID = requestConfig.__requestAppId || '';
+  const requestRatel = requestConfig.__requestRatel || '';
+  if (!isCurrentRatelRequest(requestConfig)) {
+    log.warn('Ignore stale Ratel network error: ', requestAppID, requestRatel);
+    return;
+  }
+  if (reqErr.appId !== requestAppID || reqErr.ratel !== requestRatel) {
+    clearErrCounter();
+    reqErr.appId = requestAppID;
+    reqErr.ratel = requestRatel;
+  }
   reqErr.errTimer && clearTimeout(reqErr.errTimer);
   reqErr.errTimer = null;
   reqErr.errCount = reqErr.errCount + 1;
+  log.warn(`Ratel network error ${reqErr.errCount}/5: `, error && error.message);
   if (reqErr.errCount >= 5) {
     reqErr.errCount = 0;
-    fire('ratelError');
+    fire('ratelError', { appID: requestAppID });
   } else {
     reqErr.errTimer = setTimeout(() => {
       reqErr.errCount = 0;

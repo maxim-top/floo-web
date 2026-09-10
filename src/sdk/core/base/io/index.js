@@ -12,8 +12,10 @@ let config = {}; // appid, baseUrl, autoLogin, fireplace
 const maxConnectTimes = 5;
 let connectTimes = 0;
 let heartTimer = null;
+let socketLoginTimer = null;
 const unreadDelayTime = 50000;
 let userStatus = 'normal'; // normal, kick , logout
+const SOCKET_LOGIN_TIMEOUT = 15000;
 
 const CONNECT_TIMEOUT_MIN = 10000;
 const CONNECT_TIMEOUT_STEP = 20000;
@@ -36,18 +38,47 @@ const startHeartbeat = () => {
   }, unreadDelayTime);
 };
 
+const stopHeartbeat = () => {
+  if (heartTimer) {
+    clearInterval(heartTimer);
+  }
+  heartTimer = null;
+};
+
+const clearSocketLoginTimeout = () => {
+  if (socketLoginTimer) {
+    clearTimeout(socketLoginTimer);
+  }
+  socketLoginTimer = null;
+};
+
+const startSocketLoginTimeout = () => {
+  clearSocketLoginTimeout();
+  socketLoginTimer = setTimeout(() => {
+    socketLoginTimer = null;
+    if (userStatus === 'normal' && socket && socket.connected) {
+      log.warn('Socket login timed out, reconnecting');
+      socket.disconnect();
+    }
+  }, SOCKET_LOGIN_TIMEOUT);
+};
+
 // event handlers
 bind('refresh_fireplace', (fp) => {
-  config = Object.assign(
-    {
-      fireplace: fp
-    },
-    config
-  );
+  if (!fp) {
+    return;
+  }
+  const previousFireplace = config.fireplace;
+  config = Object.assign({}, config, { fireplace: fp });
+  if (socket && userStatus === 'normal' && previousFireplace && previousFireplace !== fp) {
+    log.warn('Fireplace changed, reconnecting socket: ', previousFireplace, ' -> ', fp);
+    socket_connect();
+  }
 });
 
 bind('loginSuccess', () => {
   connectTimes = 0;
+  clearSocketLoginTimeout();
   startHeartbeat();
 });
 
@@ -62,6 +93,10 @@ bind('userKicked', () => {
 bind('reconnect', ({ reason }) => {
   log.warn('socket reconnect due to ', reason);
   if (userStatus === 'normal') {
+    if (socket && socket.connected) {
+      socket.disconnect();
+      return;
+    }
     reconnectWithTimesCheck();
   }
 });
@@ -75,8 +110,13 @@ const connect = function (c) {
 };
 
 const socket_connect = () => {
+  clearSocketLoginTimeout();
   // cleanup old connections
   if (socket) {
+    stopHeartbeat();
+    if (userStatus === 'normal') {
+      fire('socketDisconnected', { reason: 'SocketReplaced' });
+    }
     socket.destroy();
   }
 
@@ -100,6 +140,7 @@ const socket_connect = () => {
     });
 
     startProvision();
+    startSocketLoginTimeout();
   });
 
   socket.on('frame', (bytes) => {
@@ -108,6 +149,9 @@ const socket_connect = () => {
 
   socket.on('disconnect', (reason) => {
     log.log('=================  socket disconnected due to ', reason);
+    stopHeartbeat();
+    clearSocketLoginTimeout();
+    if (userStatus === 'normal') fire('socketDisconnected', { reason });
     fire('reconnect', { reason });
   });
 
@@ -115,13 +159,19 @@ const socket_connect = () => {
     log.log('=================  socket error: ', error);
     fire('reconnect', { reason: 'SocketError' });
   });
+  socket.on('connect_error', (error) => {
+    log.log('=================  socket connect error: ', error);
+    if (userStatus === 'normal') {
+      recordConnectionFailure();
+    }
+  });
   socket.on('reconnect_attempt', (attemptNum) => {
     log.log('=================  socket reconnect_attempt: ', attemptNum);
     socket.io.opts.transports = ['websocket'];
   });
 };
 
-const reconnectWithTimesCheck = () => {
+const recordConnectionFailure = () => {
   //check if we've tried too many times on one server
   if (connectTimes >= maxConnectTimes) {
     connectTimes = 0;
@@ -129,6 +179,10 @@ const reconnectWithTimesCheck = () => {
   } else {
     connectTimes++;
   }
+};
+
+const reconnectWithTimesCheck = () => {
+  recordConnectionFailure();
   reconnect();
 };
 
@@ -167,14 +221,19 @@ const sendMessage = (msg) => {
   socket.emit('frame', buffArr);
 };
 
+const isConnected = () => !!(socket && socket.connected);
+
 const disConnect = () => {
   userStatus = 'logout';
+  stopHeartbeat();
+  clearSocketLoginTimeout();
   socket && socket.disconnect();
 };
 
 const floo_io = Object.assign(http, {
   connect,
   sendMessage,
+  isConnected,
   disConnect
 });
 

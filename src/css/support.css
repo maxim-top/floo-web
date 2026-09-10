@@ -329,8 +329,20 @@
   max-height: 200px;
 }
 
-.support-content .c_content .c_image {
-  padding-top: 14px;
+.support-content .c_content .message-media-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.support-content .c_content .message-media-frame > .c_image,
+.support-content .c_content .message-media-frame > .preview {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
 }
 
 .support-content .notice_frame {
@@ -369,7 +381,6 @@
 }
 
 .support-content .c_content .loc_frame {
-  padding-top: 14px;
   overflow: hidden;
 }
 
@@ -387,7 +398,6 @@
 }
 
 .support-content .c_content .audio_frame {
-  padding-top: 14px;
   overflow: hidden;
 }
 
@@ -747,6 +757,15 @@
   box-sizing: border-box;
 }
 
+.support-content .message-history-empty {
+  width: min(100%, var(--message-max-width));
+  min-height: 44px;
+  margin: 0 auto 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
 .support-content .message-history-trigger.is-visible {
   opacity: 1;
   pointer-events: auto;
@@ -763,6 +782,12 @@
   cursor: progress;
   pointer-events: none;
   opacity: 0.9;
+}
+
+.support-content .message-history-trigger.is-disabled {
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.72;
 }
 
 .support-content .message-history-trigger__icon {
@@ -913,6 +938,7 @@
   color: var(--ly-text-muted);
   font-size: 12px;
   line-height: 1.4;
+  min-height: 1.4em;
 }
 
 .support-content .self .support-contentFrame .user_content,
@@ -1014,6 +1040,20 @@
 
 .support-content .c_content > * + * {
   margin-top: 6px;
+}
+
+.support-content .self .c_content.message-content-image,
+.support-content .roster .c_content.message-content-image {
+  line-height: 0;
+}
+
+.support-content .c_content.message-content-image > *,
+.support-content .c_content.message-content-image > * + * {
+  margin-top: 0;
+}
+
+.support-content .c_content.message-content-image .c_image {
+  display: block;
 }
 
 .support-content .c_content .c_content_ext {
@@ -1174,8 +1214,8 @@
 }
 
 .support-content .inputer_frame {
-  z-index: 6;
-  padding: 16px 24px 18px;
+  z-index: 9;
+  padding: 0 24px 18px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.94) 26%, rgba(255, 255, 255, 1) 100%);
   border-top: none !important;
   box-shadow: none;
@@ -1668,11 +1708,11 @@
 }
 
 .support-content .message-stream {
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   width: min(100%, var(--message-max-width));
   max-width: var(--message-max-width);
   margin: 0 auto;
-  min-height: 100%;
+  min-height: 0;
   padding-bottom: 24px;
   box-sizing: border-box;
   background: var(--ly-bg-white);
@@ -1681,10 +1721,10 @@
 .support-content .inputer_frame {
   position: sticky;
   bottom: 0;
-  z-index: 6;
+  z-index: 9;
   width: 100%;
   max-width: 100%;
-  padding: 12px 24px calc(12px + env(safe-area-inset-bottom));
+  padding: 0 24px calc(12px + env(safe-area-inset-bottom));
   background: var(--ly-bg-white);
   border-top: none;
   box-sizing: border-box;

@@ -21,6 +21,7 @@ var feedStreams = {};
 
 var localTracks = {};
 var remoteTracks = {};
+var remoteStreamState = {};
 
 var initParams = {};
 var callTimeoutId = null;
@@ -31,6 +32,7 @@ var pickupTimeout = 1000 * 60;
 
 var localWebrtcState = false;
 var remoteWebrtcState = false;
+var REMOTE_VIDEO_SETTLE_MS = 400;
 
 /**
  * 音视频管理
@@ -100,6 +102,226 @@ const checkPeerDrop = () => {
       initParams.hangupCall(true, false, true);
     }
   }, 5000);
+};
+
+const notifyRemoteVideoState = (mid, active, cameraClosed = null) => {
+  if (!initParams.updateTrackState) {
+    return;
+  }
+  initParams.updateTrackState({
+    type: 'video',
+    isLocal: false,
+    active: active,
+    cameraClosed: cameraClosed,
+    mid: mid
+  });
+};
+
+const clearRemoteVideoSettleTimer = (state) => {
+  if (state && state.settleTimer) {
+    clearTimeout(state.settleTimer);
+    state.settleTimer = null;
+  }
+};
+
+const updateRemoteStreamState = (mid, updater) => {
+  const currentState = remoteStreamState[mid] || {};
+  const nextState = updater(currentState) || currentState;
+  remoteStreamState[mid] = nextState;
+  return nextState;
+};
+
+const bumpRemoteTrackEpoch = (mid) => {
+  const nextState = updateRemoteStreamState(mid, (currentState) => ({
+    ...currentState,
+    trackEpoch: (currentState.trackEpoch || 0) + 1
+  }));
+  return nextState.trackEpoch;
+};
+
+const getCurrentRemoteTrack = (mid) => {
+  const stream = remoteTracks[mid];
+  if (!stream) {
+    return null;
+  }
+  if (stream.getVideoTracks) {
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      return videoTrack;
+    }
+  }
+  if (stream.getAudioTracks) {
+    const audioTrack = stream.getAudioTracks()[0];
+    if (audioTrack) {
+      return audioTrack;
+    }
+  }
+  return null;
+};
+
+const isCurrentRemoteTrack = (mid, track, trackEpoch = null) => {
+  if (!track) {
+    return false;
+  }
+  const state = remoteStreamState[mid] || {};
+  if (trackEpoch != null && state.trackEpoch !== trackEpoch) {
+    return false;
+  }
+  return getCurrentRemoteTrack(mid) === track;
+};
+
+const emitRemoteVideoState = (mid, active, cameraClosed) => {
+  const state = remoteStreamState[mid] || {};
+  if (state.lastNotifiedActive === active && state.lastNotifiedCameraClosed === cameraClosed) {
+    return;
+  }
+  state.lastNotifiedActive = active;
+  state.lastNotifiedCameraClosed = cameraClosed;
+  notifyRemoteVideoState(mid, active, cameraClosed);
+};
+
+const scheduleRemoteVideoSettle = (mid) => {
+  const state = remoteStreamState[mid];
+  if (!state) {
+    return;
+  }
+  clearRemoteVideoSettleTimer(state);
+  state.settleTimer = setTimeout(() => {
+    const currentState = remoteStreamState[mid];
+    if (!currentState) {
+      return;
+    }
+    currentState.settleTimer = null;
+    reconcileRemoteVideoState(mid, 'settle');
+  }, REMOTE_VIDEO_SETTLE_MS);
+};
+
+const reconcileRemoteVideoState = (mid, reason = '') => {
+  const state = remoteStreamState[mid];
+  if (!state) {
+    return;
+  }
+  const currentTrack = getCurrentRemoteTrack(mid);
+  const trackPresent = !!currentTrack;
+  const trackActive = !!(currentTrack && !currentTrack.muted && currentTrack.readyState !== 'ended');
+  const now = Date.now();
+  state.trackPresent = trackPresent;
+  state.trackActive = trackActive;
+  if (trackPresent) {
+    state.lastTrackId = currentTrack.id;
+  }
+  const cameraClosed = state.publisherActive === false;
+  const shouldShowVideo = !cameraClosed && trackActive;
+
+  if (shouldShowVideo) {
+    clearRemoteVideoSettleTimer(state);
+    emitRemoteVideoState(mid, true, false);
+    if (remoteTracks[mid] && initParams.attachStream && state.attachedTrackId !== state.lastTrackId) {
+      state.attachedTrackId = state.lastTrackId;
+      initParams.attachStream(remoteTracks[mid], 'video', false);
+    }
+    return;
+  }
+
+  const trackAge = now - (state.trackUpdatedAt || 0);
+  const publisherAge = now - (state.publisherUpdatedAt || 0);
+  const recentlyChanged = trackAge < REMOTE_VIDEO_SETTLE_MS || publisherAge < REMOTE_VIDEO_SETTLE_MS;
+  const hasVisibleTransition = state.lastNotifiedActive || state.lastNotifiedCameraClosed !== cameraClosed;
+  if (recentlyChanged && hasVisibleTransition) {
+    log.log('remote video wait settle, mid: ' + mid + ' reason: ' + reason + ' cameraClosed: ' + cameraClosed + ' trackActive: ' + trackActive);
+    scheduleRemoteVideoSettle(mid);
+    return;
+  }
+
+  clearRemoteVideoSettleTimer(state);
+  state.attachedTrackId = null;
+  emitRemoteVideoState(mid, false, cameraClosed);
+};
+
+const syncRemotePublisherStreams = (streams) => {
+  if (!Array.isArray(streams)) {
+    return;
+  }
+  const now = Date.now();
+  streams.forEach((stream) => {
+    if (!stream || stream.type !== 'video' || !stream.mid) {
+      return;
+    }
+    updateRemoteStreamState(stream.mid, (currentState) => ({
+      ...currentState,
+      publisherActive: !stream.disabled,
+      publisherUpdatedAt: now
+    }));
+    reconcileRemoteVideoState(stream.mid, 'publisher-stream');
+  });
+};
+
+const bindRemoteVideoTrackState = (track, mid, trackEpoch) => {
+  if (!track || track.kind !== 'video' || !track.addEventListener) {
+    return;
+  }
+  if (track.__lanyingRemoteStateBound) {
+    track.__lanyingRemoteTrackEpoch = trackEpoch;
+    return;
+  }
+  track.__lanyingRemoteStateBound = true;
+  track.__lanyingRemoteTrackEpoch = trackEpoch;
+  track.addEventListener('mute', () => {
+    if (!isCurrentRemoteTrack(mid, track, track.__lanyingRemoteTrackEpoch)) {
+      log.log('ignore stale remote video mute event, mid: ' + mid + ' track: ' + track.id);
+      return;
+    }
+    updateRemoteStreamState(mid, (currentState) => ({
+      ...currentState,
+      trackPresent: true,
+      trackActive: false,
+      trackUpdatedAt: Date.now(),
+      lastTrackId: track.id
+    }));
+    reconcileRemoteVideoState(mid, 'track-mute');
+  });
+  track.addEventListener('ended', () => {
+    if (!isCurrentRemoteTrack(mid, track, track.__lanyingRemoteTrackEpoch)) {
+      log.log('ignore stale remote video ended event, mid: ' + mid + ' track: ' + track.id);
+      return;
+    }
+    updateRemoteStreamState(mid, (currentState) => ({
+      ...currentState,
+      trackPresent: false,
+      trackActive: false,
+      trackUpdatedAt: Date.now(),
+      lastTrackId: track.id
+    }));
+    reconcileRemoteVideoState(mid, 'track-ended');
+  });
+  track.addEventListener('unmute', () => {
+    if (!isCurrentRemoteTrack(mid, track, track.__lanyingRemoteTrackEpoch)) {
+      log.log('ignore stale remote video unmute event, mid: ' + mid + ' track: ' + track.id);
+      return;
+    }
+    updateRemoteStreamState(mid, (currentState) => ({
+      ...currentState,
+      trackPresent: true,
+      trackActive: true,
+      trackUpdatedAt: Date.now(),
+      lastTrackId: track.id
+    }));
+    reconcileRemoteVideoState(mid, 'track-unmute');
+  });
+};
+
+const stopHandleLocalStream = (handle) => {
+  if (!handle || !handle.webrtcStuff || !handle.webrtcStuff.myStream) {
+    return;
+  }
+  Janus.stopAllTracks(handle.webrtcStuff.myStream);
+  handle.webrtcStuff.myStream = null;
+};
+
+const stopAllLocalMedia = () => {
+  stopHandleLocalStream(publishHandler);
+  stopHandleLocalStream(subscribeHandler);
+  Janus.stopAllTracks(localTracks);
 };
 
 /**
@@ -192,6 +414,9 @@ const initRTCEngine = (params) => {
             },
             slowLink: function (uplink, lost, mid) {
               log.log('Janus reports problems ' + (uplink ? 'sending' : 'receiving') + ' packets on mid ' + mid + ' (' + lost + ' lost packets)');
+              if (initParams.onSlowLink) {
+                initParams.onSlowLink({ uplink, lost, mid });
+              }
             },
             onmessage: function (msg, jsep) {
               let event = msg['videoroom'];
@@ -218,6 +443,7 @@ const initRTCEngine = (params) => {
                         display: display,
                         streams: streams
                       };
+                      syncRemotePublisherStreams(streams);
                       if (!sources) sources = [];
                       sources.push(streams);
                     }
@@ -261,6 +487,7 @@ const initRTCEngine = (params) => {
                         display: display,
                         streams: streams
                       };
+                      syncRemotePublisherStreams(streams);
                       if (!sources) sources = [];
                       sources.push(streams);
                     }
@@ -308,10 +535,16 @@ const initRTCEngine = (params) => {
                     }
                   }
                   delete localTracks[trackId];
+                  if (initParams.updateTrackState) {
+                    initParams.updateTrackState({ type: 'video', isLocal: true, active: false });
+                  }
                   return;
                 }
                 let stream = new MediaStream([track]);
                 localTracks[trackId] = stream;
+                if (initParams.updateTrackState) {
+                  initParams.updateTrackState({ type: 'video', isLocal: true, active: true });
+                }
                 if (stream) {
                   initParams.attachStream(stream, 'video', true);
                 }
@@ -344,7 +577,7 @@ const initRTCEngine = (params) => {
  * {% lanying_code_snippet repo="lanying-im-web",class="rtcManage",function="destroy" %}{% endlanying_code_snippet %}
  */
 const destroy = () => {
-  Janus.stopAllTracks(localTracks);
+  stopAllLocalMedia();
   Janus.stopAllTracks(remoteTracks);
   if (typeof window.stream === 'object') {
     window.stream.getTracks().forEach((track) => track.stop());
@@ -357,9 +590,13 @@ const destroy = () => {
     clearTimeout(pickupTimeoutId);
     pickupTimeoutId = null;
   }
+  Object.keys(remoteStreamState).forEach((mid) => {
+    clearRemoteVideoSettleTimer(remoteStreamState[mid]);
+  });
 
   localTracks = {};
   remoteTracks = {};
+  remoteStreamState = {};
   myStream = {};
   feedStreams = {};
   subscriptions = {};
@@ -594,7 +831,9 @@ const subscribe = (sources) => {
           creatingSubscription = false;
           log.log('Successfully attached to feed in room ' + msg['room']);
         } else if (event === 'event') {
-          //
+          if (msg['streams']) {
+            syncRemotePublisherStreams(msg['streams']);
+          }
         } else {
           //
         }
@@ -634,6 +873,12 @@ const subscribe = (sources) => {
     onremotetrack: function (track, mid, on) {
       log.log('janus.attach onremotetrack track : ' + track + ' mid : ' + mid + ' on : ' + on);
       if (!on) {
+        const trackEpoch = (remoteStreamState[mid] || {}).trackEpoch || 0;
+        if (!isCurrentRemoteTrack(mid, track, trackEpoch)) {
+          log.log('ignore stale remote track removal, mid: ' + mid + ' track: ' + track.id);
+          return;
+        }
+        bumpRemoteTrackEpoch(mid);
         // Track removed, get rid of the stream and the rendering
         let stream = remoteTracks[mid];
         if (stream) {
@@ -648,15 +893,44 @@ const subscribe = (sources) => {
           }
         }
         delete remoteTracks[mid];
+        if (track.kind === 'video') {
+          updateRemoteStreamState(mid, (currentState) => ({
+            ...currentState,
+            trackPresent: false,
+            trackActive: false,
+            trackUpdatedAt: Date.now(),
+            lastTrackId: track.id
+          }));
+          reconcileRemoteVideoState(mid, 'track-removed');
+        }
         return;
       }
+      const nextTrackEpoch = bumpRemoteTrackEpoch(mid);
+      let previousTrack = getCurrentRemoteTrack(mid);
+      let previousStream = previousTrack && previousTrack !== track ? remoteTracks[mid] : null;
       let stream = new MediaStream([track]);
       remoteTracks[mid] = stream;
       if (stream) {
         if (track.kind === 'audio') {
           initParams.attachStream(stream, 'audio', false);
         } else if (track.kind === 'video') {
-          initParams.attachStream(stream, 'video', false);
+          bindRemoteVideoTrackState(track, mid, nextTrackEpoch);
+          updateRemoteStreamState(mid, (currentState) => ({
+            ...currentState,
+            publisherActive: typeof currentState.publisherActive === 'boolean' ? currentState.publisherActive : true,
+            trackPresent: true,
+            trackActive: !(track.muted || track.readyState === 'ended'),
+            trackUpdatedAt: Date.now(),
+            lastTrackId: track.id
+          }));
+          reconcileRemoteVideoState(mid, 'track-added');
+        }
+      }
+      if (previousStream) {
+        try {
+          Janus.stopAllTracks(previousStream);
+        } catch (e) {
+          log.log('stop previous remote track error : ' + e);
         }
       }
     },
@@ -675,6 +949,16 @@ const subscribe = (sources) => {
 const unSubscribe = (id) => {
   let feed = feedStreams[id];
   if (!feed) return;
+  if (Array.isArray(feed.streams)) {
+    feed.streams.forEach((stream) => {
+      if (!stream || !stream.mid) {
+        return;
+      }
+      const state = remoteStreamState[stream.mid];
+      clearRemoteVideoSettleTimer(state);
+      delete remoteStreamState[stream.mid];
+    });
+  }
   delete feedStreams[id];
   let unsubscribe = {
     request: 'unsubscribe',
@@ -730,6 +1014,91 @@ const muteLocalVideo = (mute) => {
   }
 };
 
+const getPublisherVideoMid = () => {
+  if (!publishHandler || !publishHandler.webrtcStuff || !publishHandler.webrtcStuff.pc || !publishHandler.webrtcStuff.pc.getTransceivers) {
+    return null;
+  }
+  const transceiver = publishHandler.webrtcStuff.pc.getTransceivers().find((transceiver) => {
+    if (!transceiver || !transceiver.sender) {
+      return false;
+    }
+    const senderTrack = transceiver.sender && transceiver.sender.track;
+    const receiverTrack = transceiver.receiver && transceiver.receiver.track;
+    return (senderTrack && senderTrack.kind === 'video') || (receiverTrack && receiverTrack.kind === 'video');
+  });
+  return transceiver ? transceiver.mid : null;
+};
+
+const renegotiateLocalVideoTrack = (enabled, audioEnabled, width, height, onFallback) => {
+  if (!publishHandler || !publishHandler.createOffer) {
+    if (onFallback) onFallback();
+    return false;
+  }
+  const publisherVideoMid = getPublisherVideoMid();
+  const videoTrackAction = enabled
+    ? {
+        type: 'video',
+        capture: { width, height },
+        recv: false,
+        ...(publisherVideoMid ? { mid: publisherVideoMid, replace: true } : { add: true })
+      }
+    : {
+        type: 'video',
+        remove: true,
+        recv: false,
+        ...(publisherVideoMid ? { mid: publisherVideoMid } : {})
+      };
+  publishHandler.createOffer({
+    tracks: [videoTrackAction],
+    success: function (jsep) {
+      publishHandler.send({
+        message: {
+          request: 'configure',
+          audio: audioEnabled,
+          video: enabled,
+          width: width,
+          height: height
+        },
+        jsep: jsep
+      });
+      log.log('renegotiateLocalVideoTrack success, enabled: ' + enabled + ' width: ' + width + ' height: ' + height);
+    },
+    error: function (error) {
+      log.log('renegotiateLocalVideoTrack error : ' + error);
+      if (onFallback) onFallback();
+    }
+  });
+  return true;
+};
+
+const setLocalVideoEnabled = (enabled, width, height) => {
+  if (typeof width === 'number' && width > 0) {
+    initParams.width = width;
+  }
+  if (typeof height === 'number' && height > 0) {
+    initParams.height = height;
+  }
+  if (!publishHandler) {
+    return false;
+  }
+  initParams.hasVideo = enabled;
+  let audioEnabled = initParams.hasAudio;
+  if (audioEnabled && publishHandler.isAudioMuted) {
+    audioEnabled = !publishHandler.isAudioMuted();
+  }
+  if (!enabled) {
+    renegotiateLocalVideoTrack(false, audioEnabled, initParams.width, initParams.height, () => {
+      publish(null, false, audioEnabled, initParams.width, initParams.height);
+    });
+    return true;
+  }
+  muteLocalVideo(false);
+  renegotiateLocalVideoTrack(true, audioEnabled, initParams.width, initParams.height, () => {
+    publish(null, true, audioEnabled, initParams.width, initParams.height);
+  });
+  return true;
+};
+
 /**
  * 禁止远程订阅音频流操作
  * @static
@@ -780,6 +1149,33 @@ const muteRemoteVideo = (stream, mute) => {
     }
     log.log('muteRemoteVideo remote video status : ' + mute);
   }
+};
+
+const updateVideoProfile = (width, height) => {
+  if (typeof width === 'number' && width > 0) {
+    initParams.width = width;
+  }
+  if (typeof height === 'number' && height > 0) {
+    initParams.height = height;
+  }
+  if (!publishHandler) {
+    return false;
+  }
+  let videoEnabled = initParams.hasVideo;
+  let audioEnabled = initParams.hasAudio;
+  if (publishHandler.isVideoMuted) {
+    videoEnabled = !publishHandler.isVideoMuted();
+  }
+  if (publishHandler.isAudioMuted) {
+    audioEnabled = !publishHandler.isAudioMuted();
+  }
+  if (!videoEnabled) {
+    return true;
+  }
+  renegotiateLocalVideoTrack(true, audioEnabled, initParams.width, initParams.height, () => {
+    publish(null, videoEnabled, audioEnabled, initParams.width, initParams.height);
+  });
+  return true;
 };
 
 /**
@@ -834,6 +1230,8 @@ export default {
   unSubscribe,
   muteLocalAudio,
   muteLocalVideo,
+  setLocalVideoEnabled,
+  updateVideoProfile,
   muteRemoteAudio,
   muteRemoteVideo,
   getJanusObject,

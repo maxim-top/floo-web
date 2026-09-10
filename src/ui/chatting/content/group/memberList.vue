@@ -41,12 +41,6 @@ export default {
     };
   },
 
-  mounted() {
-    this.$store.getters.im.on('onGroupMemberChanged', (/*gid*/) => {
-      this.$store.dispatch('content/actionUpdateMemberList');
-    });
-  },
-
   computed: {
     ...mapGetters('forward', ['getShowMultiForwardStatus']),
     ...mapGetters('content', ['getSid', 'getGroupInfo', 'getMemberList', 'getAdminList']),
@@ -73,11 +67,13 @@ export default {
       }
     },
 
-    checkHideMemberInfo(user_id) {
+    checkHideMemberInfo() {
+      if (this.isOwner || this.isAdmin) {
+        return false;
+      }
       let hide = true;
       let hide_member_info = this.getGroupInfo.hide_member_info;
       let app_hide_member_info = false;
-      const uid = this.im.userManage.getUid();
       let appConfig = this.im.sysManage.getAppConfig(this.im.userManage.getAppid());
       if (appConfig) {
         app_hide_member_info = appConfig.hide_member_info;
@@ -93,8 +89,17 @@ export default {
       return hide;
     },
 
+    checkHideMemberName(user_id) {
+      const isOwner = this.getGroupInfo.owner_id === user_id;
+      const isAdmin = this.getAdminList.some((x) => x.user_id === user_id);
+      if (this.isOwner || this.isAdmin || isOwner || isAdmin) {
+        return false;
+      }
+      return this.checkHideMemberInfo();
+    },
+
     touchRoster(sid) {
-      if (!this.checkHideMemberInfo(sid)) {
+      if (!this.checkHideMemberInfo()) {
         this.$store.dispatch('content/actionSetType', {
           sid,
           type: 'rosterinfo'
@@ -123,7 +128,7 @@ export default {
     },
 
     displayName(roster) {
-      if (this.checkHideMemberInfo(roster.user_id) && !roster.has_nick) {
+      if (this.checkHideMemberName(roster.user_id) && !roster.has_nick) {
         return this.calucateHideMemberName(roster);
       } else {
         return this.getMemberDisplayName(roster);

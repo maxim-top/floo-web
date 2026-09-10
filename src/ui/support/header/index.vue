@@ -52,7 +52,18 @@
         <path d="M15.5 5C19.09 5 22 7.51 22 10.6c0 1.7-.9 3.22-2.32 4.24L20 18l-3.1-1.55c-.45.1-.91.15-1.4.15-1 0-1.95-.2-2.8-.57"></path>
       </svg>
     </div>
-    <el-popover v-model="popVisible" placement="bottom-end" trigger="click" width="220" :visible-arrow="false" :append-to-body="true" popper-class="support-header-popover">
+    <el-popover
+      ref="recentPopover"
+      v-model="popVisible"
+      placement="bottom-end"
+      trigger="click"
+      width="220"
+      :visible-arrow="false"
+      :append-to-body="true"
+      popper-class="support-header-popover"
+      @show="handleRecentPopoverShow"
+      @hide="handleRecentPopoverHide"
+    >
       <div class="support_header_popover_group">
         <div class="support_header_popover_title">{{ $t('最近会话') }}</div>
         <div
@@ -87,7 +98,7 @@
         </div>
       </div>
       <div slot="reference">
-        <div class="support_header_action support_header_action--recent" :aria-label="$t('最近会话与更多')" role="button" tabindex="0">
+        <div ref="recentActionTrigger" class="support_header_action support_header_action--recent" :aria-label="$t('最近会话与更多')" role="button" tabindex="0">
           <el-popover v-model="showPop" placement="left-start" trigger="manual" width="160" :visible-arrow="true" :append-to-body="true">
             <div @click="clickNewMessageConversation" v-if="unreadConversation">
               <p class="show-pop-title">{{ unreadConversation.name }}</p>
@@ -123,6 +134,12 @@ export default {
       this.refreshSupportContacts();
       this.startBlink();
     }
+  },
+
+  beforeDestroy() {
+    this.clearPopTimer(true);
+    clearTimeout(this.blinkTimer);
+    this.blinkTimer = null;
   },
 
   updated() {
@@ -302,6 +319,52 @@ export default {
   },
 
   methods: {
+    focusRecentTrigger() {
+      const trigger = this.$refs.recentActionTrigger;
+      if (trigger && typeof trigger.focus === 'function') {
+        trigger.focus();
+      }
+    },
+
+    blurRecentPopoverFocus() {
+      const popover = this.$refs.recentPopover;
+      const popper = popover && popover.popperElm;
+      const active = document.activeElement;
+      if (popper && active && (active === popper || popper.contains(active))) {
+        if (typeof active.blur === 'function') {
+          active.blur();
+        }
+      }
+    },
+
+    handleRecentPopoverShow() {
+      const popover = this.$refs.recentPopover;
+      const popper = popover && popover.popperElm;
+      if (popper) {
+        popper.setAttribute('tabindex', '-1');
+      }
+      this.$nextTick(() => {
+        this.focusRecentTrigger();
+      });
+    },
+
+    handleRecentPopoverHide() {
+      this.blurRecentPopoverFocus();
+      this.$nextTick(() => {
+        this.focusRecentTrigger();
+      });
+    },
+
+    closeRecentPopover({ restoreFocus = true } = {}) {
+      this.blurRecentPopoverFocus();
+      this.popVisible = false;
+      if (restoreFocus) {
+        this.$nextTick(() => {
+          this.focusRecentTrigger();
+        });
+      }
+    },
+
     refreshSupportContacts() {
       const im = this.$store.getters.im;
       im.sysManage
@@ -467,11 +530,14 @@ export default {
     },
 
     clearPopTimer() {
-      let that = this;
       clearTimeout(this.showPopTimer);
+      this.showPopTimer = null;
+      if (arguments[0] === true) {
+        return;
+      }
       this.showPopTimer = setTimeout(() => {
-        that.autoShowPop = false;
-        that.showPop = false;
+        this.autoShowPop = false;
+        this.showPop = false;
       }, this.showPopTimeout);
     },
 
@@ -505,7 +571,7 @@ export default {
     touchConversation(conversation) {
       this.openConversation(conversation);
       this.$nextTick(() => {
-        this.popVisible = false;
+        this.closeRecentPopover();
       });
     },
 
@@ -626,7 +692,7 @@ export default {
           break;
       }
       this.$nextTick(() => {
-        this.popVisible = false;
+        this.closeRecentPopover();
       });
     },
 
@@ -1024,9 +1090,9 @@ function rosterDescriptionOrDefault(description, translate) {
 .conversation-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 42px;
-  padding: 8px 10px;
+  gap: 12px;
+  min-height: 54px;
+  padding: 10px 12px;
   border-radius: 12px;
   box-sizing: border-box;
   cursor: pointer;
@@ -1037,13 +1103,13 @@ function rosterDescriptionOrDefault(description, translate) {
 }
 
 .conversation-avatar {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
   overflow: hidden;
   margin-left: 0;
-  border-radius: 10px;
-  background-size: 28px 28px;
+  border-radius: 12px;
+  background-size: 42px 42px;
 }
 
 .conversation-name {

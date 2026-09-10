@@ -1,11 +1,17 @@
 <template>
-  <div class="list" ref="rlist" v-if="!forceRefresh" @scroll="handleListScroll" @touchstart="handlePullStart" @touchmove="handlePullMove" @touchend="handlePullEnd">
+  <div class="list" ref="rlist" @scroll="handleListScroll" @touchstart="handlePullStart" @touchmove="handlePullMove" @touchend="handlePullEnd">
     <div class="message-history-slot">
       <div
         @click="requestHistory"
         id="roster_history_btn"
         class="message-history-trigger"
-        :class="{ 'is-visible': showHistoryTrigger || queryingHistory || isPulling, 'is-pulling': isPulling, 'is-loading': queryingHistory }"
+        :class="{
+          'is-visible': showHistoryTrigger || queryingHistory || isPulling || historyBlocked || historyExhausted,
+          'is-pulling': isPulling,
+          'is-loading': queryingHistory,
+          'is-disabled': historyBlocked
+        }"
+        :aria-disabled="historyBlocked ? 'true' : 'false'"
         :style="{ '--pull-distance': `${pullDistance}px` }"
       >
         <svg v-if="!queryingHistory" viewBox="0 0 24 24" aria-hidden="true" class="message-history-trigger__icon">
@@ -14,19 +20,40 @@
           <path d="M4.5 5.5v3.5H8"></path>
         </svg>
         <span v-else class="message-history-trigger__spinner" aria-hidden="true"></span>
-        <span>{{ queryingHistory ? $t('正在拉取历史消息') : $t('查看历史消息') }}</span>
+        <span>
+          {{
+            historyBlocked
+              ? $t('messageHistory.waitingReconnect', { origin: '等待重新连接' })
+              : queryingHistory
+              ? $t('正在拉取历史消息')
+              : historyExhausted
+              ? $t('messageHistory.noMore', { origin: '没有更多历史消息' })
+              : $t('查看历史消息')
+          }}
+        </span>
       </div>
     </div>
-    <div class="message-stream">
-      <Message ref="vMessages" :message="message" v-bind:key="message.id" v-for="message in allMessages" />
-    </div>
+    <VirtualMessageList
+      :key="getSid"
+      ref="virtualList"
+      :session-id="getSid"
+      :messages="allMessages"
+      :message-component="Message"
+      :follow-latest="followLatest"
+      :initial-viewport="historyState.viewport"
+      :measurement-cache="historyState.measurements"
+      :measurement-cache-width="historyState.measurementWidth"
+      @viewport-change="saveViewport"
+      @measurements-change="saveMeasurements"
+    />
   </div>
 </template>
 
 <script>
 // import Chat from "./chat.vue";
 import Message from './renderMsg.vue';
-import { numToString, toNumber } from '../../../third/tools';
+import VirtualMessageList from '../../../components/VirtualMessageList.vue';
+import { toNumber } from '../../../third/tools';
 
 import { mapGetters } from 'vuex';
 
@@ -34,7 +61,7 @@ export default {
   name: 'RosterChat',
   mounted() {
     this.requireMessage();
-    this.scroll();
+    this.followLatest = !(this.historyState.viewport && this.historyState.viewport.followLatest === false);
     this.$store.dispatch('forward/actionCancelForward', false);
 
     const im = this.$store.getters.im;
@@ -45,40 +72,21 @@ export default {
     });
 
     im.on('onRosterMessageContentAppend', (message) => {
-      if (this.$refs.vMessages) {
-        this.$store.dispatch('content/actionUpdateMessage', {
-          message,
-          mid: message.id
-        });
-        let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
-        if (msg) {
-          msg.messageContentAppend(message);
-          this.calculateScroll(message);
-        }
+      this.prepareIncomingMessageFollow();
+      this.$store.dispatch('content/actionUpdateMessage', { message: { ...message, skipStreamReplayOnMount: true }, mid: message.id });
+      const msg = this.$refs.virtualList && this.$refs.virtualList.findRenderedMessage(message.id);
+      if (msg) {
+        msg.messageContentAppend(message);
       }
     });
 
     im.on('onRosterMessageReplace', (message) => {
-      if (this.$refs.vMessages) {
-        this.$store.dispatch('content/actionUpdateMessage', {
-          message,
-          mid: message.id
-        });
-        let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
-        if (msg) {
-          msg.messageReplace(message);
-          this.scroll();
-        }
+      this.prepareIncomingMessageFollow();
+      this.$store.dispatch('content/actionUpdateMessage', { message: { ...message, skipStreamReplayOnMount: true }, mid: message.id });
+      const msg = this.$refs.virtualList && this.$refs.virtualList.findRenderedMessage(message.id);
+      if (msg) {
+        msg.messageReplace(message);
       }
-    });
-
-    im.on('onReceiveHistoryMsg', ({ next }) => {
-      this.queryingHistory = false;
-      this.$store.dispatch('content/actionAppendMessage', {
-        history: true,
-        next
-      });
-      this.scroll();
     });
 
     im.on('onMessageStatusChanged', ({ mid }) => {
@@ -97,8 +105,9 @@ export default {
           return;
         }
         this.$store.dispatch('content/actionAppendMessage', {
-          sendingMessages: [message]
+          sendingMessages: [{ ...message, isSending: true }]
         });
+        this.$nextTick(() => this.scrollToBottom(true));
       } else if (status === 'sent') {
         console.log('Sending Message status changed to sent mid: ', mid);
         this.$store.dispatch('content/actionUpdateMessage', {
@@ -110,12 +119,12 @@ export default {
       }
     });
 
-    im.on('onMessageRecalled', ({ mid }) => {
-      this.deleteMessage(mid);
+    im.on('onMessageRecalled', ({ uid, mid }) => {
+      this.deleteMessage(mid, uid);
     });
 
-    im.on('onMessageDeleted', ({ mid }) => {
-      this.deleteMessage(mid);
+    im.on('onMessageDeleted', ({ uid, mid }) => {
+      this.deleteMessage(mid, uid);
     });
 
     im.on('onMessageCanceled', (message) => {
@@ -127,6 +136,10 @@ export default {
   },
 
   destroyed() {
+    if (this.requireMessageTimer) {
+      clearTimeout(this.requireMessageTimer);
+      this.requireMessageTimer = null;
+    }
     const im = this.$store.getters.im;
     if (!im) return;
 
@@ -134,7 +147,6 @@ export default {
       onRosterMessage: '',
       onRosterMessageContentAppend: '',
       onRosterMessageReplace: '',
-      onReceiveHistoryMsg: '',
       onMessageStatusChanged: '',
       onSendingMessageStatusChanged: '',
       onMessageRecalled: '',
@@ -145,60 +157,48 @@ export default {
 
   data() {
     return {
-      queryingHistory: false,
-      scrollTimer: null,
       reloadList: [],
-      forceRefresh: false,
       showHistoryTrigger: false,
+      followLatest: true,
+      lastScrollTop: 0,
       isPulling: false,
       pullStartY: 0,
-      pullDistance: 0
+      pullDistance: 0,
+      requireMessageTimer: null
     };
   },
 
   components: {
-    Message
+    VirtualMessageList
   },
 
   computed: {
-    ...mapGetters('content', ['getSid', 'getMessages', 'getMessageTime', 'getScroll']),
+    ...mapGetters('content', ['getSid', 'getMessages', 'getMessageTime', 'getHistoryState']),
+    Message() {
+      return Message;
+    },
+    historyState() {
+      return this.getHistoryState || {};
+    },
+    queryingHistory() {
+      return !!this.historyState.historyLoading;
+    },
+    historyBlocked() {
+      return !!this.historyState.historyBlockedUntilReconnect;
+    },
+    historyExhausted() {
+      return !!this.historyState.historyExhausted && !(this.historyState.cachedHistoryMessages || []).length;
+    },
     allMessages() {
-      let msgs = this.getMessages || [];
-      msgs = msgs.filter((item) => {
-        const { type, config, ext } = item;
-        if (type == 'rtc' && config && config.action && config.action !== 'record') {
-          return false;
-        }
-        if (ext) {
-          let sext = {};
-          try {
-            sext = JSON.parse(ext);
-          } catch (ex) {
-            //
-          }
-          if (type == 'rtc' && sext && sext.callId) {
-            return false;
-          } else if (sext && sext.input_status) {
-            return false;
-          }
-        }
-        return true;
-      });
-      msgs.forEach((x) => {
-        x.aid = numToString(x.id);
-      });
-      return msgs;
+      return this.getMessages || [];
     }
   },
   watch: {
     getSid(a, b) {
       if (a !== b) {
+        this.followLatest = !(this.historyState.viewport && this.historyState.viewport.followLatest === false);
         this.requireMessage();
-        this.scroll();
       }
-    },
-    getScroll() {
-      this.scroll();
     }
   },
   methods: {
@@ -236,7 +236,9 @@ export default {
 
       const normalizedReason = (reason || '').toLowerCase().trim();
       let reasonText = reason;
-      if (normalizedReason.indexOf('antispam') > -1) {
+      if (normalizedReason.indexOf('network disconnected') > -1) {
+        reasonText = this.$t('message.sendFailedNetwork', { origin: '网络连接不可用，消息发送失败' });
+      } else if (normalizedReason.indexOf('antispam') > -1) {
         reasonText = this.$t('消息包含敏感词，请修改后再发送');
       } else if (normalizedReason.indexOf('account_verify_needed') > -1 || normalizedReason.indexOf('verify_needed') > -1) {
         reasonText = this.$t('无法发送消息，您已被限制使用，请先完成实名认证。');
@@ -260,6 +262,7 @@ export default {
       const { reason, rawReason } = this.getFailedErrorInfo({ message, errorCode, errorReason });
       const failedMessage = {
         ...(oldMessage || {}),
+        isSending: false,
         sendFailed: true,
         sendFailedCode: errorCode,
         sendFailedRawReason: rawReason,
@@ -283,24 +286,22 @@ export default {
     },
 
     requireMessage() {
-      setTimeout(() => {
+      const sid = `${this.getSid}`;
+      const viewType = this.$store.getters['content/getViewType'];
+      if (this.requireMessageTimer) clearTimeout(this.requireMessageTimer);
+      this.requireMessageTimer = setTimeout(() => {
+        this.requireMessageTimer = null;
+        if (`${this.getSid}` !== sid || this.$store.getters['content/getViewType'] !== viewType) return;
         this.$store.dispatch('content/actionRequireMessage');
       }, 200);
     },
 
-    deleteMessage(mid) {
-      setTimeout(() => {
-        this.$store.dispatch('content/actionDeleteMessage', mid);
-        this.forceRefresh = true;
-        this.$nextTick(() => {
-          this.forceRefresh = false;
-        });
-      }, 200);
-
-      !this.getMessages.length && this.scroll();
+    deleteMessage(mid, sid) {
+      this.$store.dispatch('content/actionDeleteMessage', typeof sid === 'undefined' ? mid : { mid, sid });
     },
 
     reloadMessage(message) {
+      if (message && message.isHistory) return;
       const uid = this.$store.getters.im.userManage.getUid();
       const toUid = toNumber(message.to);
       const fromUid = toNumber(message.from);
@@ -308,6 +309,7 @@ export default {
       const shouldAutoRead = (fromUid !== uid && fromUid > 0) || (isSystemMessage && fromUid === 0);
       const pid = this.getSid;
       if ((uid === toUid && fromUid === pid) || (uid === fromUid && toUid === pid)) {
+        this.prepareIncomingMessageFollow();
         if (shouldAutoRead) {
           //do not read message sent by oneself
           this.$store.getters.im.rosterManage.readRosterMessage(this.getSid, message.id);
@@ -317,33 +319,47 @@ export default {
           this.$store.dispatch('content/actionAppendMessage', {
             messages: [message]
           });
-          if (!ext.ai.finish) {
-            this.calculateScroll(message);
-          } else {
-            this.scroll();
-          }
         } else {
           this.requireMessage();
-          this.scroll();
         }
       }
     },
 
     requestHistory() {
-      if (this.queryingHistory) {
-        return;
-      }
-      this.queryingHistory = true;
-      this.queryHistoryTimer && clearTimeout(this.queryHistoryTimer);
-      this.queryHistoryTimer = setTimeout(() => {
-        this.queryingHistory = false;
-      }, 15000);
-      this.$store.dispatch('content/queryHistory');
+      if (this.queryingHistory || this.historyBlocked) return;
+      const list = this.$refs.rlist;
+      const virtualList = this.$refs.virtualList;
+      const wasFollowing = this.followLatest;
+      if (virtualList) virtualList.prepareHistoryPrepend();
+      this.setFollowLatest(false);
+      this.$store.dispatch('content/queryHistory', { retryExhausted: this.historyExhausted }).then((accepted) => {
+        if (accepted === false) {
+          if (virtualList) virtualList.cancelHistoryPrepend();
+          this.setFollowLatest(wasFollowing);
+        }
+      });
+    },
+
+    saveViewport(viewport) {
+      this.$store.dispatch('content/actionSaveMessageViewport', viewport);
+    },
+
+    saveMeasurements(payload) {
+      this.$store.dispatch('content/actionSaveMessageMeasurements', payload);
     },
 
     handleListScroll() {
       const list = this.$refs.rlist;
       if (!list) return;
+      const isProgrammaticScroll = typeof list.virtualMessageListIsProgrammaticScroll === 'function' && list.virtualMessageListIsProgrammaticScroll();
+      if (!isProgrammaticScroll) {
+        if (list.scrollTop < this.lastScrollTop) {
+          this.setFollowLatest(false);
+        } else if (this.isAtBottom(list)) {
+          this.setFollowLatest(true);
+        }
+      }
+      this.lastScrollTop = list.scrollTop;
       if (this.isPulling) return;
       const showThreshold = 10;
       const hideThreshold = 28;
@@ -388,40 +404,29 @@ export default {
       }
     },
 
-    scroll() {
-      let that = this;
-      setTimeout(() => {
-        that.$refs.rlist && (that.$refs.rlist.scrollTop = that.$refs.rlist.scrollHeight);
-        that.handleListScroll();
-      }, 200);
+    isAtBottom(list) {
+      return list.scrollHeight - (list.scrollTop + list.clientHeight) <= 2;
     },
 
-    calculateScroll(message) {
-      if (message.ext) {
-        let ext = {};
-        try {
-          ext = JSON.parse(message.ext);
-        } catch (ex) {
-          //
-        }
-        if (ext && ext.ai && ext.ai.stream) {
-          this.scrollTimer && clearInterval(this.scrollTimer);
-          let interval = ext.ai.stream_interval ? ext.ai.stream_interval : 3;
-          let count = interval * 5;
-          if (count) {
-            let that = this;
-            this.scrollTimer = setInterval(() => {
-              that.$nextTick(() => {
-                that.$refs.rlist && (that.$refs.rlist.scrollTop = that.$refs.rlist.scrollHeight);
-              });
-              if (count-- <= 0) {
-                clearInterval(that.scrollTimer);
-              }
-            }, 200);
-          }
-        }
-      }
+    prepareIncomingMessageFollow() {
+      const list = this.$refs.rlist;
+      if (this.followLatest || (list && this.isAtBottom(list))) this.setFollowLatest(true);
+    },
+
+    setFollowLatest(followLatest) {
+      this.followLatest = followLatest;
+    },
+
+    scrollToBottom(force = false) {
+      const list = this.$refs.rlist;
+      if (!list || (!force && !this.followLatest)) return;
+      if (this.$refs.virtualList) this.$refs.virtualList.scrollToBottom(force);
+      else list.scrollTop = list.scrollHeight;
+      this.lastScrollTop = list.scrollTop;
+      this.setFollowLatest(true);
+      this.handleListScroll();
     }
+
     //methods finish ...
   }
 };

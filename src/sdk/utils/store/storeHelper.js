@@ -1,4 +1,5 @@
 import log from '../log';
+import { fire } from '../cusEvent';
 let MAX_TIMES = 5;
 let MIN_STORAGE_SIZE = 128 * 1024;
 let KEY_DELETE_MIN_SIZE = 32 * 1024;
@@ -195,6 +196,13 @@ const freeMessageSpace = function (keyType, ratio, times) {
       });
       let new_value = JSON.stringify(data);
       localStorage.setItem(key, new_value);
+      const conversationType = key.indexOf('key_roster_message_store') >= 0 ? 'roster' : key.indexOf('key_group_message_store') >= 0 ? 'group' : '';
+      if (conversationType) {
+        fire('imLocalStorageConversationMessagesPruned', {
+          type: conversationType,
+          conversationIds: Array.from(sub_keys)
+        });
+      }
       let new_size = getKeyValueSize(key, new_value);
       freeSize += old_size - new_size;
       //log.info(`free key space size | key=${key}, size:${old_size - new_size} `);

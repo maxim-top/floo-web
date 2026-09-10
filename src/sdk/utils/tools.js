@@ -92,6 +92,16 @@ const toLong = (obj = 0) => {
   return new Long();
 };
 
+const toUnsignedLong = (obj = 0) => {
+  if (typeof obj === 'string') return Long.fromString(obj, true);
+  if (typeof obj === 'number') return Long.fromNumber(obj, true);
+  const { low, high } = obj;
+  if (typeof low !== 'undefined' && typeof high !== 'undefined') {
+    return new Long(low, high, true);
+  }
+  return new Long(0, 0, true);
+};
+
 const numToString = (obj = 0) => {
   if (typeof obj === 'undefined') {
     return '';
@@ -191,6 +201,7 @@ export {
   formatJson,
   transferToLong,
   toLong,
+  toUnsignedLong,
   toNumber,
   numToString,
   Uint8ArrayToString,

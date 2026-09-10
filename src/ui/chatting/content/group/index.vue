@@ -11,7 +11,7 @@
     </div>
     <div class="group-member-overlay" v-if="showMemberDrawer" @click="closeMemberDrawer"></div>
     <div class="group-chat-sidebar">
-      <MemberList />
+      <MemberList v-if="showMemberDrawer" />
     </div>
   </div>
 </template>
@@ -36,8 +36,17 @@ export default {
     this.requireGroups();
     this.$store.dispatch('content/actionOpenGroup');
 
-    this.$store.getters.im.on('onGroupMemberChanged', (/*gid*/) => {
+    this.$store.getters.im.on('onGroupMemberChanged', (gid) => {
+      if (`${gid}` !== `${this.getSid}`) {
+        return;
+      }
       this.$store.dispatch('content/actionUpdateMemberList');
+    });
+
+    this.$store.getters.im.on('onGroupMemberChanged', (group_id) => {
+      if (`${group_id}` === `${this.getSid}`) {
+        this.$store.dispatch('content/actionUpdateGroup');
+      }
     });
 
     this.$store.state.im.groupManage.consumeGroupAtStatus(this.getSid);

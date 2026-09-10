@@ -8,6 +8,7 @@ import { makeRecallMessage, makeDeleteMessage, makeContentAppendMessage, makeRep
  * 群管理
  * @module groupManage
  */
+
 /**
  * 获取群信息
  * @static
@@ -30,8 +31,7 @@ const asyncGetGroupInfo = (group_id, froce) => {
     })
     .then((res) => {
       groupStore.saveGroupInfo([res]); //todo fire ?
-
-      return res;
+      return groupStore.getGroupInfo(group_id);
     });
 };
 
@@ -49,6 +49,7 @@ const asyncGetJoinedGroups = (force) => {
       if (!Array.isArray(res)) {
         return groupStore.getGroupInfoList();
       }
+      groupStore.saveJoinedGroups(res);
       return res;
     });
   }
@@ -67,7 +68,7 @@ const openGroup = (group_id) => {
       group_id
     })
     .then((res) => {
-      groupStore.saveGroupMembers(group_id, res);
+      groupStore.saveGroupMembers(group_id, res, true);
       const ids = res.map((sitem) => sitem.user_id);
       ids.length && dataLogics.groupAddMemberLogic(group_id, ids, false, true);
       fire('onGroupMemberChanged', group_id);
@@ -80,7 +81,16 @@ const openGroup = (group_id) => {
  * @example
  * {% lanying_code_snippet repo="lanying-im-web",class="groupManage",function="getAllGroupDetail" %}{% endlanying_code_snippet %}
  */
-const getAllGroupDetail = () => groupStore.getAllGroupInfos();
+const getAllGroupDetail = () => {
+  const allGroupInfos = groupStore.getAllGroupInfos() || {};
+  const ret = {};
+  Object.keys(allGroupInfos).forEach((group_id) => {
+    ret[group_id] = groupStore.getGroupInfo(group_id);
+  });
+  return ret;
+};
+
+const getGroupInfoList = () => groupStore.getGroupInfoList();
 /**
  * 获取群组成员ID列表（异步）
  * @static
@@ -95,7 +105,7 @@ const asyncGetGroupMembers = (group_id) => {
       group_id
     })
     .then((res) => {
-      groupStore.saveGroupMembers(group_id, res);
+      groupStore.saveGroupMembers(group_id, res, true);
       const ids = res.map((sitem) => sitem.user_id);
       ids.length && dataLogics.groupAddMemberLogic(group_id, ids, false, true);
       return ids;
@@ -163,7 +173,10 @@ const asyncGetInfo = (param) => {
       group_id: param
     };
   }
-  return http.groupInfo(param);
+  return http.groupInfo(param).then((res) => {
+    groupStore.saveGroupInfo([res]);
+    return groupStore.getGroupInfo(param.group_id);
+  });
 };
 
 /**
@@ -280,6 +293,7 @@ export default {
   asyncGetJoinedGroups, // 改成 id 啊
   openGroup,
   getAllGroupDetail,
+  getGroupInfoList,
   asyncGetGroupMembers,
   getGroupMembers,
   asyncGetGroupListDetail,

@@ -771,7 +771,7 @@ token 登录
           msg_mute_mode
         })
         .then(() => {
-          this.groupInfo.msg_mute_mode = this.groupInfo.msg_mute_mode ? 0 : 2;
+          this.groupInfo.msg_mute_mode = msg_mute_mode;
         });
 
 ```

@@ -1,8 +1,40 @@
 import http from '../core/base/io/index';
-import { fire } from '../utils/cusEvent';
+import { bind, fire } from '../utils/cusEvent';
 import { infoStore, messageStore, recentStore, rosterStore } from '../utils/store';
 import { formatJson } from '../utils/tools';
+import log from '../utils/log';
 import { makeDeleteMessage, makeRecallMessage, makeUnreadMessage, makeContentAppendMessage, makeReplaceMessage } from '../core/base/messageMaker';
+
+const rosterInfoRequests = new Map();
+const ROSTER_LIST_PAGE_SIZE = 500;
+
+bind('logout', () => rosterInfoRequests.clear());
+
+const getRosterCacheOwner = () => `${infoStore.getAppid() || ''}:${infoStore.getUid() || ''}`;
+
+const fetchAllRosterIds = (cursor, rosters = [], cacheOwner = getRosterCacheOwner()) => {
+  const params = { limit: ROSTER_LIST_PAGE_SIZE };
+  if (cursor) params.cursor = cursor;
+  return http.rosterListPage(params).then(({ data = [], cursor: nextCursor }) => {
+    if (getRosterCacheOwner() !== cacheOwner) {
+      throw new Error('Roster list request is stale');
+    }
+    const allRosters = rosters.concat(data);
+    if (!nextCursor) return { rosters: allRosters, complete: true };
+    if (cursor && `${nextCursor}` === `${cursor}`) {
+      log.warn('Roster list cursor did not advance, preserve local roster list');
+      return { rosters: allRosters, complete: false };
+    }
+    return fetchAllRosterIds(nextCursor, allRosters, cacheOwner).catch((error) => {
+      const isNetworkError = error && error.isAxiosError && !error.response && !error.__CANCEL__;
+      if (getRosterCacheOwner() !== cacheOwner || !isNetworkError) {
+        throw error;
+      }
+      log.warn('Continue roster list pagination failed, preserve local roster list:', error);
+      return { rosters: allRosters, complete: false };
+    });
+  });
+};
 
 /**
  * 好友管理
@@ -19,9 +51,17 @@ import { makeDeleteMessage, makeRecallMessage, makeUnreadMessage, makeContentApp
  */
 const asyncGetRosterIdList = (force) => {
   if (force) {
-    return http.rosterList({}).then((res) => {
-      rosterStore.saveRosterList(res);
-      return res.map((roster) => roster.user_id || roster);
+    const cacheOwner = getRosterCacheOwner();
+    return fetchAllRosterIds(undefined, [], cacheOwner).then(({ rosters, complete }) => {
+      if (getRosterCacheOwner() !== cacheOwner) {
+        throw new Error('Roster list request is stale');
+      }
+      if (complete) {
+        rosterStore.replaceRosterList(rosters);
+        return rosters.map((roster) => roster.user_id || roster);
+      }
+      rosterStore.saveRosterList(rosters);
+      return rosterStore.getRosterList() || [];
     });
   }
   return Promise.resolve(rosterStore.getRosterList());
@@ -42,15 +82,31 @@ const asyncGetRosterInfo = (roster_id, force) => {
     return Promise.resolve(ret);
   }
 
-  return http
+  const cacheOwner = getRosterCacheOwner();
+  const requestKey = `${cacheOwner}:${roster_id}`;
+  const pendingRequest = rosterInfoRequests.get(requestKey);
+  if (pendingRequest) return pendingRequest;
+
+  let request;
+  request = http
     .rosterListPost({
       list: [roster_id]
     })
     .then((res) => {
+      if (getRosterCacheOwner() !== cacheOwner) {
+        throw new Error('Roster info request is stale');
+      }
       rosterStore.saveRosterInfo(res);
       fire('onRosterInfoUpdate', [roster_id]);
       return (res.length && res[0]) || {};
+    })
+    .finally(() => {
+      if (rosterInfoRequests.get(requestKey) === request) {
+        rosterInfoRequests.delete(requestKey);
+      }
     });
+  rosterInfoRequests.set(requestKey, request);
+  return request;
 };
 
 const asyncRegester = (opt) => http.userRegister(opt);
@@ -98,11 +154,15 @@ const asnycGetRosterListDetailByIds = (roster_ids) => {
   if (!setArr.length) {
     return Promise.resolve();
   } else {
+    const cacheOwner = getRosterCacheOwner();
     return http
       .rosterListPost({
         list: setArr
       })
       .then((res) => {
+        if (getRosterCacheOwner() !== cacheOwner) {
+          throw new Error('Roster info request is stale');
+        }
         rosterStore.saveRosterInfo(res);
         fire('onRosterInfoUpdate', setArr);
         return res;
@@ -353,8 +413,8 @@ export default {
    * @function
    * @param {object} params 参数
    * @param {number} params.user_id 用户ID
-   * @param {string} params.ext 扩展字段
-   * @param {boolean} params.mute_notification 是否接收消息提醒
+   * @param {string} [params.ext] 扩展字段
+   * @param {boolean} [params.mute_notification] 是否开启消息免打扰
    * @returns {Promise.<boolean>} 是否成功
    * @example
    * {% lanying_code_snippet repo="lanying-im-web",class="rosterManage",function="asyncUpdateRosterExt" %}{% endlanying_code_snippet %}

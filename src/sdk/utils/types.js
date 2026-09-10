@@ -248,6 +248,10 @@
  * 文件上传结果
  * @typedef {object} FileUploadResult
  * @property {string} url - 下载地址
+ * @property {string} [name] - 实际上传文件名（图片预处理后可能变化）
+ * @property {number} [size] - 实际上传文件大小
+ * @property {number} [width] - 实际上传图片宽度，非图片为 0
+ * @property {number} [height] - 实际上传图片高度，非图片为 0
  */
 
 /**
@@ -444,6 +448,12 @@
  * @event onReceiveHistoryMsg
  * @param {object} res
  * @param {number} res.next 下次取历史消息的key
+ * @param {string} res.nextKey 下次取历史消息的精确uint64字符串key
+ * @param {string} res.sid 会话ID
+ * @param {Array.<module:types~Meta>} res.messages 本次返回的历史消息
+ * @param {boolean} res.success 本次请求是否成功
+ * @param {number} res.requestId SDK为本次历史响应生成的本地唯一ID
+ * @param {string} [res.reason] 请求失败原因
  */
 
 /**

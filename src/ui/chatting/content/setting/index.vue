@@ -2,52 +2,26 @@
   <div class="user_setting settings_panel settings_panel--modern">
     <div class="settings_panel_hero">
       <div class="avatar">
-        <img :src="avatar" @click="touchedAvatar" class="av" />
+        <img :src="avatar" @click="openProfileSettingsPage" class="av" />
         <img @click="viewQrcode" class="qrcode" src="/image/qr.png" />
       </div>
       <div class="settings_panel_name">{{ nick_name || $t('未设置昵称') }}</div>
-      <div class="settings_panel_subtext">{{ mobile || user_id }}</div>
+      <div class="settings_panel_subtext">{{ username }}：{{ user_id }}</div>
     </div>
     <input @change="fileChangeHandler" ref="fileRef" type="file" />
     <div class="settings_panel_body">
       <div class="settings_group">
-        <div class="settings_group_title">{{ $t('账户信息') }}</div>
-        <div class="line line--interactive" @click="mobile ? (dialog_change_bind_mobile = true) : (dialog_user_bind_mobile = true)">
-          <span class="ll">
-            <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_item_icon">
-              <path d="M7 4h10v16H7z"></path>
-              <path d="M11 17h2"></path>
-            </svg>
-            <span>{{ $t('手机号码') }}</span>
-          </span>
-          <p class="lr">
-            <span>{{ mobile || $t('去绑定') }}</span>
-            <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_chevron"><path d="M9 6l6 6-6 6"></path></svg>
-          </p>
-        </div>
-        <div class="line line--interactive" @click="settingNick">
+        <div class="line line--interactive" @click="openProfileSettingsPage">
           <span class="ll">
             <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_item_icon">
               <path d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"></path>
               <path d="M5 20a7 7 0 0 1 14 0"></path>
             </svg>
-            <span>{{ $t('昵称') }}</span>
+            <span>{{ $t('settings.profile', { origin: '个人资料' }) }}</span>
           </span>
           <p class="lr">
-            <span>{{ nick_name || $t('点击设置') }}</span>
+            <span>{{ $t('查看') }}</span>
             <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_chevron"><path d="M9 6l6 6-6 6"></path></svg>
-          </p>
-        </div>
-        <div class="line">
-          <span class="ll">
-            <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_item_icon">
-              <path d="M5 12h14"></path>
-              <path d="M12 5v14"></path>
-            </svg>
-            <span>ID</span>
-          </span>
-          <p class="lr">
-            <span>{{ user_id }}</span>
           </p>
         </div>
       </div>
@@ -107,6 +81,20 @@
             </span>
           </label>
         </div>
+        <div class="line line--interactive" @click="openRtcSettingsDialog">
+          <span class="ll">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_item_icon">
+              <path d="M4 12h16"></path>
+              <path d="M7 8.5a4.5 4.5 0 0 1 0 7"></path>
+              <path d="M17 8.5a4.5 4.5 0 0 1 0 7"></path>
+            </svg>
+            <span>{{ $t('音视频设置') }}</span>
+          </span>
+          <p class="lr">
+            <span>{{ rtcSettingsSummary }}</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_chevron"><path d="M9 6l6 6-6 6"></path></svg>
+          </p>
+        </div>
       </div>
       <div class="settings_group">
         <div class="settings_group_title">{{ $t('隐私与通知') }}</div>
@@ -153,7 +141,7 @@
             <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_chevron"><path d="M9 6l6 6-6 6"></path></svg>
           </p>
         </div>
-        <div class="line line--interactive" @click="gotoAboutPage">
+        <div class="line line--interactive settings_verification_line" @click="gotoAboutPage">
           <span class="ll">
             <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_item_icon">
               <path d="M12 3l7 3v5c0 4.5-2.7 7.9-7 10-4.3-2.1-7-5.5-7-10V6l7-3z"></path>
@@ -161,15 +149,154 @@
             </svg>
             <span>{{ $t('认证信息') }}</span>
           </span>
-          <p class="lr">
+          <p class="lr settings_verification_value" :title="trustBadgeText">
             <span>{{ trustBadgeText }}</span>
             <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_chevron"><path d="M9 6l6 6-6 6"></path></svg>
           </p>
         </div>
       </div>
+      <button @click="logout" class="logout settings_logout" type="button">{{ $t('退出') }}</button>
     </div>
-    <button @click="logout" class="logout settings_logout" type="button">{{ $t('退出') }}</button>
-    <el-dialog :title="$t('切换账号')" :visible.sync="show_swtich_account" :modal="false">
+    <transition name="settings-subpage-slide" @after-leave="handleSettingsSubpageAfterLeave">
+      <div v-if="activeSettingsSubpage" class="settings_subpage_layer">
+        <div class="settings_subpage_header">
+          <button class="settings_subpage_back" type="button" @click="closeSettingsSubpage">
+            <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_subpage_back_icon">
+              <path d="M15 6l-6 6 6 6"></path>
+            </svg>
+            <span>{{ $t('返回') }}</span>
+          </button>
+          <div class="settings_subpage_title">{{ settingsSubpageTitle }}</div>
+          <div class="settings_subpage_spacer"></div>
+        </div>
+        <div class="settings_subpage_body">
+          <template v-if="activeSettingsSubpage === 'profile'">
+            <div class="settings_panel_hero settings_profile_hero">
+              <button :aria-label="$t('settings.changeAvatar', { origin: '更换头像' })" class="avatar settings_profile_avatar_button" type="button" @click="touchedAvatar">
+                <img :src="avatar" alt="" class="av" />
+                <span class="settings_profile_avatar_badge" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M8.5 7l1.2-2h4.6l1.2 2"></path>
+                    <rect x="3.5" y="7" width="17" height="12" rx="3"></rect>
+                    <circle cx="12" cy="13" r="3.2"></circle>
+                  </svg>
+                </span>
+              </button>
+            </div>
+            <div class="settings_group settings_group--subpage">
+              <div class="line">
+                <span class="ll">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_item_icon">
+                    <path d="M5 12h14"></path>
+                    <path d="M12 5v14"></path>
+                  </svg>
+                  <span>ID</span>
+                </span>
+                <p class="lr">
+                  <span>{{ user_id }}</span>
+                </p>
+              </div>
+              <div class="line">
+                <span class="ll">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_item_icon">
+                    <path d="M5 12h14"></path>
+                    <path d="M12 5v14"></path>
+                  </svg>
+                  <span>{{ $t('用户名') }}</span>
+                </span>
+                <p class="lr">
+                  <span>{{ username }}</span>
+                </p>
+              </div>
+              <div class="line line--interactive" @click="settingNick">
+                <span class="ll">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_item_icon">
+                    <path d="M12 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"></path>
+                    <path d="M5 20a7 7 0 0 1 14 0"></path>
+                  </svg>
+                  <span>{{ $t('昵称') }}</span>
+                </span>
+                <p class="lr">
+                  <span>{{ nick_name || $t('点击设置') }}</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_chevron"><path d="M9 6l6 6-6 6"></path></svg>
+                </p>
+              </div>
+              <div class="line line--interactive" @click="mobile ? (dialog_change_bind_mobile = true) : (dialog_user_bind_mobile = true)">
+                <span class="ll">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_item_icon">
+                    <path d="M7 4h10v16H7z"></path>
+                    <path d="M11 17h2"></path>
+                  </svg>
+                  <span>{{ $t('手机号码') }}</span>
+                </span>
+                <p class="lr">
+                  <span>{{ mobile || $t('去绑定') }}</span>
+                  <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_chevron"><path d="M9 6l6 6-6 6"></path></svg>
+                </p>
+              </div>
+            </div>
+          </template>
+          <template v-else-if="activeSettingsSubpage === 'rtc'">
+            <div class="settings_subpage_intro">
+              <div class="settings_subpage_intro_label">{{ $t('通话画质') }}</div>
+              <div class="settings_subpage_hint">{{ $t('根据当前网络和设备情况调整视频发送策略，兼顾清晰度与稳定性。') }}</div>
+            </div>
+            <div class="settings_group settings_group--subpage">
+              <div class="line">
+                <span class="ll ll--stacked">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_item_icon">
+                    <path d="M4 12h16"></path>
+                    <path d="M7 8.5a4.5 4.5 0 0 1 0 7"></path>
+                    <path d="M17 8.5a4.5 4.5 0 0 1 0 7"></path>
+                  </svg>
+                  <span class="settings_line_copy">
+                    <span class="settings_line_title">{{ $t('自适应分辨率') }}</span>
+                    <span class="settings_line_meta">{{ $t('网络波动时自动升降清晰度，优先保证通话稳定。') }}</span>
+                  </span>
+                </span>
+                <label class="settings_toggle">
+                  <input :checked="adaptiveResolutionEnabled" type="checkbox" @change="toggleAdaptiveVideoResolution" />
+                  <span class="settings_toggle_track"></span>
+                </label>
+              </div>
+              <div :class="['line', { 'line--disabled': adaptiveResolutionEnabled }]">
+                <span class="ll ll--stacked">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" class="settings_item_icon">
+                    <path d="M5 15.5l3-3 2.5 2.5L15 9.5l4 4"></path>
+                    <path d="M5 19h14"></path>
+                    <path d="M7 7h.01"></path>
+                  </svg>
+                  <span class="settings_line_copy">
+                    <span class="settings_line_title">{{ $t('视频清晰度') }}</span>
+                    <span class="settings_line_meta">
+                      {{ adaptiveResolutionEnabled ? $t('已启用自动调整，关闭自适应后可手动选择。') : $t('手动固定发送分辨率，适合网络稳定的场景。') }}
+                    </span>
+                  </span>
+                </span>
+                <label class="settings_language_select_wrap settings_profile_select_wrap">
+                  <select
+                    :disabled="adaptiveResolutionEnabled"
+                    :value="videoProfileKey"
+                    class="settings_language_select settings_profile_select"
+                    @change="applyVideoProfileChange($event.target.value)"
+                  >
+                    <option :key="option.value" :value="option.value" v-for="option in videoProfileOptions">
+                      {{ option.label }}
+                    </option>
+                  </select>
+                  <span class="settings_language_caret" aria-hidden="true">
+                    <svg viewBox="0 0 24 24">
+                      <path d="M7 10l5 5 5-5"></path>
+                    </svg>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </transition>
+    <el-dialog :append-to-body="true" :title="$t('切换账号')" :visible.sync="show_swtich_account" :modal="false" custom-class="account-switch-dialog" @open="prepareAccountSwitch">
       <el-table :data="this.getApp().getLoginInfoList()" style="width: 100%" border fit highlight-current-row @current-change="handleCurrentChange" height="240" size="mini">
         <el-table-column :label="$t('账号列表')">
           <template slot-scope="props">
@@ -294,7 +421,15 @@
 
 <script>
 import { mapGetters } from 'vuex';
-import { getLocale, LANGUAGE_OPTIONS } from '../../../../i18n';
+import { LANGUAGE_OPTIONS } from '../../../../i18n';
+import {
+  DEFAULT_VIDEO_PROFILE_KEY,
+  VIDEO_PROFILE_OPTIONS,
+  getStoredVideoProfileKey,
+  persistVideoProfileKey,
+  adaptiveVideoEnabled,
+  setAdaptiveVideoEnabled
+} from '../../../third/rtcVideoProfiles';
 
 export default {
   name: 'rosterInfo',
@@ -302,6 +437,7 @@ export default {
     return {
       avatar: '',
       mobile: '',
+      username: '',
       nick_name: '',
       auth_mode: 0,
       group_confirm: false,
@@ -316,6 +452,9 @@ export default {
       dialog_user_bind_mobile: false,
       user_bind_mobile_model: {},
       dialog_change_bind_mobile: false,
+      activeSettingsSubpage: '',
+      adaptiveResolutionEnabled: true,
+      videoProfileKey: DEFAULT_VIDEO_PROFILE_KEY,
       change_bind_mobile_model: {
         method: 'none',
         sign: ''
@@ -323,9 +462,14 @@ export default {
     };
   },
   mounted() {
+    this.adaptiveResolutionEnabled = adaptiveVideoEnabled();
+    this.videoProfileKey = getStoredVideoProfileKey();
     this.$store.dispatch('setting/actionGetProfile');
     this.$store.dispatch('setting/actionGetSettingInfo');
     this.$store.dispatch('setting/actionGetUserVerification');
+  },
+  beforeDestroy() {
+    this.$emit('subpage-change', false);
   },
   components: {},
   computed: {
@@ -403,6 +547,28 @@ export default {
         value: option.value,
         label: option.label
       }));
+    },
+    videoProfileOptions() {
+      return VIDEO_PROFILE_OPTIONS.map((option) => ({
+        value: option.key,
+        label: this.$t(option.labelKey)
+      }));
+    },
+    currentVideoProfileLabel() {
+      const matched = this.videoProfileOptions.find((option) => option.value === this.videoProfileKey);
+      return matched ? matched.label : '';
+    },
+    rtcSettingsSummary() {
+      if (this.adaptiveResolutionEnabled) {
+        return this.$t('自动');
+      }
+      return this.currentVideoProfileLabel || this.$t('手动');
+    },
+    settingsSubpageTitle() {
+      if (this.activeSettingsSubpage === 'profile') {
+        return this.$t('settings.profile', { origin: '个人资料' });
+      }
+      return this.$t('音视频设置');
     }
   },
   methods: {
@@ -469,6 +635,9 @@ export default {
     swtichAccount() {
       this.show_swtich_account = true;
     },
+    prepareAccountSwitch() {
+      this.switch_info = null;
+    },
     handleCurrentChange(info) {
       this.switch_info = info;
     },
@@ -478,9 +647,15 @@ export default {
     },
     changeAccount() {
       const loginInfo = this.getApp().getLoginInfo();
-      if (this.switch_info && (this.switch_info.app_id !== loginInfo.app_id || this.switch_info.username !== loginInfo.username)) {
-        this.getApp().switchLogin(this.switch_info);
+      if (!this.switch_info) {
+        this.$message.warning(this.$t('accountSwitch.selectAccount', { origin: '请选择要切换的账号' }));
+        return;
       }
+      if (this.switch_info.app_id === loginInfo.app_id && this.switch_info.username === loginInfo.username) {
+        this.$message.info(this.$t('accountSwitch.currentAccount', { origin: '当前账号已登录' }));
+        return;
+      }
+      this.getApp().switchLogin(this.switch_info);
     },
     logout() {
       this.$confirm(this.$t('确认退出当前账号登录吗？'), this.$t('退出登录'), {
@@ -506,6 +681,35 @@ export default {
       this.$setLocale(locale);
       this.$message.success(this.$t('common.languageChanged'));
     },
+    applyVideoProfileChange(profileKey) {
+      if (!profileKey || profileKey === this.videoProfileKey) {
+        return;
+      }
+      this.videoProfileKey = profileKey;
+      persistVideoProfileKey(profileKey);
+      this.$message.success(this.$t('视频清晰度已更新'));
+    },
+    openRtcSettingsDialog() {
+      this.activeSettingsSubpage = 'rtc';
+      this.$emit('subpage-change', true);
+    },
+    openProfileSettingsPage() {
+      this.activeSettingsSubpage = 'profile';
+      this.$emit('subpage-change', true);
+    },
+    closeSettingsSubpage() {
+      this.activeSettingsSubpage = '';
+    },
+    handleSettingsSubpageAfterLeave() {
+      if (!this.activeSettingsSubpage) {
+        this.$emit('subpage-change', false);
+      }
+    },
+    toggleAdaptiveVideoResolution() {
+      this.adaptiveResolutionEnabled = !this.adaptiveResolutionEnabled;
+      setAdaptiveVideoEnabled(this.adaptiveResolutionEnabled);
+      this.$message.success(this.$t('视频分辨率策略已更新'));
+    },
     rosterSwitchTouch() {
       const auth_mode = this.auth_mode === 1 ? 0 : 1;
       const user_id = this.$store.state.im.userManage.getUid();
@@ -530,6 +734,7 @@ export default {
         avatar: this.getProfileInfo.avatar
       });
       this.mobile = this.getProfileInfo.mobile;
+      this.username = this.getProfileInfo.username;
       if (this.notEmpty(this.getProfileInfo.nick_name)) {
         this.nick_name = this.getProfileInfo.nick_name;
       }
@@ -964,6 +1169,11 @@ export default {
 .vm {
   vertical-align: middle;
 }
+
+.user_setting.settings_panel {
+  position: relative;
+}
+
 .settings_language_select_wrap {
   position: relative;
   display: inline-flex;
@@ -988,6 +1198,13 @@ export default {
   cursor: pointer;
 }
 
+.settings_language_select:disabled {
+  cursor: not-allowed;
+  color: #96a0ae;
+  background: #f2f4f7;
+  border-color: rgba(98, 116, 156, 0.1);
+}
+
 .settings_language_caret {
   position: absolute;
   right: 8px;
@@ -1006,6 +1223,256 @@ export default {
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+.settings_subpage_layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #f9fbfd 0%, #f4f7fb 100%);
+  border-radius: 22px;
+}
+
+.settings_subpage_header {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  min-height: 68px;
+  display: grid;
+  grid-template-columns: minmax(84px, auto) minmax(0, 1fr) 84px;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0 12px;
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, rgba(249, 251, 253, 0.96) 0%, rgba(249, 251, 253, 0.88) 100%);
+  backdrop-filter: blur(12px);
+}
+
+.settings_subpage_back,
+.settings_subpage_spacer {
+  min-width: 84px;
+  height: 40px;
+}
+
+.settings_subpage_back {
+  border: none;
+  background: transparent;
+  color: #4d5f77;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  padding: 0;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings_subpage_back_icon {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.settings_subpage_title {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #18263d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings_subpage_body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: 12px;
+  padding-bottom: 20px;
+  box-sizing: border-box;
+}
+
+.settings_subpage_body,
+.settings_subpage_header {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.settings_subpage_intro,
+.settings_group--subpage {
+  max-width: 760px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.settings_subpage_intro {
+  margin-bottom: 14px;
+  padding: 0 6px;
+  box-sizing: border-box;
+}
+
+.settings_subpage_intro_label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7d8aa0;
+  margin-bottom: 6px;
+}
+
+.settings_subpage_hint {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #6e7c90;
+}
+
+.settings_group--subpage {
+  background: #fff;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(131, 148, 178, 0.14);
+  box-shadow: 0 16px 36px rgba(30, 49, 80, 0.05);
+}
+
+.settings_group--subpage .line {
+  margin: 0;
+  min-height: 76px;
+}
+
+.settings_profile_hero {
+  padding-top: 4px !important;
+  padding-bottom: 18px !important;
+}
+
+.settings_profile_avatar_button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.settings_profile_avatar_badge {
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(98, 116, 156, 0.14);
+  border-radius: 50%;
+  box-sizing: border-box;
+  background: #fff;
+  color: #4d5f77;
+  box-shadow: 0 2px 8px rgba(19, 41, 75, 0.16);
+}
+
+.settings_profile_avatar_badge svg {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ll--stacked {
+  align-items: flex-start;
+}
+
+.settings_line_copy {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings_line_title {
+  color: #1a2940;
+}
+
+.settings_line_meta {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #7f8ca0;
+}
+
+.line--disabled {
+  opacity: 0.82;
+}
+
+.line--disabled .settings_item_icon,
+.line--disabled .settings_line_title,
+.line--disabled .settings_line_meta,
+.line--disabled .settings_language_caret {
+  color: #9aa5b4;
+}
+
+.settings-subpage-slide-enter-active,
+.settings-subpage-slide-leave-active {
+  transition: opacity 0.18s ease, transform 0.22s ease;
+}
+
+.settings-subpage-slide-enter,
+.settings-subpage-slide-leave-to {
+  opacity: 0;
+  transform: translateX(18px);
+}
+
+@media (max-width: 768px) {
+  .settings_subpage_layer {
+    position: fixed;
+    inset: 0;
+    padding: 0 14px 24px;
+    box-sizing: border-box;
+    border-radius: 0;
+  }
+
+  .settings_subpage_header {
+    min-height: 60px;
+    grid-template-columns: minmax(68px, auto) minmax(0, 1fr) 68px;
+    padding: calc(8px + env(safe-area-inset-top)) 0 10px;
+  }
+
+  .settings_subpage_body {
+    padding-top: 10px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+
+  .settings_subpage_body,
+  .settings_subpage_header {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .settings_subpage_intro {
+    padding: 0 2px;
+  }
+
+  .settings_group--subpage {
+    border-radius: 16px;
+  }
+
+  .settings_subpage_back,
+  .settings_subpage_spacer {
+    min-width: 68px;
+  }
+
+  .settings_group--subpage .line {
+    min-height: 72px;
+  }
 }
 .image-captcha-line {
   display: flex;

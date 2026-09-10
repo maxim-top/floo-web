@@ -51,7 +51,13 @@
               </svg>
               <span>{{ $t('已发送') }}</span>
             </div>
-            <input v-else :checked="isSelected(target.key)" @click.stop @change="toggleTarget(target, $event)" type="checkbox" />
+            <input
+              v-else
+              :checked="isSelected(target.key) || isActive(target.key) || isUnknown(target.key)"
+              @click.stop="handleTargetCheckboxClick(target, $event)"
+              @change="toggleTarget(target, $event)"
+              type="checkbox"
+            />
           </div>
         </div>
 
@@ -74,7 +80,13 @@
               </svg>
               <span>{{ $t('已发送') }}</span>
             </div>
-            <input v-else :checked="isSelected(target.key)" @click.stop @change="toggleTarget(target, $event)" type="checkbox" />
+            <input
+              v-else
+              :checked="isSelected(target.key) || isActive(target.key) || isUnknown(target.key)"
+              @click.stop="handleTargetCheckboxClick(target, $event)"
+              @change="toggleTarget(target, $event)"
+              type="checkbox"
+            />
           </div>
         </div>
 
@@ -97,7 +109,13 @@
               </svg>
               <span>{{ $t('已发送') }}</span>
             </div>
-            <input v-else :checked="isSelected(target.key)" @click.stop @change="toggleTarget(target, $event)" type="checkbox" />
+            <input
+              v-else
+              :checked="isSelected(target.key) || isActive(target.key) || isUnknown(target.key)"
+              @click.stop="handleTargetCheckboxClick(target, $event)"
+              @change="toggleTarget(target, $event)"
+              type="checkbox"
+            />
           </div>
         </div>
       </div>
@@ -123,17 +141,42 @@ export default {
       isSending: false,
       selectedTargets: [],
       activeSection: 'all',
-      sentTargetStatus: {}
+      sentTargetStatus: {},
+      sentMessageIdsByTarget: {},
+      submitSequence: 0,
+      activeTargetKeys: []
     };
   },
   mounted() {
+    this.$store.getters.im.on('onAppConfigUpdated', this.handleAppConfigUpdated);
+    this.$store.getters.im.on('onGroupListUpdate', this.handleGroupListUpdated);
     this.$store.dispatch('forward/actionGetForwardList');
+  },
+  beforeDestroy() {
+    this.$store.getters.im.off('onAppConfigUpdated', this.handleAppConfigUpdated);
+    this.$store.getters.im.off('onGroupListUpdate', this.handleGroupListUpdated);
+  },
+  watch: {
+    getShowForwardList(showForwardList) {
+      if (showForwardList) {
+        this.$store.dispatch('forward/actionLoadForwardGroupList');
+      }
+    },
+    multiForwardMessageKey(nextKey, previousKey) {
+      if (nextKey !== previousKey) {
+        this.submitSequence += 1;
+        this.clearForwardProgress();
+      }
+    }
   },
   computed: {
     ...mapGetters('forward', ['getRosterList', 'getGroupList', 'getShowForwardList', 'getMultiForwardMessages', 'getForwardMessage', 'getMessageForwardMaxUserNum']),
     ...mapGetters('contact', ['getConversationList']),
     isMultiForward() {
       return this.getMultiForwardMessages.length > 0;
+    },
+    multiForwardMessageKey() {
+      return this.getMultiForwardMessages.map((message) => `${message.id}`).join(',');
     },
     summaryText() {
       const sentCount = this.sentTargetCount;
@@ -240,6 +283,14 @@ export default {
     }
   },
   methods: {
+    handleAppConfigUpdated(appid) {
+      if (appid === this.$store.getters.im.userManage.getAppid()) {
+        this.$store.dispatch('forward/actionSyncForwardConfig');
+      }
+    },
+    handleGroupListUpdated() {
+      this.$store.dispatch('forward/actionSyncForwardGroupList');
+    },
     filterTargets(list = []) {
       const query = (this.keyword || '').toLowerCase();
       if (!query) return list;
@@ -252,7 +303,7 @@ export default {
       return [];
     },
     getSelectableTargets(targets = []) {
-      return targets.filter((item) => !this.isSent(item.key));
+      return targets.filter((item) => !this.isHandled(item.key) && !this.isActive(item.key));
     },
     isSelected(key) {
       return this.selectedTargets.some((item) => item.key === key);
@@ -260,13 +311,27 @@ export default {
     isSent(key) {
       return this.sentTargetStatus[key] === 'sent';
     },
+    isUnknown(key) {
+      return this.sentTargetStatus[key] === 'unknown';
+    },
+    isHandled(key) {
+      return this.isSent(key) || this.isUnknown(key);
+    },
+    isActive(key) {
+      return this.activeTargetKeys.includes(key);
+    },
     areAllTargetsSelected(targets = []) {
       const selectableTargets = this.getSelectableTargets(targets);
       return !!selectableTargets.length && selectableTargets.every((item) => this.isSelected(item.key));
     },
+    handleTargetCheckboxClick(target, event) {
+      if (target && event && (this.isHandled(target.key) || this.isActive(target.key))) {
+        event.preventDefault();
+      }
+    },
     toggleTarget(target, event) {
       if (!target || this.isSending) return;
-      if (this.isSent(target.key)) {
+      if (this.isHandled(target.key) || this.isActive(target.key)) {
         if (event && event.target) {
           event.target.checked = false;
         }
@@ -316,12 +381,18 @@ export default {
         this.$message.warning(this.$t('本次最多选择{count}个接收方，已为你选择可添加的对象', { count: this.getMessageForwardMaxUserNum }));
       }
     },
+    clearForwardProgress() {
+      this.sentTargetStatus = {};
+      this.sentMessageIdsByTarget = {};
+    },
     resetPanelState() {
+      this.submitSequence += 1;
       this.keyword = '';
       this.isSending = false;
+      this.activeTargetKeys = [];
       this.selectedTargets = [];
       this.activeSection = 'all';
-      this.sentTargetStatus = {};
+      this.clearForwardProgress();
       this.resetSectionToggleState();
     },
     resetSectionToggleState() {
@@ -342,6 +413,39 @@ export default {
       }
       this.$store.dispatch('forward/actionCancelForward');
     },
+    getForwardErrorText(reason) {
+      const message = (reason || '').trim();
+      if (message === 'Forward status unknown' || message === 'Forward canceled') {
+        return this.$t('forward.sendingNotice', { origin: '消息正在发送，请稍候' });
+      }
+      if (message.toLowerCase().indexOf('network') > -1) {
+        return this.$t('message.sendFailedNetwork', { origin: '网络连接不可用，消息发送失败' });
+      }
+      if (message) {
+        return this.$t('error.sendFailedWithReason', { message });
+      }
+      return this.$t('消息发送失败');
+    },
+    trackLateForwardResult(targetKey, result, submitSequence) {
+      if (!result || !result.lateResult) return;
+      result.lateResult.then((lateResult) => {
+        if (submitSequence !== this.submitSequence) return;
+        if (lateResult.sentMessageIds && lateResult.sentMessageIds.length) {
+          this.$set(this.sentMessageIdsByTarget, targetKey, lateResult.sentMessageIds);
+        }
+        if (lateResult.status === 'sent') {
+          this.$delete(this.sentMessageIdsByTarget, targetKey);
+          this.$set(this.sentTargetStatus, targetKey, 'sent');
+          return;
+        }
+        if (lateResult.status === 'partial' || lateResult.status === 'failed') {
+          this.$delete(this.sentTargetStatus, targetKey);
+          if (lateResult.status === 'failed') {
+            this.$message.error(this.getForwardErrorText(lateResult.errorReason));
+          }
+        }
+      });
+    },
     async submitTargets() {
       if (!this.selectedTargets.length || this.isSending) return;
       if (this.isMultiForward && !this.getMultiForwardMessages.length) {
@@ -353,24 +457,64 @@ export default {
         return;
       }
 
-      const targetsToSend = this.selectedTargets.filter((target) => !this.isSent(target.key));
+      const targetsToSend = this.selectedTargets.filter((target) => !this.isHandled(target.key));
       if (!targetsToSend.length) {
-        this.$message.warning(this.$t('当前选择的接收方已发送完成'));
+        const hasUnknownTarget = this.selectedTargets.some((target) => this.isUnknown(target.key));
+        this.$message.warning(hasUnknownTarget ? this.$t('forward.sendingNotice', { origin: '消息正在发送，请稍候' }) : this.$t('当前选择的接收方已发送完成'));
         this.selectedTargets = [];
         return;
       }
 
       this.isSending = true;
+      const submitSequence = this.submitSequence;
       for (const target of targetsToSend) {
-        await this.$store.dispatch('forward/actionSelectForwardTarget', {
-          type: target.type,
-          id: target.id
-        });
-        this.$set(this.sentTargetStatus, target.key, 'sent');
+        this.activeTargetKeys = Array.from(new Set(this.activeTargetKeys.concat(target.key)));
+        let sent;
+        try {
+          sent = await this.$store.dispatch('forward/actionSelectForwardTarget', {
+            type: target.type,
+            id: target.id,
+            sentMessageIds: this.sentMessageIdsByTarget[target.key] || []
+          });
+        } catch (error) {
+          this.activeTargetKeys = this.activeTargetKeys.filter((key) => key !== target.key);
+          if (submitSequence !== this.submitSequence) return;
+          if (!this.getShowForwardList) return;
+          this.$message.error(this.getForwardErrorText(error && error.message));
+          continue;
+        }
+        this.activeTargetKeys = this.activeTargetKeys.filter((key) => key !== target.key);
+        if (submitSequence !== this.submitSequence) return;
+        if (sent && sent.sentMessageIds && sent.sentMessageIds.length) {
+          this.$set(this.sentMessageIdsByTarget, target.key, sent.sentMessageIds);
+        }
+        if (sent && sent.status === 'sent') {
+          this.$delete(this.sentMessageIdsByTarget, target.key);
+          this.$set(this.sentTargetStatus, target.key, 'sent');
+          if (!this.getShowForwardList) return;
+          continue;
+        }
+        if (sent && (sent.status === 'unknown' || sent.status === 'canceled')) {
+          this.$set(this.sentTargetStatus, target.key, 'unknown');
+          this.trackLateForwardResult(target.key, sent, submitSequence);
+        } else {
+          this.$delete(this.sentTargetStatus, target.key);
+          if (this.getShowForwardList) {
+            this.$message.error(this.getForwardErrorText(sent && sent.errorReason));
+          }
+        }
+        if (!this.getShowForwardList) return;
       }
+      if (submitSequence !== this.submitSequence || !this.getShowForwardList) return;
       this.isSending = false;
       this.selectedTargets = [];
       this.resetSectionToggleState();
+      if (!targetsToSend.every((target) => this.isSent(target.key))) {
+        if (targetsToSend.some((target) => this.isUnknown(target.key))) {
+          this.$message.warning(this.$t('forward.sendingNotice', { origin: '消息正在发送，请稍候' }));
+        }
+        return;
+      }
       const remainingCount = this.allTargets.length - this.sentTargetCount;
       if (remainingCount > 0) {
         this.$message.success(this.$t('本次转发完成，已发送{count}个接收方，可继续选择下一批', { count: this.sentTargetCount }));

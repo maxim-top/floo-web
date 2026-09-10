@@ -79,8 +79,8 @@
 
 .contact .l_conversation .item .unread_number {
   position: absolute;
-  top: 8px;
-  left: 36px;
+  top: 10px;
+  left: 46px;
   height: 14px;
   color: white;
   background: red;
@@ -93,18 +93,30 @@
   text-align: center;
 }
 
+.contact .l_conversation .item .unread_number.unread_dot {
+  width: 8px;
+  min-width: 8px;
+  height: 8px;
+  padding: 0;
+  line-height: 8px;
+  border-radius: 50%;
+}
+
 .contact .l_conversation .item .avatar {
-  height: 32px;
-  width: 32px;
+  height: 40px;
+  width: 40px;
+  display: block;
+  object-fit: cover;
+  flex-shrink: 0;
   border-radius: 3px;
-  margin: 14px 10px 0px 10px;
+  margin: 10px 10px 0px 10px;
   float: left;
 }
 
 .contact .l_conversation .item .name {
-  margin-left: 60px;
+  margin-left: 68px;
   line-height: 20px;
-  padding-top: 12px;
+  padding-top: 10px;
   color: #000;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -127,13 +139,14 @@
 .contact .l_conversation .item .last_msg {
   height: 20px;
   line-height: 20px;
-  margin-left: 60px;
-  margin-right: 72px;
+  margin-left: 68px;
+  margin-right: 10px;
   color: #8798a4;
   text-overflow: ellipsis;
   white-space: nowrap;
   overflow: hidden;
-  max-width: 66.6%;
+  max-width: none;
+  min-width: 0;
 }
 
 .contact .l_conversation .item .last_msg .at_tips {
@@ -226,7 +239,7 @@
 }
 
 .app-sidebar .contact .l_conversation .item .avatar {
-  margin-top: 20px;
+  margin-top: 14px;
   border-radius: 12px;
 }
 
@@ -377,11 +390,19 @@
 }
 
 .conversation-root .l_conversation .item {
+  box-sizing: border-box;
+  height: 72px !important;
+  min-height: 72px;
   margin: 0 !important;
   border: none !important;
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
+}
+
+.conversation-root .l_conversation .conversation-virtual-spacer {
+  width: 100%;
+  pointer-events: none;
 }
 
 .conversation-root .l_conversation .item:hover {
@@ -397,7 +418,7 @@
   display: flex !important;
   align-items: center;
   gap: 16px;
-  min-height: 68px;
+  min-height: 64px;
   height: auto !important;
   padding: 12px 20px !important;
   margin: 0 !important;
@@ -425,18 +446,15 @@
 
 .contact-root .contact-item .avatar {
   display: block;
-  width: 44px;
-  height: 44px;
+  width: 40px !important;
+  height: 40px !important;
   margin: 0 !important;
   float: none !important;
   object-fit: cover;
 }
 
 .contact-item--friend .avatar,
-.contact-item--support .avatar {
-  border-radius: 50% !important;
-}
-
+.contact-item--support .avatar,
 .contact-item--group .avatar {
   border-radius: 12px !important;
 }
@@ -479,9 +497,9 @@
 }
 
 .contact-avatar-shell--notice {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   background: rgba(51, 51, 204, 0.08);
   display: inline-flex;
   align-items: center;
@@ -597,6 +615,48 @@
 
   .app-sidebar .contact .l_conversation .item {
     border-bottom: none;
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) max-content;
+    grid-template-rows: 20px 20px;
+    column-gap: 10px;
+    padding: 10px;
+    box-sizing: border-box;
+    align-content: start;
+  }
+
+  .app-sidebar .contact .l_conversation .item > .conversation_identity {
+    display: contents;
+  }
+
+  .app-sidebar .contact .l_conversation .item .avatar {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    margin: 4px 0 0;
+  }
+
+  .app-sidebar .contact .l_conversation .item .name {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    max-width: none;
+    margin-left: 0;
+    padding-top: 0;
+  }
+
+  .app-sidebar .contact .l_conversation .item .last_msg_time {
+    grid-column: 3;
+    grid-row: 1;
+    position: static;
+    margin-top: 2px;
+  }
+
+  .app-sidebar .contact .l_conversation .item .last_msg {
+    grid-column: 2 / 4;
+    grid-row: 2;
+    min-width: 0;
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
   }
 }
 
@@ -624,6 +684,11 @@
     overflow: hidden;
     box-sizing: border-box;
     will-change: transform;
+  }
+
+  .chat-index.mobile-pane-no-transition .app-sidebar,
+  .chat-index.mobile-pane-no-transition .app-main {
+    transition: none;
   }
 
   .chat-index.mobile-pane-list .app-sidebar {
@@ -661,6 +726,13 @@
     opacity: 1;
     pointer-events: auto;
     z-index: 1000;
+  }
+
+  .chat-index.mobile-pane-chat.mobile-pane-tab-content .app-main {
+    bottom: calc(64px + env(safe-area-inset-bottom, 16px));
+    height: auto;
+    transition: none;
+    will-change: auto;
   }
 
   .app-sidebar .contact {
@@ -793,9 +865,9 @@
 
   .app-sidebar .contact .l_conversation .item {
     display: grid;
-    grid-template-columns: 32px minmax(0, 1fr) 52px;
+    grid-template-columns: 40px minmax(0, 1fr) 56px;
     grid-template-rows: auto auto;
-    column-gap: 12px;
+    column-gap: 14px;
     row-gap: 4px;
     height: auto;
     min-height: 72px;
@@ -804,7 +876,7 @@
     align-items: start;
   }
 
-  .app-sidebar .contact .l_conversation .item > div {
+  .app-sidebar .contact .l_conversation .item > .conversation_identity {
     display: contents;
   }
 
@@ -825,9 +897,10 @@
   }
 
   .app-sidebar .contact .l_conversation .item .last_msg {
-    grid-column: 2;
+    grid-column: 2 / 4;
     grid-row: 2;
     margin-left: 0;
+    margin-right: 0;
     max-width: none;
     min-width: 0;
   }

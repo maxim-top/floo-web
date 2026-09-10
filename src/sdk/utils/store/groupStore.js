@@ -1,5 +1,42 @@
 import { getItem, removeItem, saveItem } from './storeBase';
 
+const getMemberIdentity = (member) => {
+  if (member && typeof member === 'object') {
+    return `${member.user_id || member.uid || ''}`;
+  }
+  return `${member || ''}`;
+};
+
+const isObjectMember = (member) => member && typeof member === 'object';
+
+const mergeMember = (current, incoming) => {
+  if (!isObjectMember(current)) {
+    return isObjectMember(incoming) ? incoming : incoming || current;
+  }
+  if (!isObjectMember(incoming)) {
+    return current;
+  }
+  return Object.assign({}, current, incoming);
+};
+
+const dedupeMembers = (members = []) => {
+  const seen = {};
+  const order = [];
+  members.forEach((member) => {
+    const key = getMemberIdentity(member);
+    if (!key) {
+      return;
+    }
+    if (!Object.prototype.hasOwnProperty.call(seen, key)) {
+      order.push(key);
+      seen[key] = member;
+      return;
+    }
+    seen[key] = mergeMember(seen[key], member);
+  });
+  return order.map((key) => seen[key]);
+};
+
 const groupStore = {
   saveJoinedGroups: (groups) => {
     if (!groups) return;
@@ -43,7 +80,15 @@ const groupStore = {
   getGroupInfo: (group_id) => {
     const groupInfos = getItem('key_group_infos') || {};
     const ret = groupInfos[group_id] || {};
-    return Object.assign(ret, {
+    return Object.assign({}, ret, {
+      group_id
+    });
+  },
+
+  getRawGroupInfo: (group_id) => {
+    const groupInfos = getItem('key_group_infos') || {};
+    const ret = groupInfos[group_id] || {};
+    return Object.assign({}, ret, {
       group_id
     });
   },
@@ -54,11 +99,7 @@ const groupStore = {
     const ret = [];
     groupIds.forEach((gid) => {
       const ginfo = allInfos[gid] || {};
-      ret.push(
-        Object.assign({}, ginfo, {
-          group_id: gid
-        })
-      );
+      ret.push(Object.assign({}, ginfo, { group_id: gid }));
     });
     return ret;
   },
@@ -72,32 +113,62 @@ const groupStore = {
     const savedMembers = allMap[gid] || [];
     if (replace) {
       // 这个是第一次取，全量替换旧的
-      allMap[gid] = members;
+      allMap[gid] = dedupeMembers(members);
       saveItem('key_group_members', allMap);
       return;
     }
-    members.forEach((uid) => {
-      // 这个是来通知后的追加
-      const index = savedMembers.findIndex((x) => x === uid);
-      index < 0 && savedMembers.push(uid);
+    const savedIdentityMap = {};
+    savedMembers.forEach((member) => {
+      const key = getMemberIdentity(member);
+      if (key) {
+        savedIdentityMap[key] = true;
+      }
     });
-    allMap[gid] = savedMembers;
+    members.forEach((member) => {
+      // 这个是来通知后的追加
+      const key = getMemberIdentity(member);
+      if (!key) {
+        return;
+      }
+      const index = savedMembers.findIndex((item) => getMemberIdentity(item) === key);
+      if (index < 0) {
+        savedIdentityMap[key] = true;
+        savedMembers.push(member);
+        return;
+      }
+      savedMembers[index] = mergeMember(savedMembers[index], member);
+    });
+    allMap[gid] = dedupeMembers(savedMembers);
+    saveItem('key_group_members', allMap);
   },
 
   removeGroupMembers: (gid, members) => {
+    if (!Array.isArray(members)) members = [members];
     const allMap = getItem('key_group_members') || {};
     const savedMembers = allMap[gid] || [];
-    members.forEach((uid) => {
-      const index = savedMembers.findIndex((x) => x === uid);
-      index >= 0 && savedMembers.splice(index, 1);
+    const removeIdentityMap = {};
+    members.forEach((member) => {
+      const key = getMemberIdentity(member);
+      if (key) {
+        removeIdentityMap[key] = true;
+      }
     });
-    allMap[gid] = savedMembers;
+    allMap[gid] = savedMembers.filter((member) => {
+      const key = getMemberIdentity(member);
+      return !key || !removeIdentityMap[key];
+    });
     saveItem('key_group_members', allMap);
   },
 
   getGroupMembers: (gid) => {
     const allMap = getItem('key_group_members') || {};
-    return allMap[gid] || [];
+    const members = allMap[gid] || [];
+    const normalizedMembers = dedupeMembers(members);
+    if (normalizedMembers.length !== members.length) {
+      allMap[gid] = normalizedMembers;
+      saveItem('key_group_members', allMap);
+    }
+    return normalizedMembers;
   },
 
   clear: () => {

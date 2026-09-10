@@ -1,19 +1,46 @@
 <template>
   <div :class="['call_video_panel', callStateClass]" @mousemove="handleActivity" @touchstart.passive="handleActivity">
-    <video id="remote-video" ref="remoteVideo" autoplay playsinline class="call_video_remote"></video>
-    <video id="local-video" ref="localVideo" autoplay playsinline muted class="call_video_local"></video>
+    <video v-show="remoteVideoElementVisible" id="remote-video" ref="remoteVideo" autoplay playsinline class="call_video_remote"></video>
+    <div v-show="!remoteVideoVisible" :class="['call_video_remote_placeholder', { 'is-camera-closed': peerCameraClose }]">
+      <div v-if="peerCameraClose" class="call_video_remote_backdrop" :style="remoteAvatarStyle"></div>
+      <div class="call_video_remote_identity">
+        <div v-if="peerCameraClose" class="call_video_remote_avatar_shell">
+          <img :src="remoteAvatar" class="call_video_remote_avatar" />
+        </div>
+        <div class="call_video_remote_name">{{ rosterName }}</div>
+        <div v-if="!isGetThrough" class="call_video_remote_dots" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <div v-else class="call_video_remote_subtitle">
+          {{ remotePlaceholderStatusText }}
+        </div>
+      </div>
+    </div>
+    <video v-show="camera" id="local-video" ref="localVideo" autoplay playsinline muted class="call_video_local"></video>
+    <div v-show="!camera" class="call_video_local_placeholder">
+      <img :src="localAvatar" class="call_video_local_avatar" />
+    </div>
     <audio ref="remoteAudio" id="video-call-remote-audio" class="hide" autoplay playsinline></audio>
 
     <div class="call_video_scrim"></div>
     <div class="call_video_status">
-      <div class="call_video_name">{{ rosterName }}</div>
-      <div class="call_video_state">{{ statusText }}</div>
+      <template v-if="remoteVideoVisible">
+        <div class="call_video_name">{{ rosterName }}</div>
+        <div class="call_video_state">{{ statusText }}</div>
+      </template>
       <div v-if="isGetThrough" class="call_video_timer">{{ callTime }}</div>
-      <div v-if="peerCameraClose && isGetThrough" class="call_video_peer_notice">{{ $t('对方已关闭摄像头') }}</div>
     </div>
 
     <div :class="['call_video_controls', { 'is-visible': controlsVisible }]">
-      <button class="call_action_button call_control_button" type="button" @click="micChangeStatus" :aria-label="mic ? $t('关闭麦克风') : $t('打开麦克风')">
+      <button
+        class="call_action_button call_control_button"
+        type="button"
+        @click="micChangeStatus"
+        :disabled="micToggleCoolingDown"
+        :aria-label="mic ? $t('关闭麦克风') : $t('打开麦克风')"
+      >
         <svg v-if="mic" viewBox="0 0 24 24" aria-hidden="true">
           <rect x="9" y="4" width="6" height="10" rx="3"></rect>
           <path d="M6 11a6 6 0 0 0 12 0"></path>
@@ -38,7 +65,13 @@
           <path d="M5 5l14 14"></path>
         </svg>
       </button>
-      <button class="call_action_button call_control_button" type="button" @click="cameraChangeStatus" :aria-label="camera ? $t('关闭摄像头') : $t('打开摄像头')">
+      <button
+        class="call_action_button call_control_button"
+        type="button"
+        @click="cameraChangeStatus"
+        :disabled="cameraToggleCoolingDown"
+        :aria-label="camera ? $t('关闭摄像头') : $t('打开摄像头')"
+      >
         <svg v-if="camera" viewBox="0 0 24 24" aria-hidden="true">
           <rect x="3" y="7" width="11" height="10" rx="2"></rect>
           <path d="M14 10.5l5-3v9l-5-3z"></path>
@@ -63,6 +96,19 @@
 <script>
 import { mapGetters } from 'vuex';
 import { toNumber } from '../third/tools';
+import {
+  getStoredVideoProfileKey,
+  findVideoProfileOption,
+  adaptiveVideoEnabled,
+  getStartupVideoProfileOption,
+  getHigherVideoProfileOption,
+  getLowerVideoProfileOption
+} from '../third/rtcVideoProfiles';
+
+const ADAPTIVE_RECOVERY_MS = 15000;
+const REMOTE_VIDEO_FRAME_STALL_MS = 1500;
+const REMOTE_VIDEO_FRAME_POLL_MS = 300;
+const MEDIA_TOGGLE_COOLDOWN_MS = 800;
 
 export default {
   name: 'videocall',
@@ -77,13 +123,32 @@ export default {
       caller: true,
       isGetThrough: false,
       doHangup: false,
+      peerVideoActive: false,
+      peerVideoFlowing: false,
       callTime: '',
       timerRef: null,
       controlsVisible: true,
-      controlsTimer: null
+      controlsTimer: null,
+      videoProfileKey: '',
+      adaptiveResolutionEnabled: true,
+      runtimeProfileKey: '',
+      adaptiveRecoveryTimer: null,
+      micToggleCoolingDown: false,
+      cameraToggleCoolingDown: false,
+      micToggleCooldownTimer: null,
+      cameraToggleCooldownTimer: null,
+      remoteVideoMonitorVersion: 0,
+      remoteVideoFrameCallbackId: null,
+      remoteVideoFramePollTimer: null,
+      remoteVideoFrameStallTimer: null,
+      remoteVideoLastCurrentTime: 0
     };
   },
   mounted() {
+    this.videoProfileKey = getStoredVideoProfileKey();
+    this.adaptiveResolutionEnabled = adaptiveVideoEnabled();
+    const startupResolution = getStartupVideoProfileOption(this.videoProfileKey);
+    this.runtimeProfileKey = startupResolution.key;
     const app_id = this.$store.state.im.userManage.getAppid();
     const info = this.getCallInviteInfo;
     if (info) {
@@ -108,28 +173,14 @@ export default {
       pin: this.caller ? this.randomString(8) : info.pin,
       hasVideo: true,
       hasAudio: true,
-      width: 360,
-      height: 640,
+      width: startupResolution.width,
+      height: startupResolution.height,
       getThrough: this.getThrough,
       hangupCall: this.hangupCall,
       getHangUpStatus: this.getHangUpStatus,
-      attachStream: this.attachStream
-    });
-
-    this.$store.getters.im.on('onRosterRTCMessage', (message) => {
-      const { ext, isHistory } = message;
-      const callStatus = this.$store.state.im.rtcManage.getInCallStatus();
-      if (!isHistory && callStatus && ext && message.from != this.$store.state.im.userManage.getUid()) {
-        let sext = {};
-        try {
-          sext = JSON.parse(ext);
-        } catch (ex) {
-          //
-        }
-        if (sext && sext.callId === this.getCallId && Object.prototype.hasOwnProperty.call(sext, 'mute_video')) {
-          this.peerCameraClose = sext.mute_video;
-        }
-      }
+      attachStream: this.attachStream,
+      updateTrackState: this.updateTrackState,
+      onSlowLink: this.handleSlowLink
     });
 
     this.startLocalRender();
@@ -145,8 +196,44 @@ export default {
     ...mapGetters('contact', ['getCallInviteInfo']),
     ...mapGetters('contact', ['getCallPickupTime']),
     ...mapGetters('contact', ['getCallId']),
+    ...mapGetters('header', ['getUserProfile']),
     callStateClass() {
       return this.isGetThrough ? 'is-connected' : 'is-calling';
+    },
+    currentResolutionOption() {
+      const option = findVideoProfileOption(this.videoProfileKey);
+      return {
+        ...option,
+        label: this.$t(option.labelKey)
+      };
+    },
+    remoteVideoVisible() {
+      return this.isGetThrough && this.peerVideoFlowing && !this.peerCameraClose;
+    },
+    remoteVideoElementVisible() {
+      return this.isGetThrough && !this.peerCameraClose && (this.peerVideoActive || this.peerVideoFlowing);
+    },
+    remoteAvatar() {
+      return this.userInfo.avatar || this.defaultAvatar();
+    },
+    localAvatar() {
+      const profile = this.getUserProfile || {};
+      return this.$store.getters.im.sysManage.getImage({
+        avatar: profile.avatar,
+        type: 'roster'
+      });
+    },
+    remoteAvatarStyle() {
+      return {
+        backgroundImage: `url(${this.remoteAvatar})`
+      };
+    },
+    runtimeResolutionOption() {
+      const option = findVideoProfileOption(this.runtimeProfileKey || this.videoProfileKey);
+      return {
+        ...option,
+        label: this.$t(option.labelKey)
+      };
     },
     rosterName() {
       return this.userInfo.alias || this.userInfo.nick_name || this.userInfo.username || this.userInfo.user_id;
@@ -156,9 +243,70 @@ export default {
         return this.$t('视频通话已接通');
       }
       return this.caller ? this.$t('正在呼叫...') : this.$t('正在连接视频通话...');
+    },
+    remotePlaceholderStatusText() {
+      if (!this.isGetThrough) {
+        return this.statusText;
+      }
+      if (this.peerCameraClose) {
+        return this.$t('对方已关闭摄像头');
+      }
+      return this.$t('视频连接中...');
     }
   },
   methods: {
+    defaultAvatar() {
+      return this.$store.getters.im.sysManage.getImage({
+        avatar: '',
+        type: 'roster'
+      });
+    },
+    getActiveResolutionOption() {
+      if (this.adaptiveResolutionEnabled) {
+        return findVideoProfileOption(this.runtimeProfileKey || this.videoProfileKey);
+      }
+      return findVideoProfileOption(this.videoProfileKey);
+    },
+    syncRuntimeProfile(profileKey) {
+      this.runtimeProfileKey = profileKey;
+      if (!this.adaptiveResolutionEnabled) {
+        return;
+      }
+      if (this.adaptiveRecoveryTimer) {
+        clearTimeout(this.adaptiveRecoveryTimer);
+      }
+      this.adaptiveRecoveryTimer = window.setTimeout(() => {
+        this.tryRecoverAdaptiveResolution();
+      }, ADAPTIVE_RECOVERY_MS);
+    },
+    tryRecoverAdaptiveResolution() {
+      if (!this.adaptiveResolutionEnabled || !this.isGetThrough || !this.camera) {
+        return;
+      }
+      const nextOption = getHigherVideoProfileOption(this.runtimeProfileKey || this.videoProfileKey);
+      if (nextOption.key === this.runtimeProfileKey) {
+        return;
+      }
+      this.runtimeProfileKey = nextOption.key;
+      this.startLocalRender(true);
+      this.$store.getters.im.rtcManage.updateVideoProfile(nextOption.width, nextOption.height);
+      this.syncRuntimeProfile(nextOption.key);
+    },
+    handleSlowLink({ uplink }) {
+      if (!this.adaptiveResolutionEnabled || !uplink || !this.isGetThrough || !this.camera) {
+        return;
+      }
+      const currentKey = this.runtimeProfileKey || this.videoProfileKey;
+      const nextOption = getLowerVideoProfileOption(currentKey);
+      if (nextOption.key === currentKey) {
+        this.syncRuntimeProfile(currentKey);
+        return;
+      }
+      this.runtimeProfileKey = nextOption.key;
+      this.startLocalRender(true);
+      this.$store.getters.im.rtcManage.updateVideoProfile(nextOption.width, nextOption.height);
+      this.syncRuntimeProfile(nextOption.key);
+    },
     refreshUserInfo(newSid) {
       this.$store.getters.im.rosterManage.asyncSearchRosterById({ user_id: newSid }).then((res) => {
         res.avatar = this.$store.getters.im.sysManage.getImage({
@@ -168,11 +316,25 @@ export default {
         this.userInfo = res;
       });
     },
-    micChangeStatus() {
-      if (this.isGetThrough) {
-        this.mic = !this.mic;
-        this.$store.getters.im.rtcManage.muteLocalAudio(!this.mic);
+    startMediaToggleCooldown(toggleType) {
+      const timerKey = toggleType + 'ToggleCooldownTimer';
+      const flagKey = toggleType + 'ToggleCoolingDown';
+      if (this[timerKey]) {
+        clearTimeout(this[timerKey]);
       }
+      this[flagKey] = true;
+      this[timerKey] = window.setTimeout(() => {
+        this[flagKey] = false;
+        this[timerKey] = null;
+      }, MEDIA_TOGGLE_COOLDOWN_MS);
+    },
+    micChangeStatus() {
+      if (!this.isGetThrough || this.micToggleCoolingDown) {
+        return;
+      }
+      this.startMediaToggleCooldown('mic');
+      this.mic = !this.mic;
+      this.$store.getters.im.rtcManage.muteLocalAudio(!this.mic);
     },
     speakerChangeStatus() {
       if (this.isGetThrough) {
@@ -180,29 +342,175 @@ export default {
       }
     },
     cameraChangeStatus() {
-      if (this.isGetThrough) {
-        this.camera = !this.camera;
-        this.$store.getters.im.rtcManage.muteLocalVideo(!this.camera);
-        this.$store.getters.im.rtcManage.sendRTCMessage({
-          uid: this.userInfo.user_id,
-          content: '',
-          ext: JSON.stringify({
-            callId: this.getCallId,
-            mute_video: !this.camera
-          })
-        });
+      if (!this.isGetThrough || this.cameraToggleCoolingDown) {
+        return;
+      }
+      this.startMediaToggleCooldown('camera');
+      const activeResolution = this.getActiveResolutionOption();
+      this.camera = !this.camera;
+      if (this.camera) {
+        this.startLocalRender(true);
+        if (this.adaptiveResolutionEnabled) {
+          this.syncRuntimeProfile(this.runtimeProfileKey || this.videoProfileKey);
+        }
+      } else {
+        this.stopPreviewStream();
+      }
+      this.$store.getters.im.rtcManage.setLocalVideoEnabled(this.camera, activeResolution.width, activeResolution.height);
+    },
+    startLocalRender(forceRestart = false) {
+      if (!this.camera || !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+        return;
+      }
+      const lVideo = this.$refs.localVideo;
+      if (!lVideo) {
+        return;
+      }
+      if (!forceRestart && lVideo.srcObject && lVideo.srcObject !== this.previewStream) {
+        return;
+      }
+      if (forceRestart) {
+        this.stopPreviewStream();
+      }
+      const { width, height } = this.getActiveResolutionOption();
+      navigator.mediaDevices
+        .getUserMedia({ audio: false, video: { width, height } })
+        .then((stream) => {
+          this.stopPreviewStream();
+          this.previewStream = stream;
+          lVideo.srcObject = stream;
+          lVideo.play().catch(() => {});
+        })
+        .catch(() => {});
+    },
+    stopPreviewStream() {
+      const previewStream = this.previewStream;
+      if (this.previewStream) {
+        this.stopTracks(this.previewStream);
+        this.previewStream = null;
+      }
+      const lVideo = this.$refs.localVideo;
+      if (lVideo && lVideo.srcObject === previewStream) {
+        lVideo.srcObject = null;
       }
     },
-    startLocalRender() {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        navigator.mediaDevices
-          .getUserMedia({ audio: false, video: { width: 360, height: 640 } })
-          .then((stream) => {
-            let lVideo = this.$refs.localVideo;
-            lVideo.srcObject = stream;
-            lVideo.play().catch(() => {});
-          })
-          .catch(() => {});
+    markRemoteVideoFrameFlow() {
+      if (this.peerCameraClose) {
+        return;
+      }
+      this.peerVideoFlowing = true;
+      if (this.remoteVideoFrameStallTimer) {
+        clearTimeout(this.remoteVideoFrameStallTimer);
+      }
+      this.remoteVideoFrameStallTimer = window.setTimeout(() => {
+        this.peerVideoFlowing = false;
+      }, REMOTE_VIDEO_FRAME_STALL_MS);
+    },
+    stopRemoteVideoMonitor(resetFlow = true) {
+      this.remoteVideoMonitorVersion += 1;
+      const rVideo = this.$refs.remoteVideo;
+      if (rVideo && this.remoteVideoFrameCallbackId != null && typeof rVideo.cancelVideoFrameCallback === 'function') {
+        try {
+          rVideo.cancelVideoFrameCallback(this.remoteVideoFrameCallbackId);
+        } catch (e) {
+          // The callback may already have been released with the video element.
+        }
+      }
+      this.remoteVideoFrameCallbackId = null;
+      if (this.remoteVideoFramePollTimer) {
+        clearInterval(this.remoteVideoFramePollTimer);
+        this.remoteVideoFramePollTimer = null;
+      }
+      if (this.remoteVideoFrameStallTimer) {
+        clearTimeout(this.remoteVideoFrameStallTimer);
+        this.remoteVideoFrameStallTimer = null;
+      }
+      this.remoteVideoLastCurrentTime = 0;
+      if (resetFlow) {
+        this.peerVideoFlowing = false;
+      }
+    },
+    startRemoteVideoMonitor() {
+      const rVideo = this.$refs.remoteVideo;
+      if (!rVideo) {
+        return;
+      }
+      this.stopRemoteVideoMonitor(false);
+      const monitorVersion = this.remoteVideoMonitorVersion;
+      const pollFrame = () => {
+        if (monitorVersion !== this.remoteVideoMonitorVersion) {
+          return;
+        }
+        const currentVideo = this.$refs.remoteVideo;
+        if (!currentVideo || currentVideo.readyState < 2 || currentVideo.paused || currentVideo.ended) {
+          return;
+        }
+        if (currentVideo.currentTime !== this.remoteVideoLastCurrentTime) {
+          this.remoteVideoLastCurrentTime = currentVideo.currentTime;
+          this.markRemoteVideoFrameFlow();
+        }
+      };
+      if (typeof rVideo.requestVideoFrameCallback === 'function') {
+        const onFrame = () => {
+          if (monitorVersion !== this.remoteVideoMonitorVersion) {
+            return;
+          }
+          this.markRemoteVideoFrameFlow();
+          this.remoteVideoFrameCallbackId = rVideo.requestVideoFrameCallback(onFrame);
+        };
+        this.remoteVideoFrameCallbackId = rVideo.requestVideoFrameCallback(onFrame);
+      }
+      this.remoteVideoFramePollTimer = window.setInterval(pollFrame, REMOTE_VIDEO_FRAME_POLL_MS);
+    },
+    clearRemoteVideo() {
+      this.stopRemoteVideoMonitor();
+      const rVideo = this.$refs.remoteVideo;
+      if (rVideo) {
+        rVideo.srcObject = null;
+      }
+    },
+    cleanupMediaElements() {
+      this.stopPreviewStream();
+      this.clearRemoteVideo();
+      const lVideo = this.$refs.localVideo;
+      if (lVideo) {
+        if (lVideo.srcObject) {
+          this.stopTracks(lVideo.srcObject);
+        }
+        lVideo.srcObject = null;
+      }
+      const rAudio = this.$refs.remoteAudio;
+      if (rAudio) {
+        if (rAudio.srcObject) {
+          this.stopTracks(rAudio.srcObject);
+        }
+        rAudio.srcObject = null;
+      }
+    },
+    updateTrackState({ type, isLocal, active, cameraClosed = null }) {
+      if (type !== 'video') {
+        return;
+      }
+      if (isLocal) {
+        if (active && this.previewStream) {
+          this.stopPreviewStream();
+        }
+      } else {
+        this.peerVideoActive = active;
+        if (cameraClosed === true) {
+          this.peerCameraClose = true;
+          this.peerVideoFlowing = false;
+          this.clearRemoteVideo();
+          return;
+        }
+        if (active) {
+          this.peerCameraClose = false;
+        } else {
+          if (cameraClosed === false) {
+            this.peerCameraClose = false;
+          }
+          this.peerVideoFlowing = false;
+        }
       }
     },
     hangupCall(active, timeout = false, peerDrop = false) {
@@ -242,8 +550,10 @@ export default {
       this.$store.dispatch('contact/actionSetCallInviteInfo', null);
       this.$store.dispatch('contact/actionSetCallId', '');
       this.$store.dispatch('contact/actionSetCallPickupTime', 0);
-      this.$store.getters.im.rtcManage.leaveRoom();
       this.doHangup = true;
+      this.cleanupMediaElements();
+      this.$store.getters.im.rtcManage.leaveRoom();
+      this.$store.getters.im.rtcManage.destroy();
       this.stopPhoneRing();
     },
     getHangUpStatus() {
@@ -270,6 +580,9 @@ export default {
         this.stopPhoneRing();
         this.calculateDisplayTime();
         this.timerRef = window.setInterval(this.calculateDisplayTime, 1000);
+        if (this.adaptiveResolutionEnabled) {
+          this.syncRuntimeProfile(this.runtimeProfileKey || this.videoProfileKey);
+        }
       }
     },
     stopTracks(stream) {
@@ -285,18 +598,29 @@ export default {
     attachStream(stream, type, isLocal = false) {
       if (type === 'audio') {
         let rAudio = this.$refs.remoteAudio;
-        rAudio.srcObject = stream;
-        rAudio.play().catch(() => {});
+        if (rAudio) {
+          rAudio.srcObject = stream;
+          rAudio.play().catch(() => {});
+        }
       } else if (type === 'video') {
         if (isLocal) {
           let lVideo = this.$refs.localVideo;
-          this.stopTracks(lVideo.srcObject);
+          if (lVideo.srcObject && lVideo.srcObject !== this.previewStream) {
+            this.stopTracks(lVideo.srcObject);
+          }
+          this.stopPreviewStream();
           lVideo.srcObject = stream;
           lVideo.play().catch(() => {});
         } else {
           let rVideo = this.$refs.remoteVideo;
-          rVideo.srcObject = stream;
-          rVideo.play().catch(() => {});
+          this.peerVideoActive = true;
+          this.peerCameraClose = false;
+          this.peerVideoFlowing = false;
+          if (rVideo) {
+            rVideo.srcObject = stream;
+            this.startRemoteVideoMonitor();
+            rVideo.play().catch(() => {});
+          }
         }
       }
     },
@@ -344,10 +668,23 @@ export default {
       clearTimeout(this.controlsTimer);
       this.controlsTimer = null;
     }
+    if (this.adaptiveRecoveryTimer) {
+      clearTimeout(this.adaptiveRecoveryTimer);
+      this.adaptiveRecoveryTimer = null;
+    }
+    if (this.micToggleCooldownTimer) {
+      clearTimeout(this.micToggleCooldownTimer);
+      this.micToggleCooldownTimer = null;
+    }
+    if (this.cameraToggleCooldownTimer) {
+      clearTimeout(this.cameraToggleCooldownTimer);
+      this.cameraToggleCooldownTimer = null;
+    }
+    this.stopRemoteVideoMonitor();
+    this.cleanupMediaElements();
     if (!this.doHangup) {
       this.hangupCall(false);
     }
-    this.$store.getters.im.rtcManage.destroy();
   }
 };
 </script>

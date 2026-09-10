@@ -1,6 +1,6 @@
 import { rtcmessage, conversation, frame, message, meta, provision, syncul, xid } from '../../model/index';
 import { infoStore, groupStore } from '../../utils/store';
-import { toLong, toNumber } from '../../utils/tools';
+import { toLong, toNumber, toUnsignedLong } from '../../utils/tools';
 import log from '../../utils/log';
 import {
   STATIC_RTC_SIGNAL_TYPE,
@@ -20,6 +20,14 @@ let count = 0;
 
 let deviceSN = infoStore.getDeviceSN();
 let deviceGuid = infoStore.getDeviceGuid();
+
+const resetDeviceIdentity = () => {
+  const oldDeviceGuid = deviceGuid;
+  const identity = infoStore.resetDeviceIdentity();
+  deviceSN = identity.deviceSN;
+  deviceGuid = identity.deviceGuid;
+  log.warn('Reset device identity after conflict, old Guid:', oldDeviceGuid, 'new Guid:', deviceGuid);
+};
 
 const makeUniqueMid = () => {
   if (count > 1000) {
@@ -298,7 +306,7 @@ const makeMessagePlayedAck = (rid, mid) => {
 };
 
 const makeHistorySyncul = (uid, sid, amount) => {
-  sid = toLong(sid);
+  sid = toUnsignedLong(sid);
   const sframe = new frame();
   sframe.setCommond(STATIC_FRAME_COMMAND.SYNC);
   const sxid = new xid({
@@ -307,7 +315,9 @@ const makeHistorySyncul = (uid, sid, amount) => {
   });
   const ssyncul = new syncul();
   ssyncul.setXid(sxid);
-  ssyncul.setKey(toNumber(sid));
+  // Message ids are uint64 values and routinely exceed Number.MAX_SAFE_INTEGER.
+  // Keep the cursor as Long all the way to protobuf encoding.
+  ssyncul.setKey(sid);
   ssyncul.setFullsyncnum(amount);
   ssyncul.setIsfullsync(true);
   sframe.setPayload(ssyncul);
@@ -698,6 +708,7 @@ const makeGroupRTCMessage = (amessage) => {
 };
 
 export {
+  resetDeviceIdentity,
   makeUnreadUl,
   makeProvision,
   makeSyncul,

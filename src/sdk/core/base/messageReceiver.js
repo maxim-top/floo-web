@@ -2,9 +2,10 @@
 // on 开头的是直接发给用户的
 // im 开头的是内部用的
 import log from '../../utils/log';
-import { fire } from '../../utils/cusEvent';
+import { bind, fire } from '../../utils/cusEvent';
+import { shouldAcceptSocketLoginResult } from './loginAttemptGuard';
 import { infoStore, messageStore } from '../../utils/store';
-import { metaToCustomer, toLong, toNumber } from '../../utils/tools';
+import { metaToCustomer, toLong, toNumber, toUnsignedLong } from '../../utils/tools';
 import {
   STATIC_CONVERSATION_OPTYPE,
   STATIC_CONVERSATION_TYPE,
@@ -18,10 +19,296 @@ import {
   STATIC_USERNOTICE_TYPE,
   STATIC_RTC_SIGNAL_TYPE
 } from '../../utils/static';
-import { makeSyncul, makeUnreadUl, makeUnreadULTimer } from './messageMaker';
+import { makeProvision, makeSyncul, makeUnreadULTimer, resetDeviceIdentity } from './messageMaker';
 
-const noticeXids = {}; //
 let isKick = false;
+let historyResponseSequence = 0;
+let deviceGuidConflictRetried = false;
+const SOCKET_LOGIN_SERVICE_RETRY_MAX = 2;
+const SOCKET_LOGIN_SERVICE_RETRY_DELAY = 2000;
+let socketLoginServiceRetryTimes = 0;
+let socketLoginServiceRetryTimer = null;
+const UNREAD_SYNC_MAX_CONCURRENCY = 6;
+const UNREAD_SYNC_TIMEOUT = 30000;
+let unreadSyncQueue = [];
+let priorityUnreadSyncQueue = [];
+const queuedUnreadSyncIds = new Set();
+const activeUnreadSyncItems = new Map();
+const pausedUnreadSyncItems = new Map();
+const pendingUnreadSyncXids = new Map();
+let activePriorityUnreadSyncId = '';
+
+const unreadSyncId = (xid = {}) => {
+  if (typeof xid.uid === 'undefined' || xid.uid === null) return '';
+  return toLong(xid.uid).toString();
+};
+
+const normalizeUnreadSyncId = (value) => {
+  if (typeof value === 'undefined' || value === null) return '';
+  if (typeof value === 'object') return unreadSyncId(value);
+  return toLong(value).toString();
+};
+
+const resetUnreadSyncQueue = () => {
+  unreadSyncQueue = [];
+  priorityUnreadSyncQueue = [];
+  queuedUnreadSyncIds.clear();
+  activeUnreadSyncItems.forEach((item) => clearTimeout(item.timeout));
+  activeUnreadSyncItems.clear();
+  pausedUnreadSyncItems.clear();
+  pendingUnreadSyncXids.clear();
+  activePriorityUnreadSyncId = '';
+};
+
+const clearSocketLoginServiceRetry = (resetTimes = true) => {
+  if (socketLoginServiceRetryTimer) {
+    clearTimeout(socketLoginServiceRetryTimer);
+  }
+  socketLoginServiceRetryTimer = null;
+  if (resetTimes) {
+    socketLoginServiceRetryTimes = 0;
+  }
+};
+
+const isRetryableSocketLoginServiceFailure = (status = {}) => {
+  return (
+    status.code === STATIC_FRAME_ERROR_STATUS.FAIL ||
+    status.code === STATIC_FRAME_ERROR_STATUS.RATE_LIMIT_EXCEEDED ||
+    status.code === STATIC_FRAME_ERROR_STATUS.INVALID_LICENSE ||
+    status.code === STATIC_FRAME_ERROR_STATUS.LICENSE_LIMIT ||
+    status.code === STATIC_FRAME_ERROR_STATUS.APP_FROZEN
+  );
+};
+
+const isSocketLoginPolicyFailure = (status = {}) =>
+  status.code === STATIC_FRAME_ERROR_STATUS.INVALID_LICENSE || status.code === STATIC_FRAME_ERROR_STATUS.LICENSE_LIMIT || status.code === STATIC_FRAME_ERROR_STATUS.APP_FROZEN;
+
+const scheduleSocketLoginServiceRetry = (status = {}) => {
+  if (socketLoginServiceRetryTimer) {
+    return true;
+  }
+  if (socketLoginServiceRetryTimes >= SOCKET_LOGIN_SERVICE_RETRY_MAX) {
+    return false;
+  }
+  const retryCount = socketLoginServiceRetryTimes + 1;
+  const delay = retryCount * SOCKET_LOGIN_SERVICE_RETRY_DELAY;
+  socketLoginServiceRetryTimes = retryCount;
+  fire('flooNotice', {
+    category: 'loginMessage',
+    desc: `socket login service failure, retrying ${retryCount}/${SOCKET_LOGIN_SERVICE_RETRY_MAX} in ${delay} ms: ${status.reason}`
+  });
+  socketLoginServiceRetryTimer = setTimeout(() => {
+    socketLoginServiceRetryTimer = null;
+    fire('sendMessage', makeProvision({ token: infoStore.getToken(), uid: infoStore.getUid() }));
+  }, delay);
+  return true;
+};
+
+const sendUnreadSync = (xid, nextKey = 0) => {
+  fire(
+    'sendMessage',
+    makeSyncul({
+      xid,
+      next_key: nextKey
+    })
+  );
+};
+
+const unreadSyncKey = (nextKey = 0) => toLong(nextKey).toString();
+
+const armUnreadSyncTimeout = (item) => {
+  clearTimeout(item.timeout);
+  item.timeout = setTimeout(() => {
+    if (activeUnreadSyncItems.get(item.id) !== item) return;
+    if (item.retries < 1) {
+      item.retries += 1;
+      sendUnreadSync(item.xid, item.nextKey);
+      armUnreadSyncTimeout(item);
+      return;
+    }
+    log.error('Unread conversation sync timeout:', item.id, item.nextKey);
+    finishUnreadSync(item.xid);
+  }, UNREAD_SYNC_TIMEOUT);
+};
+
+const startUnreadSync = (item, lane) => {
+  item.lane = lane;
+  item.priorityRequested = false;
+  activeUnreadSyncItems.set(item.id, item);
+  if (lane === 'priority') {
+    activePriorityUnreadSyncId = item.id;
+    log.log('Start priority unread conversation sync:', item.id);
+  }
+  sendUnreadSync(item.xid, item.nextKey);
+  armUnreadSyncTimeout(item);
+};
+
+const activeBackgroundUnreadSyncCount = () => {
+  return activeUnreadSyncItems.size - (activePriorityUnreadSyncId && activeUnreadSyncItems.has(activePriorityUnreadSyncId) ? 1 : 0);
+};
+
+const pumpPriorityUnreadSyncQueue = () => {
+  if (activePriorityUnreadSyncId) return;
+  while (priorityUnreadSyncQueue.length) {
+    const item = priorityUnreadSyncQueue.shift();
+    queuedUnreadSyncIds.delete(item.id);
+    pausedUnreadSyncItems.delete(item.id);
+    if (activeUnreadSyncItems.has(item.id)) continue;
+    startUnreadSync(item, 'priority');
+    return;
+  }
+  const activeCandidate = Array.from(activeUnreadSyncItems.values()).find((item) => item.lane === 'background' && item.priorityRequested);
+  if (activeCandidate) {
+    activeCandidate.lane = 'priority';
+    activeCandidate.priorityRequested = false;
+    activePriorityUnreadSyncId = activeCandidate.id;
+    log.log('Prioritize active unread conversation sync:', activeCandidate.id);
+  }
+};
+
+const pumpBackgroundUnreadSyncQueue = () => {
+  while (activeBackgroundUnreadSyncCount() < UNREAD_SYNC_MAX_CONCURRENCY && unreadSyncQueue.length) {
+    const item = unreadSyncQueue.shift();
+    queuedUnreadSyncIds.delete(item.id);
+    if (activeUnreadSyncItems.has(item.id)) continue;
+    startUnreadSync(item, 'background');
+  }
+};
+
+const pumpUnreadSyncQueue = () => {
+  pumpPriorityUnreadSyncQueue();
+  pumpBackgroundUnreadSyncQueue();
+};
+
+const queuePriorityUnreadSyncItem = (item) => {
+  item.lane = '';
+  item.timeout = null;
+  queuedUnreadSyncIds.add(item.id);
+  pausedUnreadSyncItems.set(item.id, item);
+  priorityUnreadSyncQueue.push(item);
+};
+
+const continueUnreadSync = (xid, nextKey) => {
+  const item = activeUnreadSyncItems.get(unreadSyncId(xid));
+  if (!item) return;
+  item.nextKey = nextKey;
+  item.retries = 0;
+  if (item.lane === 'priority' && priorityUnreadSyncQueue.length) {
+    clearTimeout(item.timeout);
+    activeUnreadSyncItems.delete(item.id);
+    activePriorityUnreadSyncId = '';
+    queuePriorityUnreadSyncItem(item);
+    pumpUnreadSyncQueue();
+    return;
+  }
+  sendUnreadSync(item.xid, item.nextKey);
+  armUnreadSyncTimeout(item);
+};
+
+const isDuplicateUnreadSyncResponse = (xid, nextKey) => {
+  const id = unreadSyncId(xid);
+  const key = unreadSyncKey(nextKey);
+  const item = activeUnreadSyncItems.get(id);
+  if (item) {
+    if (item.responseKeys.has(key)) return true;
+    item.responseKeys.add(key);
+    return false;
+  }
+  if (pausedUnreadSyncItems.has(id)) return true;
+  return false;
+};
+
+const finishUnreadSync = (xid) => {
+  const id = unreadSyncId(xid);
+  const item = activeUnreadSyncItems.get(id);
+  if (!item) return;
+  clearTimeout(item.timeout);
+  activeUnreadSyncItems.delete(id);
+  if (activePriorityUnreadSyncId === id) {
+    activePriorityUnreadSyncId = '';
+  }
+  const pending = pendingUnreadSyncXids.get(id);
+  if (pending) {
+    pendingUnreadSyncXids.delete(id);
+    enqueueUnreadSync(pending.xid, pending.priority);
+  }
+  pumpUnreadSyncQueue();
+};
+
+const promoteQueuedUnreadSync = (id) => {
+  if (!id || !queuedUnreadSyncIds.has(id)) return false;
+  const index = unreadSyncQueue.findIndex((item) => item.id === id);
+  if (index < 0) return false;
+  const item = unreadSyncQueue.splice(index, 1)[0];
+  priorityUnreadSyncQueue.push(item);
+  log.log('Prioritize queued unread conversation sync:', id);
+  return true;
+};
+
+const prioritizeUnreadSync = (value) => {
+  const id = normalizeUnreadSyncId(value);
+  if (!id) return;
+  const activeItem = activeUnreadSyncItems.get(id);
+  if (activeItem && activeItem.lane !== 'priority') {
+    activeItem.priorityRequested = true;
+  }
+  const pending = pendingUnreadSyncXids.get(id);
+  if (pending) {
+    pending.priority = true;
+  }
+  if (promoteQueuedUnreadSync(id)) {
+    pumpUnreadSyncQueue();
+    return;
+  }
+  pumpUnreadSyncQueue();
+};
+
+const enqueueUnreadSync = (xid, priority = false) => {
+  const id = unreadSyncId(xid);
+  if (!id) return;
+  if (queuedUnreadSyncIds.has(id)) {
+    if (priority && promoteQueuedUnreadSync(id)) {
+      pumpUnreadSyncQueue();
+    }
+    return;
+  }
+  if (activeUnreadSyncItems.has(id)) {
+    const activeItem = activeUnreadSyncItems.get(id);
+    if (priority && activeItem.lane !== 'priority') {
+      activeItem.priorityRequested = true;
+    }
+    // The next key acknowledges the previous unread page on the server, so an
+    // active sync must finish its cursor chain before the notice-triggered refresh.
+    const pending = pendingUnreadSyncXids.get(id);
+    pendingUnreadSyncXids.set(id, {
+      xid,
+      priority: priority || !!(pending && pending.priority)
+    });
+    return;
+  }
+  queuedUnreadSyncIds.add(id);
+  const item = { id, xid, nextKey: 0, retries: 0, timeout: null, lane: '', priorityRequested: false, responseKeys: new Set() };
+  if (priority) {
+    priorityUnreadSyncQueue.push(item);
+  } else {
+    unreadSyncQueue.push(item);
+  }
+};
+
+bind('loginSuccess', () => {
+  resetUnreadSyncQueue();
+  deviceGuidConflictRetried = false;
+});
+bind('logout', () => {
+  resetUnreadSyncQueue();
+  deviceGuidConflictRetried = false;
+  clearSocketLoginServiceRetry();
+});
+bind('socketDisconnected', () => {
+  deviceGuidConflictRetried = false;
+  clearSocketLoginServiceRetry();
+});
+bind('prioritizeUnreadSync', prioritizeUnreadSync);
 
 const isClientSendFailure = (messageObj = {}) => {
   const { client_mid } = messageObj;
@@ -40,12 +327,7 @@ const checkSuccess = (messageObj) => {
     fire('flooNotice', { category: 'action', desc: 'relogin' });
   }
 
-  if (
-    code === STATIC_FRAME_ERROR_STATUS.USER_FROZEN ||
-    code === STATIC_FRAME_ERROR_STATUS.INVALID_LICENSE ||
-    code === STATIC_FRAME_ERROR_STATUS.LICENSE_LIMIT ||
-    code === STATIC_FRAME_ERROR_STATUS.APP_FROZEN
-  ) {
+  if (code === STATIC_FRAME_ERROR_STATUS.USER_FROZEN) {
     fire('flooNotice', { category: 'action', desc: 'relogin_manually' });
   }
 
@@ -107,45 +389,65 @@ const receiveMessage = (message) => {
 const receiveUnread = (unreadMb) => {
   const { unread = [] } = unreadMb;
   fire('imReceivedUnread', unread);
-  let count = 0;
   unread.forEach((conversationUnread) => {
     const { xid, n } = conversationUnread;
     if (n > 0) {
-      // fire('sendMessage', makeUnreadUl(xid)); //发一个unread ul
-      setTimeout(() => {
-        fire(
-          'sendMessage',
-          makeSyncul({
-            xid,
-            next_key: 0
-          })
-        ); // 有nextkey，接着sync
-      }, 1000 * Math.ceil(count++ / 20)); // 每秒钟处理20个上行未读会话请求。
+      enqueueUnreadSync(xid);
     }
   });
+  pumpUnreadSyncQueue();
 };
 
 const receiveNotice = (noticeMb) => {
   // notice 无 status，不用检测..
   const { xid } = noticeMb; //
-  const { uid = 0 } = xid;
-  if (noticeXids[uid + '']) {
-    setTimeout(() => {
-      noticeXids[uid] = false;
-      receiveNotice(noticeMb);
-    }, 3000);
-  } else {
-    noticeXids[uid + ''] = true;
-    fire('sendMessage', makeUnreadUl(xid)); //发一个unread ul
-  }
+  enqueueUnreadSync(xid, true);
+  pumpUnreadSyncQueue();
 };
 
 const receiveProvision = (provisionMb) => {
-  if (!checkSuccess(provisionMb)) {
+  const { status = {} } = provisionMb;
+  const success = status.code === STATIC_FRAME_ERROR_STATUS.OK || typeof status.code === 'undefined';
+  if (!shouldAcceptSocketLoginResult({ success })) {
+    return;
+  }
+  clearSocketLoginServiceRetry(false);
+  if (status.code === STATIC_FRAME_ERROR_STATUS.DEVICE_GUID_CONFLICT) {
+    if (!deviceGuidConflictRetried) {
+      deviceGuidConflictRetried = true;
+      resetDeviceIdentity();
+      fire('flooNotice', {
+        category: 'loginMessage',
+        desc: 'device guid conflict, retrying socket login with a new device identity'
+      });
+      fire('sendMessage', makeProvision({ token: infoStore.getToken(), uid: infoStore.getUid() }));
+      return;
+    }
+    deviceGuidConflictRetried = false;
+    fire('reconnect', { reason: 'DeviceGuidConflict' });
+    return;
+  }
+
+  if (isRetryableSocketLoginServiceFailure(status)) {
+    const reportPolicyFailure = isSocketLoginPolicyFailure(status) && socketLoginServiceRetryTimes === 0;
+    if (!scheduleSocketLoginServiceRetry(status)) {
+      clearSocketLoginServiceRetry();
+      fire('reconnect', { reason: 'SocketLoginServiceFailure' });
+    }
+    if (reportPolicyFailure) {
+      checkSuccess(provisionMb);
+    }
+    return;
+  }
+
+  const checkedSuccess = checkSuccess(provisionMb);
+  clearSocketLoginServiceRetry();
+  if (!checkedSuccess) {
     fire('flooNotice', {
       category: 'loginMessage',
-      desc: 'login socket failure ......'
+      desc: 'login socket failure: code=' + status.code + ', reason=' + (status.reason || 'unknown')
     });
+    deviceGuidConflictRetried = false;
     fire('loginFail', 'socket_failure');
     return;
   }
@@ -166,11 +468,23 @@ const receiveProvision = (provisionMb) => {
 
 const receiveSyncdl = (syncMb) => {
   // syncdl 的数据结构
+  const { xid = {}, is_full_sync } = syncMb;
   if (!checkSuccess(syncMb)) {
+    if (is_full_sync) {
+      fire('imHistoryBatchFailed', {
+        sid: unreadSyncId(xid),
+        requestId: ++historyResponseSequence,
+        reason: syncMb.status && syncMb.status.reason
+      });
+      return;
+    }
     //userNotice 没有这些 status
+    if (!isClientSendFailure(syncMb)) {
+      finishUnreadSync(xid);
+    }
     return;
   }
-  const { metas = [], xid, is_full_sync, client_mid, edit_timestamp } = syncMb;
+  const { metas = [], client_mid, edit_timestamp } = syncMb;
 
   if (!is_full_sync && client_mid && toLong(client_mid).gt(0)) {
     fire('receivedSendMessage', client_mid, edit_timestamp);
@@ -183,31 +497,26 @@ const receiveSyncdl = (syncMb) => {
 
   let { next_key = 0 } = syncMb;
 
-  if (next_key === 0 || toLong(next_key).eq(0)) {
-    const { uid = 0 } = xid;
-    delete noticeXids[uid + ''];
-  }
-
   if (is_full_sync) {
     //拉取历史消息
+    const sid = unreadSyncId(xid);
+    fire('imHistoryBatchStart', { sid });
     metas && metas.length && receiveMsg(metas.reverse(), is_full_sync);
-    //TODO: Store history messages now, maybe refactor the message handlers on history messages and normal ones.
-
-    fire('onReceiveHistoryMsg', { next: next_key });
+    fire('imHistoryBatchComplete', {
+      sid,
+      requestId: ++historyResponseSequence,
+      next: next_key,
+      nextKey: toUnsignedLong(next_key).toString()
+    });
   } else {
     //拉取部分消息
+    if (isDuplicateUnreadSyncResponse(xid, next_key)) return;
     metas.length && receiveMsg(metas);
 
     if (next_key === 0 || toLong(next_key).eq(0)) {
-      //
+      finishUnreadSync(xid);
     } else {
-      fire(
-        'sendMessage',
-        makeSyncul({
-          xid,
-          next_key
-        })
-      ); // 有nextkey，接着sync
+      continueUnreadSync(xid, next_key); // 同一会话继续占用当前同步槽位。
     }
   }
 };
@@ -221,6 +530,9 @@ const receiveMsg = (metas = [], isHistory = false) => {
     }
     if (isHistory) {
       meta.isHistory = true;
+      // A full-sync history response is display data, not a replay of old
+      // notices, conversation operations or realtime side effects.
+      if (ns !== STATIC_META_NAMESPACE.MESSAGE) return;
     }
     ns === STATIC_META_NAMESPACE.MESSAGE && receiveMessageBody(meta);
     ns === STATIC_META_NAMESPACE.GROUP_NOTICE && recieveGroupNotice(meta);
@@ -270,6 +582,7 @@ const receiveMessageBody = (meta) => {
   type === STATIC_MESSAGE_TYPE.GROUPCHAT && fire('imGroupMessage', meta);
 
   if (type === STATIC_MESSAGE_TYPE.OPER) {
+    if (meta.isHistory) return;
     //操作消息
     if (operation.type === STATIC_MESSAGE_OPTYPE.UNKNOWN) {
       log.log('received unknown operation: ', meta);
@@ -333,8 +646,8 @@ const receiveRosterNotice = (meta) => {
   type === STATIC_ROSTERNONTICE_TYPE.APPLIED && fire('imRosterApplied', meta);
   type === STATIC_ROSTERNONTICE_TYPE.ACCEPTED && fire('imRosterAccepted', meta);
   type === STATIC_ROSTERNONTICE_TYPE.DECLINED && fire('imRosterDeclined', meta);
-  type === STATIC_ROSTERNONTICE_TYPE.BANNED && fire('imRosterBaned', meta);
-  type === STATIC_ROSTERNONTICE_TYPE.UNBANNED && fire('imRosterUnbaned', meta);
+  type === STATIC_ROSTERNONTICE_TYPE.BLOCKED && fire('imRosterBaned', meta);
+  type === STATIC_ROSTERNONTICE_TYPE.UNBLOCKED && fire('imRosterUnbaned', meta);
   type === STATIC_ROSTERNONTICE_TYPE.INFO_UPDATED && fire('imRosterInfoUpdated', meta);
   type === STATIC_ROSTERNONTICE_TYPE.MUTED && fire('imRosterMuted', meta);
   type === STATIC_ROSTERNONTICE_TYPE.UNMUTED && fire('imRosterUnmuted', meta);
@@ -345,7 +658,6 @@ const receiveUserNotice = (meta) => {
   const { type } = payload;
 
   if (
-    type === STATIC_USERNOTICE_TYPE.UNKNOWN ||
     type === STATIC_USERNOTICE_TYPE.PASSWORD_CHANGED ||
     type === STATIC_USERNOTICE_TYPE.FROZEN ||
     type === STATIC_USERNOTICE_TYPE.REMOVED ||

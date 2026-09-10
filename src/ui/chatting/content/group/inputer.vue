@@ -1,8 +1,19 @@
 <template>
   <div class="inputer_frame" ref="groupInputer">
+    <ChatFileUploadStatus :tasks="visibleChatFileUploadTasks(getSid, 'group')" @retry="retryChatFileUpload" @dismiss="dismissChatFileUpload" />
     <div class="composer_surface">
+      <div v-if="canUseQuickReply && !(this.hasBan || this.hasAllBan)" class="composer_toolbar">
+        <button class="quick_reply_button" type="button" @click="quickReplyVisible = true">
+          <span class="quick_reply_icon_text" aria-hidden="true">⚡</span>
+          <span>{{ $t('快捷回复') }}</span>
+        </button>
+      </div>
       <div class="attach">
-        <div class="mentionList" v-if="this.filteredMentionRosters.length > 0">
+        <div class="mentionList" v-if="(this.canMentionAll && this.showMentionAllOption) || this.filteredMentionRosters.length > 0">
+          <div @click="clickMentionAllHandler" class="mentionItem" v-if="this.canMentionAll && this.showMentionAllOption">
+            <span class="avatar mention_all_avatar" aria-hidden="true">@</span>
+            <span class="name">{{ mentionAllLabel }}</span>
+          </div>
           <div :key="roster.user_id" @click="clickMemberListHander(roster.user_id)" class="mentionItem" v-for="roster in this.filteredMentionRosters">
             <img :src="rImage(roster.avatar)" class="avatar" />
             <span class="name">{{ displayName(roster) }}</span>
@@ -42,9 +53,9 @@
       <div class="input">
         <textarea
           v-if="!(this.hasBan || this.hasAllBan)"
+          @beforeinput="handleTextareaBeforeInput"
           @input="handleTextareaInput"
           @keydown="textareaKeyDown"
-          @keyup="textKeyUp"
           class="input_text"
           v-model="message"
           wrap="hard"
@@ -55,6 +66,7 @@
         <div @click="handleSendMessage" :class="message && !/^\s*$/.test(message) ? 'im_send_full' : 'im_send_empty'"></div>
       </div>
     </div>
+    <QuickReplyPanel :im="im" :visible="quickReplyVisible" @close="quickReplyVisible = false" @select="handleQuickReplySelect" />
     <el-alert v-if="hasBan || hasAllBan" :title="$t('您已被禁言，请联系管理员')" type="info" center :closable="false"></el-alert>
   </div>
 </template>
@@ -62,29 +74,60 @@
 <script>
 import { mapGetters } from 'vuex';
 import CryptoJS from 'crypto-js';
+import QuickReplyPanel from '../../../components/quickReplyPanel';
+import ChatFileUploadStatus from '../../../components/chatFileUploadStatus';
+import chatFileUpload from '../../../mixins/chatFileUpload';
+
+const DRAFT_SYNC_DELAY = 300;
 
 export default {
   name: 'groupInputer',
+  mixins: [chatFileUpload],
   data() {
     return {
       message: '',
       fileType: '',
+      mentionTokens: [],
+      mentionMessageSnapshot: '',
+      pendingMentionEdit: null,
       mentionSelectedUids: [],
+      mentionAllSelected: false,
+      mentionAllPermissionLoaded: false,
+      mentionAllPermissionRequestId: 0,
       willsendMessage: '',
       filteredMentionRosters: [],
+      showMentionAllOption: false,
       hasBan: false,
       expired_time: 0,
       hasAllBan: false,
       banCheckTimer: null,
-      showActionMenu: false
+      showActionMenu: false,
+      canUseQuickReply: false,
+      quickReplyVisible: false,
+      draftSyncTimer: null,
+      pendingDraftSync: null,
+      textareaResizeFrame: null
     };
   },
-  components: {},
+  components: {
+    QuickReplyPanel,
+    ChatFileUploadStatus
+  },
   computed: {
     ...mapGetters('content', ['getSid', 'getGroupInfo', 'getMemberList', 'getAdminList']),
     isAdmin() {
       const uid = this.$store.getters.im.userManage.getUid();
-      return this.getAdminList.filter((x) => x.user_id === uid).length > 0;
+      return this.getAdminList.some((x) => `${x.user_id}` === `${uid}`);
+    },
+    isOwner() {
+      const uid = this.$store.getters.im.userManage.getUid();
+      return `${this.getGroupInfo.owner_id}` === `${uid}`;
+    },
+    canMentionAll() {
+      return this.mentionAllPermissionLoaded && (this.isOwner || this.isAdmin);
+    },
+    mentionAllLabel() {
+      return this.$t('mention.all', { origin: '所有人' });
     },
     im() {
       return this.$store.state.im;
@@ -92,6 +135,12 @@ export default {
   },
   mounted() {
     document.addEventListener('click', this.closeActionMenu);
+    window.addEventListener('pagehide', this.flushDraftSync);
+    this.initQuickReplyEligibility();
+    this.refreshMentionAllPermission();
+    this.im.on('onGroupAdminGranted', this.handleGroupRoleChanged);
+    this.im.on('onGroupAdminRevoked', this.handleGroupRoleChanged);
+    this.im.on('onGroupOwnerAssigned', this.handleGroupRoleChanged);
     let _this = this;
 
     //todo later. need ban fix.
@@ -182,18 +231,60 @@ export default {
   },
   destroyed() {
     document.removeEventListener('click', this.closeActionMenu);
+    window.removeEventListener('pagehide', this.flushDraftSync);
+    this.im.off('onGroupAdminGranted', this.handleGroupRoleChanged);
+    this.im.off('onGroupAdminRevoked', this.handleGroupRoleChanged);
+    this.im.off('onGroupOwnerAssigned', this.handleGroupRoleChanged);
+    this.flushDraftSync();
+    if (this.textareaResizeFrame) {
+      cancelAnimationFrame(this.textareaResizeFrame);
+      this.textareaResizeFrame = null;
+    }
     //todo later. need ban fix.
     //this.stopBanCheck();
   },
   watch: {
     getSid(newSid) {
+      this.flushDraftSync();
       this.loadConversationDraft();
+      this.refreshMentionAllPermission();
+      this.quickReplyVisible = false;
       //todo later. need ban fix.
       //this.chechBan(newSid);
+    },
+    canMentionAll(value) {
+      if (!value) {
+        this.showMentionAllOption = false;
+        return;
+      }
+      const mentionStart = this.message.lastIndexOf('@');
+      if (mentionStart < 0) return;
+      const fragment = this.message.slice(mentionStart + 1);
+      if (fragment.indexOf(' ') === -1) {
+        this.showMentionAllOption = this.mentionAllLabel.indexOf(fragment) >= 0;
+      }
     }
   },
   methods: {
+    refreshMentionAllPermission() {
+      const sid = this.getSid;
+      const requestId = ++this.mentionAllPermissionRequestId;
+      this.mentionAllPermissionLoaded = false;
+      return Promise.all([this.$store.dispatch('content/actionGetGroupAdminList', { sid }), this.$store.dispatch('content/actionUpdateGroup', { sid, force: true })])
+        .then(([adminListLoaded]) => {
+          if (requestId === this.mentionAllPermissionRequestId && `${this.getSid}` === `${sid}` && adminListLoaded === true) {
+            this.mentionAllPermissionLoaded = true;
+          }
+        })
+        .catch(() => {
+          // Fail closed when the current role cannot be confirmed.
+        });
+    },
+    handleGroupRoleChanged() {
+      this.refreshMentionAllPermission();
+    },
     textareaKeyDown(evt) {
+      if (evt.isComposing || evt.keyCode === 229) return;
       if (evt.keyCode === 13 && !evt.shiftKey) {
         this.handleSendMessage();
         if (evt && evt.stopPropagation) {
@@ -204,8 +295,11 @@ export default {
         }
       }
     },
-    textKeyUp() {
-      this.autoResizeTextarea();
+    updateMentionState() {
+      this.reconcileMentionTokens(this.mentionMessageSnapshot, this.message, this.pendingMentionEdit);
+      this.pendingMentionEdit = null;
+      this.mentionMessageSnapshot = this.message;
+      this.refreshMentionState();
       const varr = (this.message.split && this.message.split('@')) || [];
       if (varr.length >= 2) {
         const str = varr[varr.length - 1];
@@ -215,15 +309,33 @@ export default {
         } else {
           //包含空格，表示被截断，非@状态
           this.filteredMentionRosters = [];
-          this.calcMentionIds();
+          this.showMentionAllOption = false;
         }
       } else {
         this.filteredMentionRosters = [];
+        this.showMentionAllOption = false;
       }
     },
-    handleTextareaInput() {
-      this.autoResizeTextarea();
+    handleTextareaInput(evt) {
+      this.scheduleTextareaResize();
+      if (evt && evt.target.composing) {
+        this.pendingMentionEdit = null;
+        return;
+      }
+      this.updateMentionState();
       this.syncDraft(this.message);
+    },
+    handleTextareaBeforeInput(evt) {
+      const target = evt && evt.target;
+      if (!target || typeof target.selectionStart !== 'number' || typeof target.selectionEnd !== 'number') {
+        this.pendingMentionEdit = null;
+        return;
+      }
+      this.pendingMentionEdit = {
+        start: target.selectionStart,
+        end: target.selectionEnd,
+        inputType: evt.inputType || ''
+      };
     },
     toggleActionMenu() {
       this.showActionMenu = !this.showActionMenu;
@@ -231,7 +343,40 @@ export default {
     closeActionMenu() {
       this.showActionMenu = false;
     },
+    initQuickReplyEligibility() {
+      this.im.sysManage
+        .asyncCanUseQuickReply()
+        .then((value) => {
+          this.canUseQuickReply = !!value;
+        })
+        .catch(() => {
+          this.canUseQuickReply = false;
+        });
+    },
+    handleQuickReplySelect(content) {
+      const nextMessage = `${content || ''}`.trim();
+      this.quickReplyVisible = false;
+      if (!nextMessage) {
+        return;
+      }
+      this.message = nextMessage;
+      this.willsendMessage = '';
+      this.mentionTokens = [];
+      this.mentionMessageSnapshot = this.message;
+      this.mentionSelectedUids = [];
+      this.mentionAllSelected = false;
+      this.filteredMentionRosters = [];
+      this.showMentionAllOption = false;
+      this.syncDraft(this.message);
+      this.$nextTick(() => {
+        this.autoResizeTextarea();
+        if (this.$refs.inputTextRef) {
+          this.$refs.inputTextRef.focus();
+        }
+      });
+    },
     filterMemberList(str) {
+      this.showMentionAllOption = this.canMentionAll && this.mentionAllLabel.indexOf(str) >= 0;
       let ret = [];
       if (!str) {
         ret = [].concat(
@@ -254,33 +399,75 @@ export default {
         avatar
       });
     },
-    calcMentionIds() {
-      if (!this.message) return;
-      let mentionArr = (this.message.split && this.message.split(' ')) || [];
-      // mentionArr = mentionArr.filter(x => x.indexOf('@') !== -1);
-      const selArray = [];
-      let retStr = '';
-      mentionArr.forEach((mention) => {
-        if (mention.indexOf('@') === -1) {
-          if (mention) {
-            retStr += mention + ' ';
-          }
-        } else {
-          const marr = mention.split('@');
-          const nickName = marr[marr.length - 1];
-          const rosters = this.getMemberList.filter((x) => this.displayName(x) === nickName);
-          if (!rosters || rosters.length <= 0) {
-            retStr += mention + ' ';
-          } else {
-            const realRoster = rosters.find((x) => this.mentionSelectedUids.indexOf(x.user_id + '') > -1) || rosters[0];
-            marr[marr.length - 1] = '{' + realRoster.user_id + '}';
-            retStr += marr.join('@') + ' ';
-            selArray.push(realRoster.user_id);
-          }
+    reconcileMentionTokens(previousMessage, nextMessage, edit = null) {
+      if (previousMessage === nextMessage || !this.mentionTokens.length) return;
+      let changedStart = edit && Number.isInteger(edit.start) ? edit.start : -1;
+      let previousChangedEnd = edit && Number.isInteger(edit.end) ? edit.end : -1;
+      let inferredEdit = false;
+      if (changedStart < 0 || previousChangedEnd < changedStart || previousChangedEnd > previousMessage.length) {
+        inferredEdit = true;
+        changedStart = 0;
+        const maxPrefixLength = Math.min(previousMessage.length, nextMessage.length);
+        while (changedStart < maxPrefixLength && previousMessage[changedStart] === nextMessage[changedStart]) {
+          changedStart++;
         }
+        let suffixLength = 0;
+        const maxSuffixLength = Math.min(previousMessage.length - changedStart, nextMessage.length - changedStart);
+        while (suffixLength < maxSuffixLength && previousMessage[previousMessage.length - 1 - suffixLength] === nextMessage[nextMessage.length - 1 - suffixLength]) {
+          suffixLength++;
+        }
+        previousChangedEnd = previousMessage.length - suffixLength;
+      }
+      const removedLength = previousMessage.length - nextMessage.length;
+      if (changedStart === previousChangedEnd && removedLength > 0) {
+        if (edit.inputType.indexOf('Backward') >= 0) {
+          changedStart = Math.max(0, previousChangedEnd - removedLength);
+        } else if (edit.inputType.indexOf('Forward') >= 0) {
+          previousChangedEnd = Math.min(previousMessage.length, changedStart + removedLength);
+        } else {
+          this.mentionTokens = [];
+          return;
+        }
+      }
+      if (inferredEdit && this.mentionTokens.some((token) => token.end > changedStart && token.start < previousChangedEnd)) {
+        this.mentionTokens = [];
+        return;
+      }
+      const offset = nextMessage.length - previousMessage.length;
+      this.mentionTokens = this.mentionTokens.reduce((tokens, token) => {
+        if (token.end <= changedStart) {
+          tokens.push(token);
+        } else if (token.start >= previousChangedEnd) {
+          tokens.push(Object.assign({}, token, { start: token.start + offset, end: token.end + offset }));
+        }
+        return tokens;
+      }, []);
+    },
+    refreshMentionState() {
+      this.mentionTokens = this.mentionTokens.filter((token) => this.message.slice(token.start, token.end) === `@${token.label}`);
+      this.mentionAllSelected = this.mentionTokens.some((token) => token.type === 'all');
+      this.mentionSelectedUids = [...new Set(this.mentionTokens.filter((token) => token.type === 'member').map((token) => `${token.uid}`))];
+      this.willsendMessage = this.mentionTokens.length ? this.message : '';
+    },
+    insertMentionToken(token) {
+      const previousMessage = this.message;
+      const mentionStart = previousMessage.lastIndexOf('@');
+      if (mentionStart < 0) return;
+      this.message = previousMessage.slice(0, mentionStart + 1) + token.label + ' ';
+      this.reconcileMentionTokens(previousMessage, this.message, {
+        start: mentionStart + 1,
+        end: previousMessage.length,
+        inputType: 'insertReplacementText'
       });
-      this.willsendMessage = retStr;
-      this.mentionSelectedUids = [].concat(selArray);
+      this.mentionTokens.push(
+        Object.assign({}, token, {
+          start: mentionStart,
+          end: mentionStart + token.label.length + 1
+        })
+      );
+      this.mentionTokens.sort((a, b) => a.start - b.start);
+      this.mentionMessageSnapshot = this.message;
+      this.refreshMentionState();
     },
 
     imageUploadClickHandler() {
@@ -313,10 +500,11 @@ export default {
       const txt = this.message;
       if (/^\s*$/.test(txt)) {
         this.message = '';
-        this.syncDraft('');
+        this.syncDraft('', true);
         return;
       }
-      if (this.willsendMessage && this.mentionSelectedUids.length) {
+      const mentionAll = this.mentionAllSelected && this.canMentionAll;
+      if (this.willsendMessage && (mentionAll || this.mentionSelectedUids.length)) {
         //mention消息
         /**
          static const std::string kMentionAll = “mentionAll”;              // bool
@@ -325,8 +513,7 @@ export default {
          static const std::string kPushMessage = “pushMessage”;            // string
          static const std::string kSenderNickname = “senderNickname”;      // string
          */
-        const mentionAll = false;
-        const mentionList = this.mentionSelectedUids.map((x) => x - 0);
+        const mentionList = mentionAll ? [] : this.mentionSelectedUids.map((x) => x - 0);
         const mentionedMessage = '';
         const pushMessage = '';
         const uid = this.im.userManage.getUid();
@@ -354,12 +541,16 @@ export default {
           priority: 0
         });
       }
-      this.syncDraft('');
+      this.syncDraft('', true);
       setTimeout(() => {
         this.message = '';
         this.willsendMessage = '';
+        this.mentionTokens = [];
+        this.mentionMessageSnapshot = '';
         this.mentionSelectedUids = [];
+        this.mentionAllSelected = false;
         this.filteredMentionRosters = [];
+        this.showMentionAllOption = false;
         this.$nextTick(() => {
           this.autoResizeTextarea();
         });
@@ -368,14 +559,58 @@ export default {
 
     loadConversationDraft() {
       this.message = this.im.sysManage.getConversationDraft(this.getSid, 'group');
+      const draftMention = this.im.sysManage.getConversationDraftMention(this.getSid, 'group');
+      this.mentionTokens = draftMention.tokens;
+      this.mentionMessageSnapshot = this.message;
+      this.pendingMentionEdit = null;
+      this.refreshMentionState();
+      this.filteredMentionRosters = [];
+      this.showMentionAllOption = false;
       this.$nextTick(() => {
         this.autoResizeTextarea();
       });
     },
 
-    syncDraft(message) {
+    syncDraft(message, immediate = false) {
       const draft = typeof message === 'string' ? message : '';
-      this.im.sysManage.saveConversationDraft(this.getSid, 'group', draft, Date.now());
+      this.pendingDraftSync = {
+        sid: this.getSid,
+        draft,
+        draftMention: {
+          mentionAll: this.mentionAllSelected,
+          mentionList: this.mentionSelectedUids.map((uid) => `${uid}`),
+          tokens: this.mentionTokens.map((token) => Object.assign({}, token))
+        }
+      };
+      if (this.draftSyncTimer) {
+        clearTimeout(this.draftSyncTimer);
+        this.draftSyncTimer = null;
+      }
+      if (immediate) {
+        this.flushDraftSync();
+        return;
+      }
+      this.draftSyncTimer = setTimeout(this.flushDraftSync, DRAFT_SYNC_DELAY);
+    },
+
+    flushDraftSync() {
+      if (this.draftSyncTimer) {
+        clearTimeout(this.draftSyncTimer);
+        this.draftSyncTimer = null;
+      }
+      const pending = this.pendingDraftSync;
+      this.pendingDraftSync = null;
+      if (!pending) return;
+      this.im.sysManage.saveConversationDraft(pending.sid, 'group', pending.draft, Date.now(), pending.draftMention);
+      this.$store.dispatch('contact/actionGetConversationList', { immediate: true });
+    },
+
+    scheduleTextareaResize() {
+      if (this.textareaResizeFrame) return;
+      this.textareaResizeFrame = requestAnimationFrame(() => {
+        this.textareaResizeFrame = null;
+        this.autoResizeTextarea();
+      });
     },
 
     fileChangeHandler(e) {
@@ -384,52 +619,33 @@ export default {
     },
 
     sendFileInBackground(file) {
-      this.im.sysManage
-        .asyncFileUpload({
-          file,
-          fileType: this.fileType,
-          to_id: this.getSid,
-          toType: 'chat',
-          chatType: 'group',
-          processCallback: function (res) {
-            console.log('fileChangeHandler group chat file upload percent :' + 100 * (res.loaded / res.total));
-          }
-        })
-        .then((res) => {
-          const fileInfo = {
-            dName: file.name,
-            fLen: file.size,
-            width: 0,
-            height: 0
-          };
-          fileInfo.url = res.url;
-          this.im.sysManage.sendGroupMessage({
-            type: this.fileType,
-            gid: this.getSid,
-            content: '',
-            attachment: fileInfo,
-            //ext: '自定义消息字段',
-            priority: 0
-          });
-          this.$refs.fileRef.value = '';
-        })
-        .catch(() => {
-          this.$refs.fileRef.value = '';
-        });
+      this.startChatFileUpload(file, this.fileType, 'group', this.getSid);
+      if (this.$refs.fileRef) this.$refs.fileRef.value = '';
     },
 
     clickMemberListHander(uid) {
-      const set = new Set(this.mentionSelectedUids);
-      set.add(uid);
-      const arr = Array.from(set);
-      if (arr.length !== this.mentionSelectedUids.length) {
-        this.mentionSelectedUids = [].concat(arr);
-        const roster = this.getMemberList.find((x) => x.user_id + '' === uid + '');
-        const sarr = (this.message.split && this.message.split('@')) || [];
-        sarr[sarr.length - 1] = this.displayName(roster);
-        this.message = sarr.join('@') + ' ';
-        this.textKeyUp();
-      }
+      const roster = this.getMemberList.find((x) => x.user_id + '' === uid + '');
+      if (!roster) return;
+      this.insertMentionToken({
+        type: 'member',
+        uid: `${uid}`,
+        label: this.displayName(roster)
+      });
+      this.filteredMentionRosters = [];
+      this.showMentionAllOption = false;
+      this.syncDraft(this.message);
+      this.$nextTick(this.scheduleTextareaResize);
+    },
+    clickMentionAllHandler() {
+      if (!this.canMentionAll) return;
+      this.insertMentionToken({
+        type: 'all',
+        label: this.mentionAllLabel
+      });
+      this.filteredMentionRosters = [];
+      this.showMentionAllOption = false;
+      this.syncDraft(this.message);
+      this.$nextTick(this.scheduleTextareaResize);
     },
     //todo later. need ban fix.
     /*
@@ -472,11 +688,15 @@ export default {
     },
     */
 
-    checkHideMemberInfo(user_id) {
+    checkHideMemberName(user_id) {
+      const isOwner = this.getGroupInfo.owner_id === user_id;
+      const isAdmin = this.getAdminList.some((x) => x.user_id === user_id);
+      if (this.isOwner || this.isAdmin || isOwner || isAdmin) {
+        return false;
+      }
       let hide = true;
       let hide_member_info = this.getGroupInfo.hide_member_info;
       let app_hide_member_info = false;
-      const uid = this.im.userManage.getUid();
       let appConfig = this.im.sysManage.getAppConfig(this.im.userManage.getAppid());
       if (appConfig) {
         app_hide_member_info = appConfig.hide_member_info;
@@ -503,7 +723,7 @@ export default {
     },
 
     displayName(roster) {
-      if (this.checkHideMemberInfo(roster.user_id) && !roster.has_nick) {
+      if (this.checkHideMemberName(roster.user_id) && !roster.has_nick) {
         return this.calucateHideMemberName(roster);
       } else {
         return roster.display_name;
@@ -514,13 +734,59 @@ export default {
       const textarea = this.$refs.inputTextRef;
       if (!textarea) return;
       textarea.style.height = '36px';
-      const nextHeight = Math.min(Math.max(textarea.scrollHeight, 36), 150);
+      const scrollHeight = textarea.scrollHeight;
+      const nextHeight = Math.min(Math.max(scrollHeight, 36), 150);
       textarea.style.height = `${nextHeight}px`;
-      textarea.style.overflowY = textarea.scrollHeight > 150 ? 'auto' : 'hidden';
+      textarea.style.overflowY = scrollHeight > 150 ? 'auto' : 'hidden';
     }
     //methods finish
   }
 };
 </script>
 
-<style scoped></style>
+<style scoped>
+.mention_all_avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding-left: 0;
+  background: #e8f1ff;
+  color: #1862cc;
+  font-weight: 600;
+}
+
+.composer_toolbar {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 8px);
+  z-index: 6;
+}
+
+.quick_reply_button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #c4daf8;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1862cc;
+  height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 3px 8px rgba(60, 115, 186, 0.18);
+}
+
+.quick_reply_icon_text {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.composer_surface {
+  position: relative;
+}
+</style>

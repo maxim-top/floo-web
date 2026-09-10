@@ -34,4 +34,7 @@ gsed -i'' -E "s/(.*)\/sdk\/index(.*)/\1\/im\/floo-3.0.0\2/g" $pdir/src/ui/index.
 cp ./config/webpack.prod.config.js $pdir/config/
 cp ./config/webpack.dev.config.js $pdir/config/
 
+# Repository maintenance tools must never be included in release projects.
+rm -f "$pdir/scripts/sync-to-floo-web-maxim-top.mjs"
+
 echo "done."

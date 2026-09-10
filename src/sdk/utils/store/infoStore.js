@@ -15,6 +15,8 @@ const getUid = () => {
   if (uid) return uid - 0;
 };
 
+const newDeviceGuid = (uid) => `${uid}_${Date.now()}_${Math.floor(Math.random() * 2147483648)}`;
+
 const saveAppid = (appid) => {
   if (appid) {
     saveItem('key_app_id', appid + '', false, -1, true);
@@ -86,10 +88,18 @@ const infoStore = {
     if (!uid) return '';
     let ret = getItem('key_user_device_guid');
     if (!ret) {
-      ret = getUid() + '_' + Math.floor(Math.random() * 2147483648) + '';
+      ret = newDeviceGuid(uid);
       saveItem('key_user_device_guid', ret);
     }
     return ret;
+  },
+  resetDeviceIdentity: () => {
+    const uid = getUid();
+    if (!uid) return { deviceSN: 0, deviceGuid: '' };
+    const deviceGuid = newDeviceGuid(uid);
+    saveItem('key_user_device_guid', deviceGuid);
+    deleteDeviceSN();
+    return { deviceSN: 0, deviceGuid };
   },
   deleteDeviceGuid,
   saveProfile: (profile) => saveItem('key_user_profile', profile),

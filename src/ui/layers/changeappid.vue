@@ -3,7 +3,7 @@
     <div class="layer">
       <div class="layer_header">
         <span class="hint">{{ $t('请输入新的 AppID') }}</span>
-        <button @click="close" class="closer" type="button" :aria-label="$t('关闭')">
+        <button @click="close" class="closer" type="button" :aria-label="$t('common.close', { origin: '关闭' })">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M7 7l10 10"></path>
             <path d="M17 7L7 17"></path>

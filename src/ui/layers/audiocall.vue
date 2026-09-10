@@ -12,7 +12,13 @@
         <div v-if="isGetThrough" class="call_voice_timer">{{ callTime }}</div>
       </div>
       <div class="call_voice_controls">
-        <button class="call_action_button call_control_button" type="button" @click="micChangeStatus" :aria-label="mic ? $t('关闭麦克风') : $t('打开麦克风')">
+        <button
+          class="call_action_button call_control_button"
+          type="button"
+          @click="micChangeStatus"
+          :disabled="micToggleCoolingDown"
+          :aria-label="mic ? $t('关闭麦克风') : $t('打开麦克风')"
+        >
           <svg v-if="mic" viewBox="0 0 24 24" aria-hidden="true">
             <rect x="9" y="4" width="6" height="10" rx="3"></rect>
             <path d="M6 11a6 6 0 0 0 12 0"></path>
@@ -54,6 +60,8 @@
 import { mapGetters } from 'vuex';
 import { toNumber } from '../third/tools';
 
+const MEDIA_TOGGLE_COOLDOWN_MS = 800;
+
 export default {
   name: 'audiocall',
   data() {
@@ -66,7 +74,9 @@ export default {
       isGetThrough: false,
       doHangup: false,
       callTime: '',
-      timerRef: null
+      timerRef: null,
+      micToggleCoolingDown: false,
+      micToggleCooldownTimer: null
     };
   },
   mounted() {
@@ -133,11 +143,23 @@ export default {
         this.userInfo = res;
       });
     },
-    micChangeStatus() {
-      if (this.isGetThrough) {
-        this.mic = !this.mic;
-        this.$store.getters.im.rtcManage.muteLocalAudio(!this.mic);
+    startMicToggleCooldown() {
+      if (this.micToggleCooldownTimer) {
+        clearTimeout(this.micToggleCooldownTimer);
       }
+      this.micToggleCoolingDown = true;
+      this.micToggleCooldownTimer = window.setTimeout(() => {
+        this.micToggleCoolingDown = false;
+        this.micToggleCooldownTimer = null;
+      }, MEDIA_TOGGLE_COOLDOWN_MS);
+    },
+    micChangeStatus() {
+      if (!this.isGetThrough || this.micToggleCoolingDown) {
+        return;
+      }
+      this.startMicToggleCooldown();
+      this.mic = !this.mic;
+      this.$store.getters.im.rtcManage.muteLocalAudio(!this.mic);
     },
     speakerChangeStatus() {
       if (this.isGetThrough) {
@@ -250,6 +272,10 @@ export default {
     if (this.timerRef) {
       clearInterval(this.timerRef);
       this.timerRef = null;
+    }
+    if (this.micToggleCooldownTimer) {
+      clearTimeout(this.micToggleCooldownTimer);
+      this.micToggleCooldownTimer = null;
     }
     if (!this.doHangup) {
       this.hangupCall(false);

@@ -9,32 +9,57 @@ const storage_id = (prefix, appID) => {
   else return '' + prefix + '_' + appID;
 };
 
+const getFireplaces = (cluster) => {
+  if (!cluster) {
+    return [];
+  }
+  return cluster.webim || cluster.ws || [];
+};
+
+const isUsableCluster = (cluster) => {
+  return cluster && Array.isArray(cluster.ratel) && cluster.ratel.length > 0 && getFireplaces(cluster).length > 0 && Array.isArray(cluster.rtc) && cluster.rtc.length > 0;
+};
+
+const isUnavailableAppStatus = (appStatus) => {
+  return appStatus === 'banned' || appStatus === 'frozen' || appStatus === 'revoked';
+};
+
+const saveUnavailableServers = (appID, version, appStatus, accountVerification) => {
+  log.error('DNS ERROR: no available clusters (version:', version, ')');
+  saveDnsInfo(appID, {
+    clusters: [],
+    clusterIndex: 0,
+    ratelIndex: 0,
+    fireIndex: 0,
+    rtcIndex: 0,
+    app_status: appStatus,
+    account_verification: accountVerification
+  });
+};
+
 const saveServers = (appID, dnsInfos) => {
   if (!appID) return {};
-  const { version, dns_list, app_status = '', account_verification = {}, dns_server_list = [], link_server_list = [] } = dnsInfos;
+  const { version, dns_list = [], app_status = '', account_verification = {}, dns_server_list = [], link_server_list = [] } = dnsInfos;
   const group_index = dns_list.findIndex((x) => x.group_level == 0);
   if (group_index < 0) {
-    log.error('DNS ERROR: no available clusters (version:', version, ')');
-    const ret = {
-      clusters: [],
-      clusterIndex: 0,
-      ratelIndex: 0,
-      fireIndex: 0,
-      rtcIndex: 0,
-      app_status: app_status,
-      account_verification: account_verification
-    };
-
-    saveDnsInfo(appID, ret);
+    saveUnavailableServers(appID, version, app_status, account_verification);
+    return {};
+  }
+  const clusters = dns_list[group_index].clusters || [];
+  const clusterIndex = clusters.findIndex(isUsableCluster);
+  if (clusterIndex < 0) {
+    saveUnavailableServers(appID, version, app_status, account_verification);
     return {};
   }
 
-  saveDnsServerList(dns_server_list);
-  saveLinkServerList(link_server_list);
+  if (getConfig('app_id') === appID) {
+    saveDnsServerList(dns_server_list);
+    saveLinkServerList(link_server_list);
+  }
 
   const ret = {
-    clusters: dns_list[group_index].clusters,
-    clusterIndex: 0,
+    clusters,
+    clusterIndex,
     ratelIndex: 0,
     fireIndex: 0,
     rtcIndex: 0,
@@ -62,13 +87,13 @@ const getAccountVerification = (appID) => {
 const getServerIp = (appID) => {
   if (!appID) return '';
   const data = getDnsInfo(appID);
-  const { clusters } = data;
+  const { clusters, clusterIndex, ratelIndex } = data;
   if (!clusters || !clusters.length) {
     return '';
   }
   try {
-    const clusterObj = clusters[0];
-    return clusterObj.ratel[0].ip_list[0];
+    const clusterObj = clusters[clusterIndex];
+    return clusterObj.ratel[ratelIndex].ip_list[0];
   } catch (e) {
     return '';
   }
@@ -84,15 +109,11 @@ const getServers = (appID) => {
   }
 
   const clusterObj = clusters[clusterIndex];
-  const ratelObj = clusterObj.ratel[ratelIndex];
-  let fireObj;
-  if (clusterObj.webim) {
-    //dns v2
-    fireObj = clusterObj.webim[fireIndex];
-  } else {
-    //compatible with dns v1
-    fireObj = clusterObj.ws[fireIndex];
+  if (!isUsableCluster(clusterObj)) {
+    return {};
   }
+  const ratelObj = clusterObj.ratel[ratelIndex];
+  const fireObj = getFireplaces(clusterObj)[fireIndex];
   let rtcObj = clusterObj.rtc[rtcIndex];
   if (!ratelObj || !fireObj || !rtcObj) {
     return {};
@@ -133,6 +154,9 @@ const getServers = (appID) => {
 const changeRatelIndex = (appID) => {
   const data = getDnsInfo(appID);
   let { clusters, clusterIndex, ratelIndex, fireIndex, rtcIndex } = data;
+  if (!Array.isArray(clusters) || !clusters.length || !isUsableCluster(clusters[clusterIndex])) {
+    return false;
+  }
   const clusterObj = clusters[clusterIndex];
   const ratels = clusterObj.ratel;
   if (ratels.length > ratelIndex + 1) {
@@ -144,32 +168,59 @@ const changeRatelIndex = (appID) => {
       fireIndex,
       rtcIndex
     });
+    return true;
   } else {
-    changeClusterIndex(appID);
+    return changeClusterIndex(appID, -1, false);
   }
 };
 
-bind('ratelError', () => {
+bind('ratelError', (options = {}) => {
   log.log('Ratel error, should try next in list');
   const appID = getConfig('app_id');
-  changeRatelIndex(appID);
-  const { ratel } = getServers(appID) || {};
-  fire('refresh_ratel', ratel);
+  const notifyReady = () => {
+    if (typeof options.onReady === 'function') {
+      options.onReady();
+    }
+  };
+  if (options.appID && options.appID !== appID) {
+    log.warn('Ignore stale Ratel error for appid: ', options.appID);
+    notifyReady();
+    return;
+  }
+  const switched = changeRatelIndex(appID);
+  const refreshRatel = () => {
+    if (getConfig('app_id') !== appID) {
+      log.warn('Ignore stale Ratel refresh for appid: ', appID);
+      return;
+    }
+    const { ratel } = getServers(appID) || {};
+    fire('refresh_ratel', ratel);
+  };
+  if (switched) {
+    refreshRatel();
+    notifyReady();
+    return;
+  }
+  retrieveDns()
+    .then(() => {
+      refreshRatel();
+    })
+    .catch((error) => {
+      log.warn('Retrieve DNS after Ratel exhaustion failed: ', error && error.message);
+    })
+    .then(notifyReady);
 });
 
 const changeFireplaceIndex = (appID) => {
   const data = getDnsInfo(appID);
   let { clusters, clusterIndex, ratelIndex, fireIndex, rtcIndex } = data;
+  if (!Array.isArray(clusters) || !clusters.length || !isUsableCluster(clusters[clusterIndex])) {
+    fire('retrieve_dns');
+    return;
+  }
   const clusterObj = clusters[clusterIndex];
 
-  let fires;
-  if (clusterObj.webim) {
-    //dns v2
-    fires = clusterObj.webim;
-  } else {
-    //compatible with dns v1
-    fires = clusterObj.ws;
-  }
+  const fires = getFireplaces(clusterObj);
   if (fires.length > fireIndex + 1) {
     fireIndex++;
     saveDnsInfo(appID, {
@@ -192,13 +243,19 @@ bind('fireplaceError', () => {
   fire('refresh_fireplace', fireplace);
 });
 
-const changeClusterIndex = (appID, expectClusterIndex = -1) => {
+const changeClusterIndex = (appID, expectClusterIndex = -1, refreshOnExhausted = true) => {
   const data = getDnsInfo(appID);
   let { clusters, clusterIndex } = data;
+  if (!Array.isArray(clusters) || !clusters.length) {
+    if (refreshOnExhausted) {
+      fire('retrieve_dns');
+    }
+    return false;
+  }
 
-  if (expectClusterIndex > 0) {
+  if (expectClusterIndex >= 0) {
     if (clusterIndex == expectClusterIndex) {
-      return;
+      return false;
     }
     clusterIndex = expectClusterIndex - 1;
   }
@@ -206,16 +263,7 @@ const changeClusterIndex = (appID, expectClusterIndex = -1) => {
   while (clusters.length > clusterIndex + 1) {
     clusterIndex++;
     const clusterObj = clusters[clusterIndex];
-    //use fireplace url to check cluster availability,
-    let fires;
-    if (clusterObj.webim) {
-      //dns v2
-      fires = clusterObj.webim;
-    } else {
-      //compatible with dns v1
-      fires = clusterObj.ws;
-    }
-    if (fires.length >= 0) {
+    if (isUsableCluster(clusterObj)) {
       saveDnsInfo(appID, {
         clusters,
         clusterIndex,
@@ -223,13 +271,14 @@ const changeClusterIndex = (appID, expectClusterIndex = -1) => {
         fireIndex: 0,
         rtcIndex: 0
       });
-      return;
+      return true;
     }
   }
   //run out of cluster, refresh dns
-  if (expectClusterIndex == -1) {
+  if (expectClusterIndex == -1 && refreshOnExhausted) {
     fire('retrieve_dns');
   }
+  return false;
 };
 
 const getDnsInfo = (appID) => {
@@ -253,6 +302,7 @@ const saveConfig = (name, value) => {
 const saveAppConfig = (appID, appConfig) => {
   if (!appID) return {};
   saveItem(storage_id('key_app_config', appID), appConfig, false, -1, true);
+  fire('onAppConfigUpdated', appID);
 };
 
 const getAppConfig = (appID) => {
@@ -276,18 +326,49 @@ const saveLinkServerList = (linkServerList) => {
   saveItem('link_server_list', linkServerList, false, -1, false);
 };
 
-bind('retrieve_dns', () => {
+const dnsRefreshPromises = {};
+const dnsRequestVersions = {};
+
+const isCurrentDnsRequest = (appID, requestVersion) => dnsRequestVersions[appID] === requestVersion;
+
+const retrieveDns = () => {
   const dnsServers = getConfig('dns_servers');
   const appID = getConfig('app_id');
   const ws = getConfig('ws');
   const source = getConfig('source');
   const path = getConfig('path');
+  if (dnsRefreshPromises[appID]) {
+    return dnsRefreshPromises[appID];
+  }
 
   log.warn('Retrieve DNS for appid: ', appID);
-  asyncGetDns(dnsServers, appID, ws, source, path);
+  const refreshPromise = asyncGetDns(dnsServers, appID, ws, source, path, true).then(
+    (result) => {
+      if (dnsRefreshPromises[appID] === refreshPromise) {
+        delete dnsRefreshPromises[appID];
+      }
+      return result;
+    },
+    (error) => {
+      if (dnsRefreshPromises[appID] === refreshPromise) {
+        delete dnsRefreshPromises[appID];
+      }
+      return Promise.reject(error);
+    }
+  );
+  dnsRefreshPromises[appID] = refreshPromise;
+  return refreshPromise;
+};
+
+bind('retrieve_dns', () => {
+  retrieveDns().catch((error) => {
+    log.warn('Retrieve DNS failed: ', error && error.message);
+  });
 });
 
-const asyncGetDns = (dnsServers, appID, ws, source, path) => {
+const asyncGetDns = (dnsServers, appID, ws, source, path, forceRefresh = false) => {
+  const requestVersion = (dnsRequestVersions[appID] || 0) + 1;
+  dnsRequestVersions[appID] = requestVersion;
   saveConfig('dns_servers', dnsServers);
   saveConfig('app_id', appID);
   saveConfig('ws', ws);
@@ -303,21 +384,46 @@ const asyncGetDns = (dnsServers, appID, ws, source, path) => {
 
   const fetchAndSaveServers = (dnsServer) => {
     return http.getServers(dnsServer + path, { app_id: appID, source }).then((res) => {
+      if (!isCurrentDnsRequest(appID, requestVersion)) {
+        log.warn('Ignore stale DNS response for appid: ', appID);
+        return getServers(appID);
+      }
       log.info('DNS SUCCESS: ', res);
       saveServers(appID, res);
-      getFastestServer(appID).then(() => {
-        http.getAppConfig({ platform: 6 }).then((res) => {
-          log.info('APP CONFIG SUCCESS: ', res);
-          saveAppConfig(appID, res);
+      const servers = getServers(appID);
+      if (isUnavailableAppStatus(getAppStatus(appID))) {
+        return servers;
+      }
+      if (!servers.ratel || !servers.fireplace) {
+        return Promise.reject(new Error('NoAvailableEndpoint'));
+      }
+      getFastestServer(appID, requestVersion)
+        .then(() => {
+          if (!isCurrentDnsRequest(appID, requestVersion) || getConfig('app_id') !== appID) {
+            return;
+          }
+          return http.getAppConfig({ platform: 6 }).then((res) => {
+            if (!isCurrentDnsRequest(appID, requestVersion) || getConfig('app_id') !== appID) {
+              return;
+            }
+            log.info('APP CONFIG SUCCESS: ', res);
+            saveAppConfig(appID, res);
+          });
+        })
+        .catch((error) => {
+          log.warn('DNS server speed test failed: ', error && error.message);
         });
-      });
-      return getServers(appID);
+      return servers;
     });
   };
 
-  if (sret.ratel) {
+  if (sret.ratel && !forceRefresh) {
     // 异步测试速度再请求，不阻塞返回 sret
-    testDnsSpeed().then((dnsServer) => fetchAndSaveServers(dnsServer));
+    testDnsSpeed()
+      .then((dnsServer) => fetchAndSaveServers(dnsServer))
+      .catch((error) => {
+        log.warn('Background DNS refresh failed: ', error && error.message);
+      });
     return Promise.resolve(sret);
   }
 
@@ -346,24 +452,35 @@ const delay = (ms) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
-const getFastestServer = (appID) => {
+const getFastestServer = (appID, requestVersion) => {
   const data = getDnsInfo(appID);
   let { clusters, clusterIndex } = data;
 
-  const promises = clusters.map((cluster, index) => {
-    let url = cluster.ratel[0].protocol + '://' + cluster.ratel[0].host + '/';
-    return testServerSpeed(url, index);
-  });
+  const promises = (clusters || []).reduce((result, cluster, index) => {
+    if (isUsableCluster(cluster)) {
+      const url = cluster.ratel[0].protocol + '://' + cluster.ratel[0].host + '/';
+      result.push(testServerSpeed(url, index));
+    }
+    return result;
+  }, []);
+  if (!promises.length) {
+    return Promise.resolve();
+  }
 
   return Promise.race(promises).then((fastest) => {
+    if (!isCurrentDnsRequest(appID, requestVersion)) {
+      return;
+    }
     log.info(`SpeedTest The fastest server is: ${JSON.stringify(fastest)}`);
     if (clusterIndex != fastest.index) {
       log.info(`SpeedTest change server: ${JSON.stringify(fastest)}`);
       changeClusterIndex(appID, fastest.index);
     }
-    const { fireplace, ratel } = getServers(appID) || {};
-    fire('refresh_ratel', ratel);
-    fire('refresh_fireplace', fireplace);
+    if (getConfig('app_id') === appID) {
+      const { fireplace, ratel } = getServers(appID) || {};
+      fire('refresh_ratel', ratel);
+      fire('refresh_fireplace', fireplace);
+    }
   });
 };
 

@@ -19,41 +19,53 @@
         compact
         @action="openContacts"
       />
-      <div
-        v-else
-        :class="{ sel: getSid == conversation.sid }"
-        @click="touchConversation(index)"
-        class="item"
-        v-bind:key="conversation.sid"
-        v-for="(conversation, index) in filteredConversationList"
-      >
-        <span :class="{ none: conversation.unread === 0 }" class="unread_number">{{ conversation.unread }}</span>
-
-        <div v-if="conversation.sid === 0">
-          <img class="avatar" :src="systemRoster.avatar" />
-          <div class="name">{{ systemRoster.name }}</div>
-        </div>
-        <div v-else>
-          <img class="avatar" :src="conversation.avatar" />
-          <div class="name">{{ conversation.name }}</div>
-        </div>
-
-        <div class="last_msg_time">
-          {{ formatTimeString(conversation.timestamp) }}
-        </div>
-        <div class="last_msg">
-          <span v-if="conversation.hasAt" class="at_tips">{{ $t('[有人@我]') }}</span>
-          <span v-if="conversation.isDraft" class="draft_tips" :aria-label="$t('草稿')">
-            <svg viewBox="0 0 24 24" aria-hidden="true" class="draft_tips_icon">
-              <path d="M4 17.5V20h2.5L17.8 8.7l-2.5-2.5L4 17.5z"></path>
-              <path d="M14.6 6.2l2.5 2.5"></path>
-              <path d="M13.8 4.4l1.8-1.8a1.4 1.4 0 0 1 2 0l1.8 1.8a1.4 1.4 0 0 1 0 2l-1.8 1.8"></path>
-            </svg>
-            <span>{{ $t('草稿') }}</span>
+      <template v-else>
+        <div :style="virtualTopSpacerStyle" aria-hidden="true" class="conversation-virtual-spacer"></div>
+        <div
+          :data-conversation-index="item.index"
+          :class="{ sel: getSid == item.conversation.sid }"
+          @pointerdown="beginConversationInteraction"
+          @click="handleConversationClick(item.conversation)"
+          class="item"
+          v-bind:key="item.conversation.sid"
+          v-for="item in virtualConversationList"
+        >
+          <span
+            v-if="item.conversation.unread > 0"
+            :aria-label="item.conversation.muted ? $t('conversationNotifications.mutedUnread', { origin: '有未读消息' }) : null"
+            :class="{ unread_dot: item.conversation.muted }"
+            class="unread_number"
+          >
+            {{ item.conversation.muted ? '' : item.conversation.unread }}
           </span>
-          <span>{{ conversation.content }}</span>
+
+          <div v-if="item.conversation.sid === 0" class="conversation_identity">
+            <img class="avatar" :src="systemRoster.avatar" />
+            <div class="name">{{ systemRoster.name }}</div>
+          </div>
+          <div v-else class="conversation_identity">
+            <img class="avatar" :src="item.conversation.avatar" />
+            <div class="name">{{ item.conversation.name }}</div>
+          </div>
+
+          <div class="last_msg_time">
+            {{ formatTimeString(item.conversation.timestamp) }}
+          </div>
+          <div class="last_msg">
+            <span v-if="item.conversation.hasAt" class="at_tips">{{ $t('[有人@我]') }}</span>
+            <span v-if="item.conversation.isDraft" class="draft_tips" :aria-label="$t('草稿')">
+              <svg viewBox="0 0 24 24" aria-hidden="true" class="draft_tips_icon">
+                <path d="M4 17.5V20h2.5L17.8 8.7l-2.5-2.5L4 17.5z"></path>
+                <path d="M14.6 6.2l2.5 2.5"></path>
+                <path d="M13.8 4.4l1.8-1.8a1.4 1.4 0 0 1 2 0l1.8 1.8a1.4 1.4 0 0 1 0 2l-1.8 1.8"></path>
+              </svg>
+              <span>{{ $t('草稿') }}</span>
+            </span>
+            <span>{{ item.conversation.content }}</span>
+          </div>
         </div>
-      </div>
+        <div :style="virtualBottomSpacerStyle" aria-hidden="true" class="conversation-virtual-spacer"></div>
+      </template>
     </div>
   </div>
 </template>
@@ -63,14 +75,42 @@ import { mapGetters } from 'vuex';
 import EmptyState from '../../components/emptyState';
 import formatMessageTime from '../../utils/timeFormat';
 
+const CONVERSATION_ROW_HEIGHT = 72;
+const CONVERSATION_OVERSCAN = 16;
+const CONVERSATION_SCROLL_REFRESH_DELAY = 1500;
+const CONVERSATION_CLICK_REFRESH_DELAY = 1500;
+
 export default {
   components: {
     EmptyState
   },
+  data() {
+    return {
+      virtualScrollTop: 0,
+      virtualViewportHeight: 0,
+      scrollFrame: null,
+      conversationInteractionActive: false,
+      conversationInteractionTimer: null,
+      conversationActivityActive: false,
+      conversationActivityResumeAt: 0,
+      conversationActivityReleaseTimer: null
+    };
+  },
   mounted() {
     this.$store.dispatch('contact/actionGetConversationList');
-    this.restoreScroll();
     this.ensureActiveConversation();
+    this.$nextTick(() => {
+      this.measureVirtualViewport();
+      this.restoreScroll();
+      this.ensureVisibleConversationData();
+    });
+    window.addEventListener('resize', this.handleResize);
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.handleResize);
+    if (this.scrollFrame) cancelAnimationFrame(this.scrollFrame);
+    this.endConversationInteraction();
+    this.endConversationActivityPause();
   },
 
   computed: {
@@ -91,6 +131,28 @@ export default {
         return text.indexOf(keyword) > -1;
       });
     },
+    virtualStartIndex() {
+      const visibleCount = Math.max(1, Math.ceil(this.virtualViewportHeight / CONVERSATION_ROW_HEIGHT));
+      const rawStart = Math.max(0, Math.floor(this.virtualScrollTop / CONVERSATION_ROW_HEIGHT) - CONVERSATION_OVERSCAN);
+      const maxStart = Math.max(0, this.filteredConversationList.length - visibleCount - CONVERSATION_OVERSCAN * 2);
+      return Math.min(rawStart, maxStart);
+    },
+    virtualEndIndex() {
+      const visibleCount = Math.max(1, Math.ceil(this.virtualViewportHeight / CONVERSATION_ROW_HEIGHT));
+      return Math.min(this.filteredConversationList.length, this.virtualStartIndex + visibleCount + CONVERSATION_OVERSCAN * 2);
+    },
+    virtualConversationList() {
+      return this.filteredConversationList.slice(this.virtualStartIndex, this.virtualEndIndex).map((conversation, offset) => ({
+        conversation,
+        index: this.virtualStartIndex + offset
+      }));
+    },
+    virtualTopSpacerStyle() {
+      return { height: `${this.virtualStartIndex * CONVERSATION_ROW_HEIGHT}px` };
+    },
+    virtualBottomSpacerStyle() {
+      return { height: `${Math.max(0, this.filteredConversationList.length - this.virtualEndIndex) * CONVERSATION_ROW_HEIGHT}px` };
+    },
     token() {
       return this.$store.getters.im.userManage.getToken();
     }
@@ -99,11 +161,21 @@ export default {
   watch: {
     getConversationList() {
       this.ensureActiveConversation();
+      this.$nextTick(() => {
+        this.measureVirtualViewport();
+        this.ensureVisibleConversationData();
+      });
     },
     getHeaderStatus(status) {
       if (status === 'conversation') {
+        this.$store.dispatch('contact/actionGetConversationList', {
+          skipMissingGroupInfoRequest: true
+        });
         this.restoreScroll();
         this.ensureActiveConversation();
+        this.$nextTick(() => {
+          this.ensureVisibleConversationData();
+        });
       }
     },
     getSid(newSid) {
@@ -113,6 +185,21 @@ export default {
     },
     getConversationScroll() {
       this.restoreScroll();
+    },
+    getSearchKeyword(keyword) {
+      if (!keyword) {
+        this.$nextTick(() => this.ensureVisibleConversationData());
+        return;
+      }
+      this.$store.dispatch('contact/actionEnsureAllConversationPreviews');
+      this.$nextTick(() => {
+        const container = this.$refs.imgContainer;
+        if (!container) return;
+        container.scrollTop = 0;
+        this.virtualScrollTop = 0;
+        this.$store.dispatch('contact/actionSetConversationScroll', 0);
+        this.ensureVisibleConversationData();
+      });
     }
   },
 
@@ -121,18 +208,84 @@ export default {
       return formatMessageTime(timestamp);
     },
 
-    touchConversation(index) {
-      let conversation = this.filteredConversationList[index];
-      if (!conversation) return;
-      this.$store.dispatch('header/actionChangeHeaderStatus', 'conversation');
-      this.$store.dispatch('content/actionSetType', {
-        sid: conversation.sid,
-        type: conversation.type === 'group' ? 'groupchat' : 'rosterchat'
-      });
-      window.localStorage.setItem('lastActiveChat', conversation.sid);
-      if (conversation.type === 'group' && conversation.hasAt) {
-        this.$store.state.im.groupManage.consumeGroupAtStatus(conversation.sid);
+    touchConversation(conversation) {
+      this.$store.dispatch('contact/actionOpenConversation', conversation);
+    },
+
+    handleConversationClick(conversation) {
+      this.markConversationActivity(CONVERSATION_CLICK_REFRESH_DELAY);
+      this.touchConversation(conversation);
+      this.scheduleEndConversationInteraction();
+    },
+
+    beginConversationInteraction(event) {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      this.markConversationActivity(CONVERSATION_CLICK_REFRESH_DELAY);
+      if (this.conversationInteractionTimer) {
+        clearTimeout(this.conversationInteractionTimer);
+        this.conversationInteractionTimer = null;
       }
+      if (!this.conversationInteractionActive) {
+        this.conversationInteractionActive = true;
+        this.$store.dispatch('contact/actionSetConversationListInteractionActive', true);
+      }
+      window.addEventListener('pointerup', this.scheduleEndConversationInteraction);
+      window.addEventListener('pointercancel', this.scheduleEndConversationInteraction);
+    },
+
+    scheduleEndConversationInteraction() {
+      window.removeEventListener('pointerup', this.scheduleEndConversationInteraction);
+      window.removeEventListener('pointercancel', this.scheduleEndConversationInteraction);
+      if (this.conversationInteractionTimer) clearTimeout(this.conversationInteractionTimer);
+      this.conversationInteractionTimer = setTimeout(() => {
+        this.conversationInteractionTimer = null;
+        this.endConversationInteraction();
+      }, 0);
+    },
+
+    endConversationInteraction() {
+      window.removeEventListener('pointerup', this.scheduleEndConversationInteraction);
+      window.removeEventListener('pointercancel', this.scheduleEndConversationInteraction);
+      if (this.conversationInteractionTimer) {
+        clearTimeout(this.conversationInteractionTimer);
+        this.conversationInteractionTimer = null;
+      }
+      if (!this.conversationInteractionActive) return;
+      this.conversationInteractionActive = false;
+      this.$store.dispatch('contact/actionSetConversationListInteractionActive', false);
+    },
+
+    markConversationActivity(delay) {
+      this.conversationActivityResumeAt = Math.max(this.conversationActivityResumeAt, Date.now() + delay);
+      if (!this.conversationActivityActive) {
+        this.conversationActivityActive = true;
+        this.$store.dispatch('contact/actionSetConversationListUserActive', true);
+      }
+      if (!this.conversationActivityReleaseTimer) {
+        this.conversationActivityReleaseTimer = setTimeout(this.checkConversationActivityIdle, delay);
+      }
+    },
+
+    checkConversationActivityIdle() {
+      const remaining = this.conversationActivityResumeAt - Date.now();
+      if (remaining > 0) {
+        this.conversationActivityReleaseTimer = setTimeout(this.checkConversationActivityIdle, remaining);
+        return;
+      }
+      this.conversationActivityReleaseTimer = null;
+      this.conversationActivityResumeAt = 0;
+      this.endConversationActivityPause();
+    },
+
+    endConversationActivityPause() {
+      if (this.conversationActivityReleaseTimer) {
+        clearTimeout(this.conversationActivityReleaseTimer);
+        this.conversationActivityReleaseTimer = null;
+      }
+      if (!this.conversationActivityActive) return;
+      this.conversationActivityActive = false;
+      this.conversationActivityResumeAt = 0;
+      this.$store.dispatch('contact/actionSetConversationListUserActive', false);
     },
 
     ensureActiveConversation() {
@@ -144,7 +297,7 @@ export default {
           this.$store.dispatch('contact/actionSetSkipConversationAutoSelectOnce', false);
           return;
         }
-        if (this.getSid !== -1 && this.filteredConversationList.find((item) => item.sid === this.getSid)) {
+        if (this.getSid !== -1 && this.getConversationList.find((item) => `${item.sid}` === `${this.getSid}`)) {
           return;
         }
 
@@ -156,7 +309,7 @@ export default {
             index = matchedIndex;
           }
         }
-        this.touchConversation(index);
+        this.touchConversation(this.filteredConversationList[index]);
       });
     },
     handleSearch(e) {
@@ -164,9 +317,33 @@ export default {
     },
 
     handleScroll() {
+      this.markConversationActivity(CONVERSATION_SCROLL_REFRESH_DELAY);
+      if (this.scrollFrame) return;
+      this.scrollFrame = requestAnimationFrame(() => {
+        this.scrollFrame = null;
+        const container = this.$refs.imgContainer;
+        if (!container) return;
+        this.virtualScrollTop = container.scrollTop;
+        this.virtualViewportHeight = container.clientHeight;
+        if (this.getConversationScroll !== container.scrollTop) {
+          this.$store.dispatch('contact/actionSetConversationScroll', container.scrollTop);
+        }
+        this.ensureVisibleConversationData();
+      });
+    },
+
+    handleResize() {
+      this.$nextTick(() => {
+        this.measureVirtualViewport();
+        this.ensureVisibleConversationData();
+      });
+    },
+
+    measureVirtualViewport() {
       const container = this.$refs.imgContainer;
       if (!container) return;
-      this.$store.dispatch('contact/actionSetConversationScroll', container.scrollTop);
+      this.virtualViewportHeight = container.clientHeight;
+      this.virtualScrollTop = container.scrollTop;
     },
 
     restoreScroll() {
@@ -177,11 +354,27 @@ export default {
         if (this.getConversationScroll != container.scrollTop) {
           container.scrollTop = this.getConversationScroll;
         }
+        this.measureVirtualViewport();
       });
     },
 
     openContacts() {
       this.$store.dispatch('header/actionChangeHeaderStatus', 'contact');
+    },
+
+    ensureVisibleConversationData() {
+      if (this.getHeaderStatus !== 'conversation') return;
+      const visibleConversations = this.virtualConversationList.map((item) => item.conversation);
+      this.$store.dispatch('contact/actionEnsureConversationPreviews', visibleConversations);
+      const visibleGroups = visibleConversations
+        .filter((conversation) => conversation.type === 'group')
+        .map((conversation) => ({
+          group_id: conversation.sid,
+          name: conversation.name
+        }));
+      if (visibleGroups.length) {
+        this.$store.dispatch('contact/actionEnsureVisibleConversationGroupData', visibleGroups);
+      }
     }
   }
 };

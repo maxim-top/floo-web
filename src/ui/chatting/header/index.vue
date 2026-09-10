@@ -273,7 +273,7 @@ export default {
     touchRecent() {
       let headStatus = this.getHeaderStatus;
       this.$store.dispatch('header/actionChangeHeaderStatus', 'conversation');
-      this.$store.dispatch('chat/actionSetType', { type: 'restore' });
+      this.$store.dispatch('content/actionSetType', { type: 'restore' });
       this.closeOtherLayers();
       this.gotoUnreadConversation(headStatus);
     },
@@ -343,33 +343,13 @@ export default {
       this.$store.dispatch('contact/actionSetSearchkeyword', kw);
     },
     gotoUnreadConversation(headStatus) {
-      let scroll = 0;
-      let convList = this.getConversationList;
-      let minScroll = -1;
-      if (headStatus == 'conversation') {
-        minScroll = this.getConversationScroll;
-      }
-      let nextScroll = -1;
-      let convHeight = 61;
-      for (let i in convList) {
-        let conv = convList[i];
-        if (conv.unread !== 0) {
-          if (nextScroll == -1) {
-            nextScroll = scroll;
-          }
-          if (scroll > minScroll) {
-            nextScroll = scroll;
-            break;
-          } else {
-            scroll += convHeight;
-          }
-        } else {
-          scroll += convHeight;
-        }
-      }
-      if (nextScroll >= 0) {
-        this.$store.dispatch('contact/actionSetConversationScroll', nextScroll);
-      }
+      const currentIndex = headStatus === 'conversation' ? Math.floor(this.getConversationScroll / 72) : -1;
+      const unreadItems = this.getConversationList.map((conversation, index) => ({ conversation, index })).filter((item) => Number(item.conversation.unread) > 0);
+      if (!unreadItems.length) return;
+
+      const target = unreadItems.find((item) => item.index > currentIndex) || unreadItems[0];
+      this.$store.dispatch('contact/actionSetConversationScroll', target.index * 72);
+      this.$store.dispatch('contact/actionOpenConversation', target.conversation);
     }
   }
 };

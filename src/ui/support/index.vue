@@ -11,6 +11,7 @@
 <script>
 import Header from './header';
 import Content from './content';
+import { clearAllCachedGroupAvatars } from '../utils/groupAvatar';
 
 export default {
   name: 'HelloWorld',
@@ -19,14 +20,36 @@ export default {
     Content
   },
   mounted() {
+    this.$store.dispatch('content/actionSetMessageSessionOwner', this.$store.getters.im.userManage.getUid());
     this.$store.getters.im.on('onRosterListUpdate', () => {
       this.$store.dispatch('contact/actionClearRosterList');
       this.$store.dispatch('contact/actionLazyGetRosterList');
     });
 
     this.$store.getters.im.on('onGroupListUpdate', () => {
-      this.$store.dispatch('contact/actionClearGroupList');
-      this.$store.dispatch('contact/actionLazyGetGroupList');
+      this.$store.dispatch('contact/actionGetConversationList');
+      if (this.$store.getters['header/getHeaderStatus'] === 'contact') {
+        this.$store.dispatch('contact/actionSyncGroupList');
+        return;
+      }
+    });
+
+    this.$store.getters.im.on('onGroupMemberChanged', (group_id) => {
+      this.$store.dispatch('contact/actionRefreshGroupAvatar', group_id);
+    });
+
+    this.$store.getters.im.on('loginSuccess', () => {
+      clearAllCachedGroupAvatars();
+      this.$store.dispatch('contact/actionResetGroupAvatarFetchState');
+      this.$store.dispatch('content/actionSetMessageSessionOwner', this.$store.getters.im.userManage.getUid());
+      this.$store.dispatch('content/actionResetHistoryBlocks');
+    });
+
+    this.$store.getters.im.on('logout', () => {
+      clearAllCachedGroupAvatars();
+      this.$store.dispatch('contact/actionResetGroupAvatarFetchState');
+      this.$store.dispatch('content/actionResetMessageSessions');
+      this.$store.dispatch('content/actionSetMessageSessionOwner', '');
     });
 
     this.$store.getters.im.on('recentlistUpdate', () => {
@@ -40,14 +63,22 @@ export default {
     this.$store.getters.im.on('onRosterInfoUpdate', () => {
       this.$store.dispatch('contact/actionGetConversationList');
     });
+    this.$store.getters.im.on('onReceiveHistoryMsg', this.receiveHistoryBatch);
     this.initCss();
 
     this.$store.dispatch('content/actionUpdateRoster');
 
     this.getApp().maybeLaunchWXMP();
   },
+  beforeDestroy() {
+    const im = this.$store.getters.im;
+    if (im) im.off('onReceiveHistoryMsg', this.receiveHistoryBatch);
+  },
   computed: {},
   methods: {
+    receiveHistoryBatch(payload) {
+      this.$store.dispatch('content/actionReceiveHistoryBatch', payload);
+    },
     initCss() {
       const app = document.getElementById('app');
       const html = document.documentElement;

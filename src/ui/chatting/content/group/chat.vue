@@ -1,11 +1,17 @@
 <template>
-  <div class="list" ref="listg" v-if="!forceRefresh" @scroll="handleListScroll" @touchstart="handlePullStart" @touchmove="handlePullMove" @touchend="handlePullEnd">
+  <div class="list" ref="listg" @scroll="handleListScroll" @touchstart="handlePullStart" @touchmove="handlePullMove" @touchend="handlePullEnd">
     <div class="message-history-slot">
       <div
         @click="requestHistory"
         id="roster_history_btn"
         class="message-history-trigger"
-        :class="{ 'is-visible': showHistoryTrigger || queryingHistory || isPulling, 'is-pulling': isPulling, 'is-loading': queryingHistory }"
+        :class="{
+          'is-visible': showHistoryTrigger || queryingHistory || isPulling || historyBlocked || historyExhausted,
+          'is-pulling': isPulling,
+          'is-loading': queryingHistory,
+          'is-disabled': historyBlocked
+        }"
+        :aria-disabled="historyBlocked ? 'true' : 'false'"
         :style="{ '--pull-distance': `${pullDistance}px` }"
       >
         <svg v-if="!queryingHistory" viewBox="0 0 24 24" aria-hidden="true" class="message-history-trigger__icon">
@@ -14,19 +20,40 @@
           <path d="M4.5 5.5v3.5H8"></path>
         </svg>
         <span v-else class="message-history-trigger__spinner" aria-hidden="true"></span>
-        <span>{{ queryingHistory ? $t('正在拉取历史消息') : $t('查看历史消息') }}</span>
+        <span>
+          {{
+            historyBlocked
+              ? $t('messageHistory.waitingReconnect', { origin: '等待重新连接' })
+              : queryingHistory
+              ? $t('正在拉取历史消息')
+              : historyExhausted
+              ? $t('messageHistory.noMore', { origin: '没有更多历史消息' })
+              : $t('查看历史消息')
+          }}
+        </span>
       </div>
     </div>
-    <div class="message-stream">
-      <Message ref="vMessages" :message="message" v-bind:key="message.id" v-for="message in allMessages" />
-    </div>
+    <VirtualMessageList
+      :key="getSid"
+      ref="virtualList"
+      :session-id="getSid"
+      :messages="allMessages"
+      :message-component="Message"
+      :follow-latest="followLatest"
+      :initial-viewport="historyState.viewport"
+      :measurement-cache="historyState.measurements"
+      :measurement-cache-width="historyState.measurementWidth"
+      @viewport-change="saveViewport"
+      @measurements-change="saveMeasurements"
+    />
   </div>
 </template>
 
 <script>
 // import Chat from "./chat.vue";
 import Message from './renderMsg.vue';
-import { numToString, toNumber } from '../../../third/tools';
+import VirtualMessageList from '../../../components/VirtualMessageList.vue';
+import { toNumber } from '../../../third/tools';
 
 import { mapGetters } from 'vuex';
 
@@ -34,7 +61,7 @@ export default {
   name: 'GroupChat',
   mounted() {
     this.requireMessage();
-    this.scroll();
+    this.followLatest = !(this.historyState.viewport && this.historyState.viewport.followLatest === false);
     this.$store.dispatch('forward/actionCancelForward', false);
 
     this.$store.getters.im.on('onGroupMessage', (message) => {
@@ -42,40 +69,21 @@ export default {
     });
 
     this.$store.getters.im.on('onGroupMessageContentAppend', (message) => {
-      if (this.$refs.vMessages) {
-        this.$store.dispatch('content/actionUpdateMessage', {
-          message,
-          mid: message.id
-        });
-        let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
-        if (msg) {
-          msg.messageContentAppend(message);
-          this.calculateScroll(message);
-        }
+      this.prepareIncomingMessageFollow();
+      this.$store.dispatch('content/actionUpdateMessage', { message: { ...message, skipStreamReplayOnMount: true }, mid: message.id });
+      const msg = this.$refs.virtualList && this.$refs.virtualList.findRenderedMessage(message.id);
+      if (msg) {
+        msg.messageContentAppend(message);
       }
     });
 
     this.$store.getters.im.on('onGroupMessageReplace', (message) => {
-      if (this.$refs.vMessages) {
-        this.$store.dispatch('content/actionUpdateMessage', {
-          message,
-          mid: message.id
-        });
-        let msg = this.$refs.vMessages.reverse().find((item) => item.message.id == message.id);
-        if (msg) {
-          msg.messageReplace(message);
-          this.scroll();
-        }
+      this.prepareIncomingMessageFollow();
+      this.$store.dispatch('content/actionUpdateMessage', { message: { ...message, skipStreamReplayOnMount: true }, mid: message.id });
+      const msg = this.$refs.virtualList && this.$refs.virtualList.findRenderedMessage(message.id);
+      if (msg) {
+        msg.messageReplace(message);
       }
-    });
-
-    this.$store.getters.im.on('onReceiveHistoryMsg', ({ next }) => {
-      this.queryingHistory = false;
-      this.$store.dispatch('content/actionAppendMessage', {
-        history: true,
-        next
-      });
-      !this.getMessages.length && this.scroll();
     });
 
     this.$store.getters.im.on('onMessageStatusChanged', ({ mid }) => {
@@ -86,33 +94,15 @@ export default {
       this.requireMessage();
     });
 
-    this.$store.getters.im.on('onSendingMessageStatusChanged', ({ status, mid, message, errorCode, errorReason }) => {
-      // this.requireMessage();
-      if (status === 'sending') {
-        console.log('Sending Message status changed to sending mid: ', mid);
-        if (!this.isMessageInCurrentConv(message)) {
-          return;
-        }
-        this.$store.dispatch('content/actionAppendMessage', {
-          sendingMessages: [message]
-        });
-      } else if (status === 'sent') {
-        console.log('Sending Message status changed to sent mid: ', mid);
-        this.$store.dispatch('content/actionUpdateMessage', {
-          message,
-          mid
-        });
-      } else if (status === 'failed') {
-        this.handleSendingMessageFailed({ mid, message, errorCode, errorReason });
-      }
+    this.groupSendingMessageStatusListener = (event) => this.handleSendingMessageStarted(event);
+    this.$store.getters.im.on('onSendingMessageStatusChanged', this.groupSendingMessageStatusListener);
+
+    this.$store.getters.im.on('onMessageRecalled', ({ uid, mid }) => {
+      this.deleteMessage(mid, uid);
     });
 
-    this.$store.getters.im.on('onMessageRecalled', ({ mid }) => {
-      this.deleteMessage(mid);
-    });
-
-    this.$store.getters.im.on('onMessageDeleted', ({ mid }) => {
-      this.deleteMessage(mid);
+    this.$store.getters.im.on('onMessageDeleted', ({ uid, mid }) => {
+      this.deleteMessage(mid, uid);
     });
 
     this.$store.getters.im.on('onMessageCanceled', (message) => {
@@ -124,16 +114,22 @@ export default {
   },
 
   destroyed() {
+    if (this.requireMessageTimer) {
+      clearTimeout(this.requireMessageTimer);
+      this.requireMessageTimer = null;
+    }
     const im = this.$store.getters.im;
     if (!im) return;
+
+    if (this.groupSendingMessageStatusListener) {
+      im.off('onSendingMessageStatusChanged', this.groupSendingMessageStatusListener);
+    }
 
     im.off({
       onGroupMessage: '',
       onGroupMessageContentAppend: '',
       onGroupMessageReplace: '',
-      onReceiveHistoryMsg: '',
       onMessageStatusChanged: '',
-      onSendingMessageStatusChanged: '',
       onMessageRecalled: '',
       onMessageDeleted: '',
       onMessageCanceled: ''
@@ -142,63 +138,60 @@ export default {
 
   data() {
     return {
-      queryingHistory: false,
-      scrollTimer: null,
       reloadList: [],
-      forceRefresh: false,
       showHistoryTrigger: false,
+      followLatest: true,
+      lastScrollTop: 0,
       isPulling: false,
       pullStartY: 0,
-      pullDistance: 0
+      pullDistance: 0,
+      requireMessageTimer: null
     };
   },
 
   components: {
-    Message
+    VirtualMessageList
   },
 
   computed: {
-    ...mapGetters('content', ['getSid', 'getMessages', 'getMessageTime', 'getScroll', 'getAutoReadSuppressed']),
-    im() {
-      return this.$store.state.im;
+    ...mapGetters('content', ['getSid', 'getMessages', 'getMessageTime', 'getAutoReadSuppressed', 'getHistoryState']),
+    Message() {
+      return Message;
+    },
+    historyState() {
+      return this.getHistoryState || {};
+    },
+    queryingHistory() {
+      return !!this.historyState.historyLoading;
+    },
+    historyBlocked() {
+      return !!this.historyState.historyBlockedUntilReconnect;
+    },
+    historyExhausted() {
+      return !!this.historyState.historyExhausted && !(this.historyState.cachedHistoryMessages || []).length;
     },
     allMessages() {
-      const msgs = this.getMessages || [];
-      msgs.forEach((x) => {
-        x.aid = numToString(x.id);
-        const { config } = x;
-        let content = x.content + '';
-        if (config && config.mentionList && config.mentionList.length) {
-          // 如果有mention的
-          // const uid = im.userManage.getUid();
-          const umaps = this.im.rosterManage.getAllRosterDetail();
-          // const fromUid = toNumber(from.uid);
-          // const hasIndex = sa.mentionList.findIndex(x => x + '' === uid + '');
-          // if (hasIndex > -1) {
-          //   fire('groupMention', { uid: fromUid });
-          // }
-
-          config.mentionList.forEach((sx) => {
-            content = content.replace('{' + sx + '}', umaps[sx].nick_name || umaps[sx].username);
-          });
-          x.mentionStr = content;
-        }
-      });
-      return msgs;
+      return this.getMessages || [];
     }
   },
   watch: {
     getSid(a, b) {
       if (a !== b) {
+        this.followLatest = !(this.historyState.viewport && this.historyState.viewport.followLatest === false);
         this.requireMessage();
-        this.scroll();
       }
-    },
-    getScroll() {
-      this.scroll();
     }
   },
   methods: {
+    handleSendingMessageStarted({ status, mid, message }) {
+      if (status !== 'sending') return;
+      console.log('Sending Message status changed to sending mid: ', mid);
+      if (!this.isMessageInCurrentConv(message)) return;
+      this.$store.dispatch('content/actionAppendMessage', {
+        sendingMessages: [{ ...message, isSending: true }]
+      });
+      this.$nextTick(() => this.scrollToBottom(true));
+    },
     parseMessageExt(message) {
       if (!message || !message.ext) {
         return {};
@@ -224,83 +217,32 @@ export default {
       return true;
     },
 
-    getFailedErrorInfo({ message, errorCode, errorReason }) {
-      let reason = errorReason;
-      const status = message && message.status;
-      if (!reason && status && status.reason) {
-        reason = status.reason;
-      }
-
-      const normalizedReason = (reason || '').toLowerCase().trim();
-      let reasonText = reason;
-      if (normalizedReason.indexOf('antispam') > -1) {
-        reasonText = this.$t('消息包含敏感词，请修改后再发送');
-      } else if (normalizedReason.indexOf('account_verify_needed') > -1 || normalizedReason.indexOf('verify_needed') > -1) {
-        reasonText = this.$t('无法发送消息，您已被限制使用，请先完成实名认证。');
-      } else if (normalizedReason.indexOf('you have been blocked by the recipient') > -1) {
-        reasonText = this.$t('你已被对方加入黑名单，无法发送消息');
-      } else if (normalizedReason.indexOf('your relation with target does not allow chat') > -1) {
-        reasonText = this.$t('你与对方还不是好友，请先添加对方为好友后再聊天');
-      }
-      if (!reasonText) {
-        reasonText = this.$t('消息发送失败');
-      }
-      return { errorCode, reason: reasonText, rawReason: reason };
-    },
-
-    handleSendingMessageFailed({ mid, message, errorCode, errorReason }) {
-      const messages = this.getMessages || [];
-      const oldMessage = messages.find((item) => item.id + '' === mid + '');
-      if (!oldMessage) {
-        return;
-      }
-      const { reason, rawReason } = this.getFailedErrorInfo({ message, errorCode, errorReason });
-      const failedMessage = {
-        ...(oldMessage || {}),
-        sendFailed: true,
-        sendFailedCode: errorCode,
-        sendFailedRawReason: rawReason,
-        sendFailedReason: reason
-      };
-
-      console.error('Sending Message status changed to failed mid: ', mid, 'code:', errorCode, 'reason:', rawReason || reason);
-      this.$store.dispatch('content/actionUpdateMessage', {
-        message: failedMessage,
-        mid
-      });
-      this.$message.error(reason);
-    },
-
     isMessageInCurrentConv(message) {
       const toUid = toNumber(message.to);
       const pid = this.getSid;
-      const uid = this.$store.getters.im.userManage.getUid();
-      return toUid === pid;
+      return `${toUid}` === `${pid}`;
     },
 
     requireMessage() {
-      setTimeout(() => {
+      const sid = `${this.getSid}`;
+      const viewType = this.$store.getters['content/getViewType'];
+      if (this.requireMessageTimer) clearTimeout(this.requireMessageTimer);
+      this.requireMessageTimer = setTimeout(() => {
+        this.requireMessageTimer = null;
+        if (`${this.getSid}` !== sid || this.$store.getters['content/getViewType'] !== viewType) return;
         this.$store.dispatch('content/actionRequireMessage');
       }, 200);
     },
 
-    deleteMessage(mid) {
-      setTimeout(() => {
-        this.$store.dispatch('content/actionDeleteMessage', mid);
-        this.forceRefresh = true;
-        this.$nextTick(() => {
-          this.forceRefresh = false;
-        });
-      }, 200);
-
-      !this.getMessages.length && this.scroll();
+    deleteMessage(mid, sid) {
+      this.$store.dispatch('content/actionDeleteMessage', typeof sid === 'undefined' ? mid : { mid, sid });
     },
 
     reloadMessage(message) {
-      const toUid = toNumber(message.to);
-      const pid = this.getSid;
+      if (message && message.isHistory) return;
       const uid = this.$store.getters.im.userManage.getUid();
-      if (toUid === pid) {
+      if (this.isMessageInCurrentConv(message)) {
+        this.prepareIncomingMessageFollow();
         if (uid + '' !== message.from + '' && !this.getAutoReadSuppressed) {
           this.$store.getters.im.groupManage.readGroupMessage(this.getSid);
         }
@@ -309,33 +251,47 @@ export default {
           this.$store.dispatch('content/actionAppendMessage', {
             messages: [message]
           });
-          if (!ext.ai.finish) {
-            this.calculateScroll(message);
-          } else {
-            this.scroll();
-          }
         } else {
           this.requireMessage();
-          this.scroll();
         }
       }
     },
 
     requestHistory() {
-      if (this.queryingHistory) {
-        return;
-      }
-      this.queryingHistory = true;
-      this.queryHistoryTimer && clearTimeout(this.queryHistoryTimer);
-      this.queryHistoryTimer = setTimeout(() => {
-        this.queryingHistory = false;
-      }, 15000);
-      this.$store.dispatch('content/queryHistory');
+      if (this.queryingHistory || this.historyBlocked) return;
+      const list = this.$refs.listg;
+      const virtualList = this.$refs.virtualList;
+      const wasFollowing = this.followLatest;
+      if (virtualList) virtualList.prepareHistoryPrepend();
+      this.setFollowLatest(false);
+      this.$store.dispatch('content/queryHistory', { retryExhausted: this.historyExhausted }).then((accepted) => {
+        if (accepted === false) {
+          if (virtualList) virtualList.cancelHistoryPrepend();
+          this.setFollowLatest(wasFollowing);
+        }
+      });
+    },
+
+    saveViewport(viewport) {
+      this.$store.dispatch('content/actionSaveMessageViewport', viewport);
+    },
+
+    saveMeasurements(payload) {
+      this.$store.dispatch('content/actionSaveMessageMeasurements', payload);
     },
 
     handleListScroll() {
       const list = this.$refs.listg;
       if (!list) return;
+      const isProgrammaticScroll = typeof list.virtualMessageListIsProgrammaticScroll === 'function' && list.virtualMessageListIsProgrammaticScroll();
+      if (!isProgrammaticScroll) {
+        if (list.scrollTop < this.lastScrollTop) {
+          this.setFollowLatest(false);
+        } else if (this.isAtBottom(list)) {
+          this.setFollowLatest(true);
+        }
+      }
+      this.lastScrollTop = list.scrollTop;
       if (this.isPulling) return;
       const showThreshold = 10;
       const hideThreshold = 28;
@@ -380,40 +336,29 @@ export default {
       }
     },
 
-    scroll() {
-      let that = this;
-      setTimeout(() => {
-        that.$refs.listg && (that.$refs.listg.scrollTop = that.$refs.listg.scrollHeight);
-        that.handleListScroll();
-      }, 200);
+    isAtBottom(list) {
+      return list.scrollHeight - (list.scrollTop + list.clientHeight) <= 2;
     },
 
-    calculateScroll(message) {
-      if (message.ext) {
-        let ext = {};
-        try {
-          ext = JSON.parse(message.ext);
-        } catch (ex) {
-          //
-        }
-        if (ext && ext.ai && ext.ai.stream) {
-          this.scrollTimer && clearInterval(this.scrollTimer);
-          let interval = ext.ai.stream_interval ? ext.ai.stream_interval : 3;
-          let count = interval * 5;
-          if (count) {
-            let that = this;
-            this.scrollTimer = setInterval(() => {
-              that.$nextTick(() => {
-                that.$refs.rlist && (that.$refs.rlist.scrollTop = that.$refs.rlist.scrollHeight);
-              });
-              if (count-- <= 0) {
-                clearInterval(that.scrollTimer);
-              }
-            }, 200);
-          }
-        }
-      }
+    prepareIncomingMessageFollow() {
+      const list = this.$refs.listg;
+      if (this.followLatest || (list && this.isAtBottom(list))) this.setFollowLatest(true);
+    },
+
+    setFollowLatest(followLatest) {
+      this.followLatest = followLatest;
+    },
+
+    scrollToBottom(force = false) {
+      const list = this.$refs.listg;
+      if (!list || (!force && !this.followLatest)) return;
+      if (this.$refs.virtualList) this.$refs.virtualList.scrollToBottom(force);
+      else list.scrollTop = list.scrollHeight;
+      this.lastScrollTop = list.scrollTop;
+      this.setFollowLatest(true);
+      this.handleListScroll();
     }
+
     //methods finish ...
   }
 };

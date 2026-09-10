@@ -3,7 +3,16 @@
     <div class="login-language-switcher">
       <LanguageSwitcher />
     </div>
-    <Login :appid="appid" :sdkok="sdkok" :isAppInfoReady="isAppInfoReady" v-if="sappStatus == 'login'" />
+    <Login
+      :appid="appid"
+      :sdkok="sdkok"
+      :isAppInfoReady="isAppInfoReady"
+      :imInitLoading="imInitLoading"
+      :loginAttemptState="loginAttemptState"
+      :loginRetryCount="loginRetryCount"
+      :initRetryCount="initRetryCount"
+      v-if="sappStatus == 'login'"
+    />
     <Regedit :appid="appid" :sdkok="sdkok" v-if="sappStatus == 'regedit'" />
     <VerifyInfo :appid="appid" :sdkok="sdkok" v-if="sappStatus == 'verifyinfo'" />
 
@@ -31,7 +40,7 @@ import { mapGetters } from 'vuex';
 
 export default {
   name: 'index',
-  props: ['sdkok', 'appid', 'isAppInfoReady'],
+  props: ['sdkok', 'appid', 'isAppInfoReady', 'imInitLoading', 'loginAttemptState', 'loginRetryCount', 'initRetryCount'],
   data() {
     return {};
   },

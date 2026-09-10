@@ -7,21 +7,130 @@
  *
  */
 import { bind, fire } from '../../utils/cusEvent';
+import log from '../../utils/log';
 import { groupStore, infoStore, messageStore, noticeStore, recentStore, rosterStore } from '../../utils/store';
 import * as io from './io/httpIo';
-import { metaToCustomer, numToString, toNumber, metaToRtcSignalCustomer, intoSubArrays } from '../../utils/tools';
+import { metaToCustomer, numToString, toNumber, metaToRtcSignalCustomer } from '../../utils/tools';
 import { makeReadAllMessage, makeReadMessageAck, makeRosterRTCMessage } from './messageMaker';
 import { STATIC_MESSAGE_OPTYPE, STATIC_MESSAGE_TYPE, STATIC_MESSAGE_STATUS } from '../../utils/static';
 
+const historyMessageBatches = new Map();
+
+const historyBatchFor = (sid) => historyMessageBatches.get(`${sid}`);
+
+bind('imHistoryBatchStart', ({ sid } = {}) => {
+  if (!sid) return;
+  historyMessageBatches.set(`${sid}`, {
+    sid: `${sid}`,
+    rosterMessages: [],
+    groupMessages: []
+  });
+});
+
+bind('imHistoryBatchComplete', ({ sid, requestId, next, nextKey } = {}) => {
+  const batch = historyBatchFor(sid) || {
+    sid: `${sid || ''}`,
+    rosterMessages: [],
+    groupMessages: []
+  };
+  historyMessageBatches.delete(`${sid}`);
+
+  if (batch.rosterMessages.length) {
+    messageStore.saveRosterMessages(batch.sid, batch.rosterMessages);
+  }
+  if (batch.groupMessages.length) {
+    messageStore.saveGroupMessages(batch.sid, batch.groupMessages);
+  }
+
+  fire('onReceiveHistoryMsg', {
+    next,
+    nextKey,
+    requestId,
+    sid: batch.sid,
+    messages: batch.rosterMessages.concat(batch.groupMessages),
+    success: true
+  });
+});
+
+bind('imHistoryBatchFailed', ({ sid, requestId, reason } = {}) => {
+  historyMessageBatches.delete(`${sid}`);
+  fire('onReceiveHistoryMsg', {
+    sid: `${sid || ''}`,
+    requestId,
+    messages: [],
+    success: false,
+    reason
+  });
+});
+
+bind('imHistoryRequestBlocked', ({ sid, reason } = {}) => {
+  fire('onReceiveHistoryMsg', {
+    sid: `${sid || ''}`,
+    messages: [],
+    success: false,
+    reason: reason || 'history_request_timeout',
+    blockedUntilReconnect: true
+  });
+});
+
+bind('logout', () => historyMessageBatches.clear());
+
 bind('imRostersGroupslistReady', (lists) => {
   const { rosters } = lists;
-  rosterStore.saveRosterList([].concat(rosters));
   rosters.push(infoStore.getUid()); //request user self info
   rostersInfoLogic(rosters);
 });
 
 //// rosters ////////////////////////////////////////////
 const rosterInfoRequestTime = {}; //存储rosterinfo上次请求时间
+const blackRostList = new Set(); // 脏数据存储，取不到信息的。
+const ROSTER_INFO_BATCH_SIZE = 100;
+const ROSTER_INFO_REQUEST_INTERVAL = 200;
+const GROUP_INFO_BATCH_SIZE = 20;
+const GROUP_INFO_REQUEST_INTERVAL = 200;
+const ROSTER_RELATION_DELETED = 1;
+const ROSTER_RELATION_BLOCKED = 3;
+const getRosterCacheOwner = () => `${infoStore.getAppid() || ''}:${infoStore.getUid() || ''}`;
+let rosterInfoQueue = [];
+let rosterInfoQueueTimer = null;
+let rosterInfoRequestRunning = false;
+let rosterInfoQueueGeneration = 0;
+const queuedRosterInfoIds = new Set();
+let groupInfoQueue = [];
+let groupInfoQueueTimer = null;
+let groupInfoRequestRunning = false;
+let groupInfoQueueGeneration = 0;
+const queuedGroupInfoIds = new Set();
+const pendingGroupRecentIds = new Set();
+
+const resetRosterInfoQueue = () => {
+  rosterInfoQueueGeneration += 1;
+  if (rosterInfoQueueTimer) {
+    clearTimeout(rosterInfoQueueTimer);
+    rosterInfoQueueTimer = null;
+  }
+  rosterInfoQueue = [];
+  rosterInfoRequestRunning = false;
+  queuedRosterInfoIds.clear();
+  blackRostList.clear();
+  Object.keys(rosterInfoRequestTime).forEach((id) => delete rosterInfoRequestTime[id]);
+};
+
+bind('logout', resetRosterInfoQueue);
+
+const resetGroupInfoQueue = () => {
+  groupInfoQueueGeneration += 1;
+  if (groupInfoQueueTimer) {
+    clearTimeout(groupInfoQueueTimer);
+    groupInfoQueueTimer = null;
+  }
+  groupInfoQueue = [];
+  groupInfoRequestRunning = false;
+  queuedGroupInfoIds.clear();
+  pendingGroupRecentIds.clear();
+};
+
+bind('logout', resetGroupInfoQueue);
 const isRosterInfoRecentRequest = (user_id) => {
   const now = new Date().getTime();
   const lastRequestTime = rosterInfoRequestTime[user_id] || 0;
@@ -34,6 +143,94 @@ const isRosterInfoRecentRequest = (user_id) => {
 const updateRosterInfoRequestTime = (user_id) => {
   const now = new Date().getTime();
   rosterInfoRequestTime[user_id] = now;
+};
+
+const scheduleRosterInfoQueue = () => {
+  if (rosterInfoRequestRunning || rosterInfoQueueTimer || !rosterInfoQueue.length) return;
+  rosterInfoQueueTimer = setTimeout(() => {
+    rosterInfoQueueTimer = null;
+    const batch = rosterInfoQueue.splice(0, ROSTER_INFO_BATCH_SIZE);
+    const generation = rosterInfoQueueGeneration;
+    rosterInfoRequestRunning = true;
+    const finishRequest = () => {
+      if (generation !== rosterInfoQueueGeneration) return;
+      batch.forEach((id) => queuedRosterInfoIds.delete(`${id}`));
+      rosterInfoRequestRunning = false;
+      scheduleRosterInfoQueue();
+    };
+    io.rosterListPost({ list: batch })
+      .then((res) => {
+        if (generation !== rosterInfoQueueGeneration) return;
+        batch.forEach((id) => {
+          const index = res.findIndex((item) => item.user_id == id);
+          if (index < 0) blackRostList.add(`${id}`);
+        });
+        rosterStore.saveRosterInfo(res);
+        fire('onRosterListUpdate');
+      })
+      .catch((error) => log.warn('Roster info batch request failed:', error))
+      .then(finishRequest);
+  }, ROSTER_INFO_REQUEST_INTERVAL);
+};
+
+const enqueueRosterInfos = (ids = []) => {
+  ids.forEach((id) => {
+    const key = `${id}`;
+    if (!id || blackRostList.has(key) || queuedRosterInfoIds.has(key)) return;
+    queuedRosterInfoIds.add(key);
+    rosterInfoQueue.push(id);
+  });
+  scheduleRosterInfoQueue();
+};
+
+const scheduleGroupInfoQueue = () => {
+  if (groupInfoRequestRunning || groupInfoQueueTimer || !groupInfoQueue.length) return;
+  groupInfoQueueTimer = setTimeout(() => {
+    groupInfoQueueTimer = null;
+    const batch = groupInfoQueue.splice(0, GROUP_INFO_BATCH_SIZE);
+    const generation = groupInfoQueueGeneration;
+    groupInfoRequestRunning = true;
+    const savePendingRecents = () => {
+      const recentIds = batch.filter((id) => pendingGroupRecentIds.delete(`${id}`));
+      if (recentIds.length) recentStore.saveUnreadRecent(recentIds, 'group');
+    };
+    const finishRequest = () => {
+      if (generation !== groupInfoQueueGeneration) return;
+      batch.forEach((id) => queuedGroupInfoIds.delete(`${id}`));
+      groupInfoRequestRunning = false;
+      scheduleGroupInfoQueue();
+    };
+    io.groupInfoBatch({ group_list: batch })
+      .then((res) => {
+        if (generation !== groupInfoQueueGeneration) return;
+        groupStore.saveGroupInfo(res);
+        fire('onGroupListUpdate');
+        savePendingRecents();
+      })
+      .catch((error) => {
+        log.warn('Group info batch request failed:', error);
+        if (generation === groupInfoQueueGeneration) savePendingRecents();
+      })
+      .then(finishRequest);
+  }, GROUP_INFO_REQUEST_INTERVAL);
+};
+
+const enqueueGroupInfos = (ids = [], priority = false) => {
+  ids.forEach((id) => {
+    const key = `${id}`;
+    if (!id) return;
+    if (queuedGroupInfoIds.has(key)) {
+      if (priority) {
+        const index = groupInfoQueue.findIndex((queuedId) => `${queuedId}` === key);
+        if (index > 0) groupInfoQueue.unshift(groupInfoQueue.splice(index, 1)[0]);
+      }
+      return;
+    }
+    queuedGroupInfoIds.add(key);
+    if (priority) groupInfoQueue.unshift(id);
+    else groupInfoQueue.push(id);
+  });
+  scheduleGroupInfoQueue();
 };
 
 const rostersInfoLogic = (rosterIds = []) => {
@@ -54,7 +251,7 @@ const rostersInfoLogic = (rosterIds = []) => {
       }
     }
   });
-  ret.length && getRostersInfos(ret);
+  ret.length && enqueueRosterInfos(ret);
 };
 
 const groupsInfoLogic = (groupIds = [], fromServer = false) => {
@@ -62,62 +259,21 @@ const groupsInfoLogic = (groupIds = [], fromServer = false) => {
     groupIds = [groupIds];
   }
 
-  if (fromServer) {
-    getGroupInfos(groupIds);
-    return;
-  }
-
   const allGroupInfos = groupStore.getAllGroupInfos() || {};
   const ret = [];
   groupIds.forEach((item) => {
     const group_id = item.group_id || item;
 
-    if (item > 0) {
+    if (group_id > 0) {
       const savedGroup = allGroupInfos[group_id] || {};
       const { name } = savedGroup;
 
-      if (!name) {
+      if (fromServer || !name) {
         ret.push(group_id);
       }
     }
   });
-  ret.length && getGroupInfos(ret);
-};
-
-const blackRostList = []; // 脏数据存储，取不到信息的。
-//获取roster详情
-
-const getRostersInfos = (list = []) => {
-  let slist = list.filter((x) => {
-    return blackRostList.indexOf(x) < 0;
-  });
-
-  if (slist.length) {
-    io.rosterListPost({
-      list: slist
-    }).then((res) => {
-      slist.forEach((x) => {
-        const index = res.findIndex((a) => a.user_id == x);
-
-        if (index < 0) {
-          blackRostList.push(x);
-        }
-      });
-      rosterStore.saveRosterInfo(res);
-      fire('onRosterListUpdate');
-    });
-  }
-};
-
-const getGroupInfos = (group_list = []) => {
-  if (group_list.length) {
-    io.groupInfoBatch({
-      group_list
-    }).then((res) => {
-      groupStore.saveGroupInfo(res);
-      fire('onGroupListUpdate');
-    });
-  }
+  ret.length && enqueueGroupInfos(ret, fromServer);
 };
 
 // 当消息通知的时候，并且无存储的时候，不做处理
@@ -139,6 +295,29 @@ const groupAddMemberLogic = (group_id, uids, isNotice, replace) => {
   if (!Array.isArray(uids)) {
     uids = [uids];
   }
+  const memberOrderMap = {};
+  uids.forEach((memberId, index) => {
+    const key = `${memberId && memberId.user_id ? memberId.user_id : memberId}`;
+    if (key && typeof memberOrderMap[key] === 'undefined') {
+      memberOrderMap[key] = index;
+    }
+  });
+  const sortMembersByRequestOrder = (members = []) => {
+    return [].concat(members).sort((a, b) => {
+      const aOrder = memberOrderMap[`${a && a.user_id ? a.user_id : a}`];
+      const bOrder = memberOrderMap[`${b && b.user_id ? b.user_id : b}`];
+      if (typeof aOrder === 'undefined' && typeof bOrder === 'undefined') {
+        return 0;
+      }
+      if (typeof aOrder === 'undefined') {
+        return 1;
+      }
+      if (typeof bOrder === 'undefined') {
+        return -1;
+      }
+      return aOrder - bOrder;
+    });
+  };
 
   io.groupMembersDidpayname({
     group_id,
@@ -172,9 +351,11 @@ const groupAddMemberLogic = (group_id, uids, isNotice, replace) => {
     });
 
     if (arr.length) {
+      const cacheOwner = getRosterCacheOwner();
       io.rosterListPost({
         list: arr
       }).then((details) => {
+        if (getRosterCacheOwner() !== cacheOwner) return;
         rosterStore.saveRosterInfo(details);
         const allRosterInfos = rosterStore.getAllRosterInfos();
         res = res.map((sitem) => {
@@ -199,11 +380,11 @@ const groupAddMemberLogic = (group_id, uids, isNotice, replace) => {
           sitem.avatar = allRosterInfos[sitem.user_id].avatar;
           return sitem;
         });
-        groupStore.saveGroupMembers(group_id, res, replace);
+        groupStore.saveGroupMembers(group_id, sortMembersByRequestOrder(res), replace);
         fire('onGroupMemberChanged', group_id);
       });
     } else {
-      groupStore.saveGroupMembers(group_id, res, replace);
+      groupStore.saveGroupMembers(group_id, sortMembersByRequestOrder(res), replace);
       fire('onGroupMemberChanged', group_id);
     }
   });
@@ -227,8 +408,17 @@ bind('rtcVideoRoomSignal', (meta) => {
   fire('socketClsOnSignal', meta_cus);
 });
 
+const normalizeRosterRTCMessage = (message) => {
+  const { config } = message;
+  const uid = infoStore.getUid();
+  if (config && config.action === 'record' && config.initiator == uid && message.from != uid) {
+    message.to = message.from;
+    message.from = numToString(config.initiator);
+  }
+};
+
 const dealRosterRTCMessage = (message) => {
-  const { config, isHistory } = message;
+  const { config } = message;
   if (config && config.action) {
     let inCall = messageStore.getInCallStatus();
     const uid = infoStore.getUid();
@@ -255,17 +445,10 @@ const dealRosterRTCMessage = (message) => {
           fire('sendMessage', record);
         }
       }
-    } else if (config.action === 'record' && config.initiator == uid) {
-      if (message.from != uid) {
-        message.to = message.from;
-        message.from = numToString(config.initiator);
-      }
-    }
+    } else if (config.action === 'record') normalizeRosterRTCMessage(message);
 
-    if (!isHistory) {
-      if (config.action === 'hangup' || config.action === 'record') {
-        messageStore.saveInCallStatus(false);
-      }
+    if (config.action === 'hangup' || config.action === 'record') {
+      messageStore.saveInCallStatus(false);
     }
   }
 };
@@ -295,6 +478,19 @@ bind('imRosterMessage', (meta) => {
       });
     }
   } else {
+    if (meta_cus.isHistory) {
+      meta_cus.toType = 'roster';
+      if (meta_cus.type === 'rtc') {
+        normalizeRosterRTCMessage(meta_cus);
+        fire('onRosterRTCMessage', meta_cus);
+      }
+      const uid = infoStore.getUid();
+      const sid = `${uid == from ? to : from}`;
+      const batch = historyBatchFor(sid);
+      if (batch && meta_cus.type !== 'command' && meta_cus.type !== 'forward') batch.rosterMessages.push(meta_cus);
+      fire('onRosterMessage', meta_cus);
+      return;
+    }
     if (meta_cus.type === 'rtc') {
       messageStore.saveRosterRTCContentHandleMessage(meta_cus);
     }
@@ -336,6 +532,15 @@ bind('imGroupMessage', (meta) => {
     meta_cus.isHistory = true;
   }
 
+  if (meta_cus.isHistory) {
+    meta_cus.toType = 'group';
+    const sid = `${meta_cus.to}`;
+    const batch = historyBatchFor(sid);
+    if (batch && meta_cus.type !== 'command' && meta_cus.type !== 'forward') batch.groupMessages.push(meta_cus);
+    fire('onGroupMessage', meta_cus);
+    return;
+  }
+
   messageStore.saveGroupMessage(meta_cus);
   meta_cus.toType = 'group';
   recentStore.saveRecent(meta_cus);
@@ -343,7 +548,7 @@ bind('imGroupMessage', (meta) => {
   const uid = infoStore.getUid();
   const { config } = meta_cus;
 
-  if (config && config.mentionList && config.mentionList.indexOf(uid) >= 0) {
+  if (toNumber(meta_cus.from) !== uid && config && (config.mentionAll === true || (config.mentionList && config.mentionList.indexOf(uid) >= 0))) {
     fire('onMentionMessage', meta_cus);
   }
 
@@ -351,94 +556,36 @@ bind('imGroupMessage', (meta) => {
 });
 bind('imReceivedUnread', (unread) => {
   const rosterIds = unread.filter((x) => x.type === 1).map((f) => toNumber(f.xid.uid));
-  const hasUnreadRosterIds = unread.filter((x) => x.type === 1 && x.n > 0).map((f) => toNumber(f.xid.uid));
+  const hasUnreadRosterIds = new Set(unread.filter((x) => x.type === 1 && x.n > 0).map((f) => toNumber(f.xid.uid)));
   const gids = unread.filter((x) => x.type === 2).map((f) => toNumber(f.xid.uid));
   dealRosterUnread(rosterIds, hasUnreadRosterIds);
-  // rostersInfoLogic(rosterIds);
   dealGroupUnread(gids);
-  groupsInfoLogic(gids);
 });
 
 const dealRosterUnread = (uids, hasUnreadRosterIds) => {
-  const allRosterInfos = rosterStore.getAllRosterInfos() || {};
-  const ret = [];
-  uids.forEach((user_id) => {
-    const savedRoster = allRosterInfos[user_id] || {};
-    const { avatar, nick_name, username } = savedRoster;
-
-    if (avatar || nick_name || username) {
-      //
-    } else {
-      user_id && !isRosterInfoRecentRequest(user_id) && ret.push(user_id) && updateRosterInfoRequestTime(user_id);
-    }
-  });
-
-  if (ret.length) {
-    let subArrays = intoSubArrays(ret, 100); // default max is 100
-    let count = 0;
-    subArrays.forEach((subArray) => {
-      setTimeout(() => {
-        io.rosterListPost({
-          list: subArray
-        }).then((res) => {
-          rosterStore.saveRosterInfo(res);
-          recentStore.saveUnreadRecent(
-            subArray.filter((item) => !hasUnreadRosterIds.includes(item)),
-            'roster'
-          );
-        });
-      }, (count += 1) * 1000);
-    });
-    let local = uids.filter((x) => !ret.includes(x));
-    if (Array.isArray(local) && local.length) {
-      recentStore.saveUnreadRecent(
-        local.filter((item) => !hasUnreadRosterIds.includes(item)),
-        'roster'
-      );
-    }
-  } else {
-    recentStore.saveUnreadRecent(
-      uids.filter((item) => !hasUnreadRosterIds.includes(item)),
-      'roster'
-    );
-  }
+  rostersInfoLogic(uids);
+  recentStore.saveUnreadRecent(
+    uids.filter((item) => !hasUnreadRosterIds.has(item)),
+    'roster'
+  );
 };
 
 const dealGroupUnread = (gids) => {
   const allGroupInfos = groupStore.getAllGroupInfos() || {};
-  const ret = [];
+  const missingIds = [];
+  const localIds = [];
   gids.forEach((gid) => {
-    const savedRoster = allGroupInfos[gid] || {};
-    const { name } = savedRoster;
-
-    if (name) {
-      //
+    const savedGroup = allGroupInfos[gid] || {};
+    if (savedGroup.name) {
+      localIds.push(gid);
     } else {
-      gid && ret.push(gid);
+      if (!gid) return;
+      missingIds.push(gid);
+      pendingGroupRecentIds.add(`${gid}`);
     }
   });
-
-  if (ret.length) {
-    let subArrays = intoSubArrays(ret, 20); // default max is 20
-    let count = 0;
-    subArrays.forEach((subArray) => {
-      setTimeout(() => {
-        io.groupInfoBatch({
-          group_list: subArray
-        }).then((res) => {
-          groupStore.saveGroupInfo(res);
-          fire('onGroupListUpdate');
-          recentStore.saveUnreadRecent(subArray, 'group');
-        });
-      }, (count += 1) * 1000);
-    });
-    let local = gids.filter((x) => !ret.includes(x));
-    if (Array.isArray(local) && local.length) {
-      recentStore.saveUnreadRecent(local, 'group');
-    }
-  } else {
-    recentStore.saveUnreadRecent(gids, 'group');
-  }
+  if (localIds.length) recentStore.saveUnreadRecent(localIds, 'group');
+  enqueueGroupInfos(missingIds);
 };
 
 //// systems----- roster ////////////////////////////////////////////
@@ -463,19 +610,30 @@ bind('imRosterRemoved', (meta) => {
   const { from, to = [] } = payload;
   const uid = infoStore.getUid();
   const fromUid = toNumber(from.uid);
+  let rosterId = 0;
+  let removedBySelf = false;
 
   if (fromUid === uid) {
     // 是自己，做下处理，删掉
     if (to.length === 1) {
-      const toUid = toNumber(to[0].uid);
-      rosterStore.removeRoster(toUid);
+      rosterId = toNumber(to[0].uid);
+      removedBySelf = true;
       noticeStore.saveNotice(meta);
-      recentStore.deleteRecentById(toUid);
-      messageStore.deleteRosterMessageByRosterId(toUid);
-      fire('onRosterRemoved', meta);
+      recentStore.deleteRecentById(rosterId);
+      messageStore.deleteRosterMessageByRosterId(rosterId);
     }
+  } else if (to.some((item) => toNumber(item.uid) === uid)) {
+    // 被对方删除时保留现有会话和消息，只更新好友关系。
+    rosterId = fromUid;
   }
-  // 自己被删 先不做处理
+
+  if (rosterId) {
+    rosterStore.removeRoster(rosterId);
+    rosterStore.saveRosterInfo([{ user_id: rosterId, relation: ROSTER_RELATION_DELETED }]);
+    fire('onRosterInfoUpdate', [rosterId]);
+    fire('onRosterListUpdate', meta);
+    if (removedBySelf) fire('onRosterRemoved', meta);
+  }
 });
 
 bind('imRosterApplied', (meta) => {
@@ -527,26 +685,52 @@ bind('imRosterDeclined', (meta) => {
   }
 });
 
-bind('imRrosterBaned', (meta) => {
-  // 不做处理
+bind('imRosterBaned', (meta) => {
+  const rosterId = rosterNoticeTargetId(meta.payload);
+  if (rosterId) {
+    rosterStore.removeRoster(rosterId);
+    rosterStore.saveRosterInfo([{ user_id: rosterId, relation: ROSTER_RELATION_BLOCKED }]);
+    fire('onRosterInfoUpdate', [rosterId]);
+    fire('onRosterListUpdate', meta);
+  }
   fire('onRosterNotice', meta);
 });
 bind('imRosterUnbaned', (meta) => {
-  // 不做处理
+  const rosterId = rosterNoticeTargetId(meta.payload);
+  if (rosterId) {
+    const cacheOwner = getRosterCacheOwner();
+    io.rosterListPost({ list: [rosterId] })
+      .then((res) => {
+        if (getRosterCacheOwner() !== cacheOwner) return;
+        rosterStore.saveRosterInfo(res);
+        const info = res.find((item) => `${item.user_id}` === `${rosterId}`);
+        if (info && Number(info.relation) === 0) {
+          rosterStore.saveRosterList(rosterId);
+        } else {
+          rosterStore.removeRoster(rosterId);
+        }
+        fire('onRosterInfoUpdate', [rosterId]);
+        fire('onRosterListUpdate', meta);
+      })
+      .catch((error) => log.warn('Refresh unblocked roster info failed:', error));
+  }
   fire('onRosterNotice', meta);
 });
+const rosterNoticeTargetId = (payload = {}) => {
+  const { from = {}, to = [] } = payload;
+  const uid = infoStore.getUid();
+  const fromUid = toNumber(from.uid);
+  if (fromUid === uid) {
+    return to.length ? toNumber(to[0].uid) : 0;
+  }
+  return fromUid;
+};
+
 bind('imRosterInfoUpdated', (meta) => {
   //roster 信息修改
   const { payload } = meta;
-  const { from, to = [], content = '{}' } = payload;
-  const uid = infoStore.getUid();
-  const fromUid = toNumber(from.uid);
-  let rosterId = 0;
-  if (fromUid === uid) {
-    rosterId = toNumber(to[0].uid);
-  } else {
-    rosterId = fromUid;
-  }
+  const { content = '{}' } = payload;
+  const rosterId = rosterNoticeTargetId(payload);
 
   let info = {};
   try {
@@ -558,7 +742,7 @@ bind('imRosterInfoUpdated', (meta) => {
   if (Object.keys(info).length) {
     let sinfo = Object.assign({}, rosterStore.getRosterInfo(rosterId), info);
     rosterStore.saveRosterInfo([sinfo]);
-    fire('onRosterInfoUpdate', [fromUid]);
+    fire('onRosterInfoUpdate', [rosterId]);
     fire('onRosterListUpdate');
   }
 });
@@ -927,14 +1111,34 @@ bind('imGroupAdminRevoked', (meta) => {
   fire('onGroupAdminRevoked', meta);
 });
 bind('imGroupMuted', (meta) => {
-  // 不收消息，from 只能是自己
-  // messageStore.saveGroupMessage(meta);
+  const { payload = {} } = meta;
+  const groupId = toNumber(payload.gid && payload.gid.uid);
+  let info = {};
+  try {
+    info = typeof payload.content === 'string' ? JSON.parse(payload.content) : payload.content || {};
+  } catch (e) {
+    //
+  }
+  if (groupId && typeof info.msg_mute_mode !== 'undefined') {
+    const groupInfo = Object.assign({}, groupStore.getGroupInfo(groupId), {
+      msg_mute_mode: Number(info.msg_mute_mode)
+    });
+    groupStore.saveGroupInfo([groupInfo]);
+    fire('onGroupListUpdate');
+  }
   fire('onGroupMuted', meta);
 });
 
 bind('imGroupUnmuted', (meta) => {
-  // 不收消息，from 只能是自己
-  // messageStore.saveGroupMessage(meta);
+  const { payload = {} } = meta;
+  const groupId = toNumber(payload.gid && payload.gid.uid);
+  if (groupId) {
+    const groupInfo = Object.assign({}, groupStore.getGroupInfo(groupId), {
+      msg_mute_mode: 0
+    });
+    groupStore.saveGroupInfo([groupInfo]);
+    fire('onGroupListUpdate');
+  }
   fire('onGroupUnmuted', meta);
 });
 

@@ -47,6 +47,10 @@
         <el-tooltip v-if="app_status == 'normal'" :content="serverIpText" placement="top">
           <i class="el-icon-info status-icon"></i>
         </el-tooltip>
+        <span class="status-container_client-version">
+          <span class="status-container_label">{{ $t('about.clientVersion', { origin: '客户端版本' }) }}</span>
+          <span class="status-container_value">{{ clientVersionText }}</span>
+        </span>
       </div>
     </div>
   </div>
@@ -116,6 +120,18 @@ export default {
   computed: {
     appid() {
       return this.$store.state.im.userManage.getAppid();
+    },
+    clientVersion() {
+      return process.env.VUE_APP_FLOO_WEB_VERSION || 'unknown';
+    },
+    clientBuildCommit() {
+      return process.env.VUE_APP_FLOO_WEB_BUILD_COMMIT || 'unknown';
+    },
+    clientBuildTime() {
+      return process.env.VUE_APP_FLOO_WEB_BUILD_TIME || 'unknown';
+    },
+    clientVersionText() {
+      return `${this.clientVersion}+${this.clientBuildCommit} (${this.clientBuildTime})`;
     },
     serverIpText() {
       return this.$translateText('服务器IP：') + (this.server_ip ? this.server_ip : this.$translateText('无'));
@@ -352,7 +368,9 @@ export default {
 }
 
 .status-container {
-  display: inline-flex;
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   margin-top: 22px;
@@ -371,6 +389,16 @@ export default {
 .status-icon {
   color: #a8abb2;
   font-size: 16px;
+}
+
+.status-container_client-version {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  padding-left: 14px;
+  border-left: 1px solid rgba(193, 198, 200, 0.8);
+  white-space: nowrap;
 }
 
 @media (min-width: 769px) and (max-height: 720px) {
@@ -430,6 +458,18 @@ export default {
 
   .verification_panel_metrics {
     grid-template-columns: 1fr;
+  }
+
+  .status-container_client-version {
+    flex-basis: 100%;
+    margin-top: 4px;
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
+  }
+
+  .status-container_client-version .status-container_value {
+    font-size: clamp(10px, 2.8vw, 12px);
   }
 }
 </style>

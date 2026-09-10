@@ -129,6 +129,12 @@
   opacity: 0.8;
 }
 
+.login_appid:disabled,
+.login_header_icon:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .login_header_icon {
   width: 36px;
   height: 36px;
@@ -247,6 +253,12 @@
   box-shadow: 0 0 0 3px rgba(51, 51, 204, 0.1);
 }
 
+.login .iptFrame input:disabled {
+  cursor: not-allowed;
+  color: var(--ly-text-muted);
+  background: rgba(19, 41, 75, 0.03);
+}
+
 .login .iptFrame:focus-within,
 .login .cframe .ipframe:focus-within {
   border-color: var(--ly-primary);
@@ -279,6 +291,40 @@
 
 .login .loginBtn:active {
   transform: scale(0.98);
+}
+
+.login .loginBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  transform: none;
+  box-shadow: none;
+}
+
+.login_button_spinner {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  margin-right: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  vertical-align: -2px;
+  animation: login-button-spin 0.8s linear infinite;
+}
+
+.login_attempt_status {
+  min-height: 20px;
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ly-text-muted);
+  text-align: center;
+}
+
+@keyframes login-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* .log{height: 60px;  margin-top: 10px;line-height: 20px; color:#5555FF; font-size: 12px;} */
@@ -344,6 +390,12 @@
 
 .login_footer_link:hover {
   color: var(--ly-primary);
+}
+
+.login_footer_link:disabled {
+  cursor: not-allowed;
+  color: var(--ly-text-muted);
+  opacity: 0.5;
 }
 
 .login .cframe {
@@ -629,6 +681,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 75%;
+}
+
+.login .verify_info--disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .login .verify_detail {

@@ -34,7 +34,7 @@ const getAppid = () => infoStore.getAppid();
  * @example
  * {% lanying_code_snippet repo="lanying-im-web",class="userManage",function="getConversationList" %}{% endlanying_code_snippet %}
  */
-const getConversationList = () => recentStore.getRecents();
+const getConversationList = (options) => recentStore.getRecents(options);
 const getDeviceSN = () => infoStore.getDeviceSN();
 
 export default {

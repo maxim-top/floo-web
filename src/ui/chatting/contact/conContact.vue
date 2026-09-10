@@ -1,5 +1,5 @@
 <template>
-  <div class="contact-root" ref="imgContainer">
+  <div class="contact-root" ref="imgContainer" @scroll="handleScroll">
     <div class="contact-sticky-header">
       <div class="contact-search-shell">
         <svg class="contact-search-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -23,8 +23,8 @@
         </button>
       </div>
     </div>
-    <transition name="contact-fade" mode="out-in">
-      <div :key="activeCategory" class="contact-list-panel">
+    <transition name="contact-fade" mode="out-in" @after-enter="handlePanelAfterEnter">
+      <div v-if="getHeaderStatus === 'contact'" :key="activeCategory" class="contact-list-panel">
         <div v-if="activeCategory === 'friends'" class="roster">
           <EmptyState
             v-if="!friendQuickLinks.length && !filteredRosterList.length"
@@ -72,7 +72,13 @@
                 <span class="subtitle">{{ entry.subtitle }}</span>
               </div>
             </div>
-            <div @click="touchGroup(group.group_id)" class="item contact-item contact-item--group" v-bind:key="group.group_id" v-for="group in filteredGroupList">
+            <div
+              :data-group-index="index"
+              @click="touchGroup(group.group_id)"
+              class="item contact-item contact-item--group"
+              v-bind:key="group.group_id"
+              v-for="(group, index) in filteredGroupList"
+            >
               <div class="contact-avatar-shell">
                 <img :src="group.avatar" class="avatar" />
               </div>
@@ -118,19 +124,29 @@ export default {
   },
   data() {
     return {
-      activeCategory: 'support',
+      activeCategory: 'friends',
       staticList: [],
-      contactDataLoaded: false
+      contactDataLoaded: false,
+      supportListLoaded: false,
+      supportListLoading: false,
+      ensureActiveContactTimer: null,
+      warmupSupportListTimer: null,
+      visibleGroupScanFrame: null,
+      visibleGroupScanMode: '',
+      lastVisibleGroupRangeKey: ''
     };
   },
   mounted() {
     this.$nextTick(() => {
-      if (this.getHeaderStatus === 'contact') {
-        this.ensureContactDataLoaded();
-      }
+      this.ensureContactDataLoaded();
       this.ensureActiveCategory();
-      this.ensureActiveContact();
+      this.scheduleEnsureActiveContact();
     });
+  },
+  beforeDestroy() {
+    this.clearEnsureActiveContactTimer();
+    this.clearWarmupSupportListTimer();
+    this.clearVisibleGroupScanFrame();
   },
 
   computed: {
@@ -216,39 +232,114 @@ export default {
   watch: {
     getRosterList() {
       this.ensureActiveCategory();
-      this.ensureActiveContact();
+      this.scheduleEnsureActiveContact();
+      this.ensureSupportListLoadedIfNeeded();
     },
     getGroupList() {
       this.ensureActiveCategory();
-      this.ensureActiveContact();
+      this.scheduleEnsureActiveContact();
+      this.ensureSupportListLoadedIfNeeded();
+      this.lastVisibleGroupRangeKey = '';
+      this.$nextTick(() => {
+        this.scheduleEnsureVisibleGroups();
+      });
     },
     getSid(newSid) {
       if (newSid === undefined || newSid === null || newSid === '' || newSid === -1) {
-        this.ensureActiveContact();
+        this.scheduleEnsureActiveContact();
       }
     },
     getHeaderStatus() {
       if (this.getHeaderStatus === 'contact') {
         this.ensureContactDataLoaded();
+        this.$store.dispatch('contact/actionSyncGroupList');
+        this.ensureSupportListLoadedIfNeeded();
+        this.scheduleWarmupSupportList();
+        this.lastVisibleGroupRangeKey = '';
+        this.$nextTick(() => {
+          this.scheduleEnsureVisibleGroups();
+        });
       }
       if (this.getHeaderStatus !== 'contact' && this.getSkipAutoSelectOnce) {
         this.$store.dispatch('contact/actionSetSkipAutoSelectOnce', false);
       }
-      this.ensureActiveContact();
+      this.scheduleEnsureActiveContact();
     },
     getViewType() {
-      this.ensureActiveContact();
+      this.scheduleEnsureActiveContact();
     },
     staticList() {
       this.ensureActiveCategory();
-      this.ensureActiveContact();
+      this.scheduleEnsureActiveContact();
     },
     getSearchKeyword() {
       this.ensureActiveCategory();
+      this.lastVisibleGroupRangeKey = '';
+      this.$nextTick(() => {
+        this.scheduleEnsureVisibleGroups();
+      });
     }
   },
 
   methods: {
+    clearEnsureActiveContactTimer() {
+      if (this.ensureActiveContactTimer) {
+        clearTimeout(this.ensureActiveContactTimer);
+        this.ensureActiveContactTimer = null;
+      }
+    },
+    clearWarmupSupportListTimer() {
+      if (this.warmupSupportListTimer) {
+        clearTimeout(this.warmupSupportListTimer);
+        this.warmupSupportListTimer = null;
+      }
+    },
+    clearVisibleGroupScanFrame() {
+      if (!this.visibleGroupScanFrame) {
+        return;
+      }
+      if (this.visibleGroupScanMode === 'raf' && typeof window !== 'undefined' && window.cancelAnimationFrame) {
+        window.cancelAnimationFrame(this.visibleGroupScanFrame);
+      } else {
+        clearTimeout(this.visibleGroupScanFrame);
+      }
+      this.visibleGroupScanFrame = null;
+      this.visibleGroupScanMode = '';
+    },
+    scheduleEnsureVisibleGroups() {
+      if (this.visibleGroupScanFrame) {
+        return;
+      }
+      const run = () => {
+        this.visibleGroupScanFrame = null;
+        this.visibleGroupScanMode = '';
+        this.ensureVisibleGroups();
+      };
+      if (typeof window !== 'undefined' && window.requestAnimationFrame) {
+        this.visibleGroupScanMode = 'raf';
+        this.visibleGroupScanFrame = window.requestAnimationFrame(run);
+        return;
+      }
+      this.visibleGroupScanMode = 'timeout';
+      this.visibleGroupScanFrame = setTimeout(run, 16);
+    },
+    scheduleEnsureActiveContact() {
+      this.clearEnsureActiveContactTimer();
+      this.ensureActiveContactTimer = setTimeout(() => {
+        this.ensureActiveContactTimer = null;
+        this.ensureActiveContact();
+      }, 0);
+    },
+    scheduleWarmupSupportList() {
+      if (!this.contactDataLoaded || this.supportListLoaded || this.supportListLoading) {
+        return;
+      }
+      this.clearWarmupSupportListTimer();
+      this.warmupSupportListTimer = setTimeout(() => {
+        this.warmupSupportListTimer = null;
+        this.ensureSupportListLoaded();
+      }, 120);
+    },
     ensureContactDataLoaded() {
       if (this.contactDataLoaded) {
         return;
@@ -256,15 +347,15 @@ export default {
       this.contactDataLoaded = true;
       this.$store.dispatch('contact/actionLazyGetRosterList');
       this.$store.dispatch('contact/actionLazyGetGroupList');
-      this.asyncGetStatics();
+      this.scheduleWarmupSupportList();
     },
 
     ensureActiveCategory() {
       this.$nextTick(() => {
         const options = [
-          { key: 'support', list: this.filteredSupportList },
           { key: 'friends', list: this.filteredRosterList },
-          { key: 'groups', list: this.filteredGroupList }
+          { key: 'groups', list: this.filteredGroupList },
+          { key: 'support', list: this.filteredSupportList }
         ];
 
         const current = options.find((item) => item.key === this.activeCategory);
@@ -314,9 +405,6 @@ export default {
     },
     touchGroup(group_id) {
       this.$store.dispatch('contact/actionSetSkipAutoSelectOnce', false);
-      this.$store.dispatch('content/actionPreOpenGroup', {
-        sid: group_id
-      });
       this.$store.dispatch('content/actionSetType', {
         sid: group_id,
         type: 'groupinfo'
@@ -336,25 +424,69 @@ export default {
     },
     setActiveCategory(category) {
       this.activeCategory = category;
+      this.lastVisibleGroupRangeKey = '';
+      if (category === 'support') {
+        this.ensureSupportListLoaded();
+      }
+      this.$nextTick(() => {
+        this.scheduleEnsureVisibleGroups();
+      });
+    },
+    handlePanelAfterEnter() {
+      if (this.activeCategory !== 'groups') {
+        return;
+      }
+      this.lastVisibleGroupRangeKey = '';
+      this.scheduleEnsureVisibleGroups();
     },
     handleSearch(e) {
       this.$store.dispatch('contact/actionSetSearchkeyword', e.target.value);
     },
+    handleScroll() {
+      this.scheduleEnsureVisibleGroups();
+    },
     getApp() {
       return this.$parent.$parent.$parent;
     },
-    asyncGetStatics: function () {
+    ensureSupportListLoaded() {
+      if (this.supportListLoaded || this.supportListLoading) {
+        return Promise.resolve(this.staticList);
+      }
+      this.supportListLoading = true;
       const im = this.getApp().getIM();
-      im.sysManage.asyncGetStaticContact().then((res) => {
-        res = res.map((x) => {
-          x.avatar = im.sysManage.getImage({
-            avatar: x.avatar,
-            sdefault: '/image/roster.png'
+      return im.sysManage
+        .asyncGetStaticContact()
+        .then((res) => {
+          res = (res || []).map((x) => {
+            x.avatar = im.sysManage.getImage({
+              avatar: x.avatar,
+              sdefault: '/image/roster.png'
+            });
+            return x;
           });
-          return x;
+          this.staticList = res;
+          this.supportListLoaded = true;
+          return res;
+        })
+        .finally(() => {
+          this.supportListLoading = false;
         });
-        this.staticList = res;
-      });
+    },
+    ensureSupportListLoadedIfNeeded() {
+      if (!this.contactDataLoaded) {
+        return;
+      }
+      if (this.activeCategory === 'support') {
+        this.ensureSupportListLoaded();
+        return;
+      }
+      if ((this.getRosterList || []).length || (this.getGroupList || []).length) {
+        return;
+      }
+      this.ensureSupportListLoaded();
+    },
+    asyncGetStatics: function () {
+      return this.ensureSupportListLoaded();
     },
     formatGroupSubtitle(group) {
       const count = group.member_count || group.memberCount || group.members_count || group.total_member_count;
@@ -372,6 +504,33 @@ export default {
         return this.$t('龙虾会话');
       }
       return this.$t('官方客服');
+    },
+    ensureVisibleGroups() {
+      if (this.getHeaderStatus !== 'contact' || this.activeCategory !== 'groups') return;
+      const container = this.$refs.imgContainer;
+      if (!container) return;
+      const items = container.querySelectorAll('[data-group-index]');
+      if (!items.length) {
+        this.lastVisibleGroupRangeKey = '';
+        return;
+      }
+      const firstItem = items[0];
+      const itemHeight = Math.max(firstItem.offsetHeight || 0, 1);
+      const topOffset = Math.max(firstItem.offsetTop || 0, 0);
+      const startOffset = Math.max(0, container.scrollTop - topOffset);
+      const endOffset = Math.max(startOffset, container.scrollTop + container.clientHeight - topOffset);
+      const buffer = 2;
+      const startIndex = Math.max(0, Math.floor(startOffset / itemHeight) - buffer);
+      const endIndex = Math.min(this.filteredGroupList.length - 1, Math.ceil(endOffset / itemHeight) + buffer);
+      const rangeKey = `${startIndex}:${endIndex}:${this.filteredGroupList.length}`;
+      if (rangeKey === this.lastVisibleGroupRangeKey) {
+        return;
+      }
+      this.lastVisibleGroupRangeKey = rangeKey;
+      const visibleGroups = this.filteredGroupList.slice(startIndex, endIndex + 1);
+      if (visibleGroups.length) {
+        this.$store.dispatch('contact/actionEnsureVisibleGroupData', visibleGroups);
+      }
     }
     //finish
   }

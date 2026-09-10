@@ -66,6 +66,7 @@
 
 <script>
 import { mapGetters } from 'vuex';
+import { withDisplayGroupAvatar } from '../../../utils/groupAvatar';
 
 export default {
   name: 'groupInfo',
@@ -73,7 +74,8 @@ export default {
     return {
       groupInfo: {},
       cardName: '',
-      isDesktop: false
+      isDesktop: false,
+      pendingGroupInfoSid: null
     };
   },
   mounted() {
@@ -82,8 +84,14 @@ export default {
     this.refreshGroupInfo(this.getSid);
 
     this.$store.getters.im.on('onGroupListUpdate', () => {
-      this.$store.dispatch('contact/actionClearGroupList');
-      this.$store.dispatch('contact/actionLazyGetGroupList');
+      this.$store.dispatch('contact/actionSyncGroupList');
+      this.applyCachedGroupInfo(this.getSid);
+    });
+
+    this.$store.getters.im.on('onGroupMemberChanged', (group_id) => {
+      if (`${group_id}` === `${this.getSid}`) {
+        this.refreshGroupMembers(group_id);
+      }
     });
   },
   beforeDestroy() {
@@ -129,20 +137,113 @@ export default {
     }
   },
   methods: {
+    applyCachedGroupInfo(groupId) {
+      if (typeof groupId === 'undefined' || groupId === null || groupId === '' || `${groupId}` !== `${this.getSid}`) {
+        return;
+      }
+      const groupMap = this.$store.getters.im.groupManage.getAllGroupDetail() || {};
+      const latestGroup = groupMap[groupId] || groupMap[`${groupId}`];
+      if (!latestGroup) {
+        return;
+      }
+      const displayGroup = withDisplayGroupAvatar(this.$store.getters.im, latestGroup);
+      displayGroup.avatar = this.$store.getters.im.sysManage.getImage({
+        avatar: displayGroup.avatar,
+        type: 'group'
+      });
+      this.groupInfo = Object.assign({}, this.groupInfo, displayGroup);
+      this.$store.dispatch('contact/actionGetConversationList');
+    },
+    syncGroupAvatarToLists(groupId) {
+      if (typeof groupId === 'undefined' || groupId === null || groupId === '') {
+        return;
+      }
+      this.$store.dispatch('contact/actionRefreshGroupAvatar', groupId);
+    },
+    refreshGroupAvatarDisplay(groupId) {
+      if (typeof groupId === 'undefined' || groupId === null || groupId === '' || `${groupId}` !== `${this.getSid}`) {
+        return;
+      }
+      const groupMap = this.$store.getters.im.groupManage.getAllGroupDetail() || {};
+      const latestGroup = groupMap[groupId] || groupMap[`${groupId}`] || {};
+      const displayGroup = withDisplayGroupAvatar(this.$store.getters.im, latestGroup, {
+        onUpdate: ({ group_id, avatar } = {}) => {
+          if (`${group_id}` === `${this.getSid}`) {
+            this.applyGeneratedAvatar(group_id, avatar);
+          }
+        }
+      });
+      const displayAvatar = this.$store.getters.im.sysManage.getImage({
+        avatar: displayGroup.avatar,
+        type: 'group'
+      });
+      this.groupInfo = Object.assign({}, this.groupInfo, latestGroup, {
+        avatar: displayAvatar
+      });
+      this.syncGroupAvatarToLists(groupId);
+    },
+    applyGeneratedAvatar(groupId, avatar) {
+      if (`${groupId}` !== `${this.getSid}`) {
+        return;
+      }
+      const displayAvatar = this.$store.getters.im.sysManage.getImage({
+        avatar,
+        type: 'group'
+      });
+      this.groupInfo = Object.assign({}, this.groupInfo, {
+        avatar: displayAvatar
+      });
+      this.syncGroupAvatarToLists(groupId);
+    },
+    refreshGroupMembers(groupId) {
+      if (typeof groupId === 'undefined' || groupId === null || groupId === '' || `${groupId}` !== `${this.getSid}`) {
+        return;
+      }
+      this.$store.dispatch('content/actionUpdateMemberList');
+      this.refreshGroupAvatarDisplay(groupId);
+    },
     updateDesktopMode() {
       this.isDesktop = typeof window !== 'undefined' && window.innerWidth > 768;
     },
     refreshGroupInfo(newSid) {
+      if (typeof newSid === 'undefined' || newSid === null || newSid === '' || Number(newSid) < 0) {
+        this.groupInfo = {};
+        this.cardName = '';
+        this.pendingGroupInfoSid = null;
+        return;
+      }
+      const targetSid = `${newSid}`;
+      this.pendingGroupInfoSid = targetSid;
+      const memberListPromise = this.$store.dispatch('content/actionFetchMemberList', newSid).catch(() => []);
+      this.$store.dispatch('content/actionGetGroupAdminList', { sid: newSid });
       this.$store.getters.im.groupManage
         .asyncGetInfo({ group_id: newSid })
         .then((res) => {
+          return memberListPromise.then((members) => ({
+            members,
+            res
+          }));
+        })
+        .then(({ members, res }) => {
+          if (this.pendingGroupInfoSid !== targetSid || `${this.getSid}` !== targetSid) {
+            return;
+          }
+          res = withDisplayGroupAvatar(this.$store.getters.im, res, {
+            onUpdate: ({ group_id, avatar } = {}) => {
+              if (`${group_id}` === `${this.getSid}`) {
+                this.applyGeneratedAvatar(group_id, avatar);
+              }
+            }
+          });
           res.avatar = this.$store.getters.im.sysManage.getImage({
             avatar: res.avatar,
             type: 'group'
           });
           this.groupInfo = res;
+          this.syncGroupAvatarToLists(targetSid);
           const uid = this.$store.getters.im.userManage.getUid();
-          const user = this.getMemberList.find((x) => x.user_id === uid);
+          const memberList = Array.isArray(members) && members.length ? members : this.getMemberList;
+          const user = memberList.find((x) => x.user_id === uid);
           this.cardName = (user && (user.display_name || user.name)) || '';
           if (!this.cardName) {
             this.$store.getters.im.groupManage
@@ -151,6 +252,9 @@ export default {
                 user_list: [uid]
               })
               .then((res) => {
+                if (this.pendingGroupInfoSid !== targetSid || `${this.getSid}` !== targetSid) {
+                  return;
+                }
                 if (!res || !res.length) {
                   return;
                 }
@@ -164,7 +268,6 @@ export default {
           this.serr(ex);
         });
     },
-
     chatClickHandler() {
       const targetGroupId = this.groupInfo.group_id || this.group_id || this.getSid;
       this.$store
@@ -186,7 +289,7 @@ export default {
         });
     },
     touchedAvatar() {
-      if (this.isAdmin) {
+      if (this.isAdmin || this.isOwner) {
         this.$refs.fileRef.click();
       }
     },
@@ -219,7 +322,19 @@ export default {
           value: url
         })
         .then(() => {
-          this.$store.dispatch('content/actionUpdateGroup');
+          return this.$store.dispatch('content/actionUpdateGroup', { force: true });
+        })
+        .then((groupInfo = {}) => {
+          const displayAvatar = this.$store.getters.im.sysManage.getImage({
+            avatar: groupInfo.avatar,
+            type: 'group'
+          });
+          this.groupInfo = Object.assign({}, this.groupInfo, groupInfo, {
+            avatar: displayAvatar
+          });
+          this.syncGroupAvatarToLists(this.getSid);
+          this.$store.dispatch('contact/actionSyncGroupList');
+          this.$store.dispatch('contact/actionGetConversationList');
           alert(this.$t('更新头像完成'));
         });
     },

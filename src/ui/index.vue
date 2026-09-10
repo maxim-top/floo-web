@@ -11,7 +11,16 @@
     <Minimize v-else-if="getAppStatus == 'minimize'" />
     <Delete :appid="appid" :sdkok="sdkok" v-else-if="getAppStatus == 'delete'" />
     <Achieve :appid="appid" v-else-if="getAppStatus == 'achieve'" />
-    <Login :appid="appid" :sdkok="sdkok" :isAppInfoReady="isAppInfoReady" v-else />
+    <Login
+      :appid="appid"
+      :sdkok="sdkok"
+      :isAppInfoReady="isAppInfoReady"
+      :imInitLoading="imInitLoading"
+      :loginAttemptState="loginAttemptState"
+      :loginRetryCount="loginNetworkRetryTimes"
+      :initRetryCount="initNetworkRetryTimes"
+      v-else
+    />
     <Layers />
   </div>
 </template>
@@ -39,9 +48,11 @@ import CryptoJS from 'crypto-js';
 
 const AUTO_LOGIN_DELAY = 2000; // ms
 const AUTO_LOGIN_TIMES_MAX = 3;
+const LOGIN_RATE_LIMIT_RETRY_DELAY = 30000;
 let autoLoginTimes = 0;
 const INIT_CHECK_TIMES_MAX = 20;
 const INIT_LOCAL_STORE_KEY = 'vCcjfL6fTO27zqVi';
+const NON_PASSWORD_LOGIN_MODES = ['regedit', 'verifyinfo', 'bindacc', 'bindreg', 'codelogin', 'qrlogin', 'bind'];
 
 export default {
   name: 'index',
@@ -71,11 +82,30 @@ export default {
       wxmpLaunchUrl: '',
       wxmpLaunchLink: '',
       wxmpLaunchPromise: null,
-      wxmpLaunchRequestId: 0
+      wxmpLaunchRequestId: 0,
+      imInitAttemptId: 0,
+      imInitLoading: false,
+      pendingLoginMode: '',
+      imListeners: null,
+      autoLoginTimer: null,
+      initNetworkRetryTimer: null,
+      initNetworkRetryTimes: 0,
+      initNetworkRetryExhausted: false,
+      initNetworkRetryEligible: false,
+      loginNetworkRetryTimer: null,
+      loginNetworkRetryTimes: 0,
+      loginNetworkRetryExhausted: false,
+      loginNetworkRetryEligible: false,
+      passwordLoginContext: null,
+      passwordLoginInFlight: false,
+      policyLoginRecoveryPending: false
     };
   },
   beforeMount() {
-    window.addEventListener('message', this.handleParentMessage);
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('message', this.handleParentMessage);
+      window.addEventListener('online', this.handleNetworkOnline);
+    }
     this.loadIntent();
     if (this.intent.action === 'support') {
       this.applySupportEmbedShellTransparency();
@@ -88,20 +118,37 @@ export default {
     }, 200);
   },
   beforeDestroy() {
-    window.removeEventListener('message', this.handleParentMessage);
+    if (typeof window !== 'undefined' && window.removeEventListener) {
+      window.removeEventListener('message', this.handleParentMessage);
+      window.removeEventListener('online', this.handleNetworkOnline);
+    }
+    this.clearInitNetworkRetry();
+    this.clearLoginNetworkRetry();
+    this.clearAutoLoginRetry();
+    const im = this.getIM();
+    if (im && im.off && this.imListeners) {
+      im.off(this.imListeners);
+    }
   },
   watch: {
-    getAppID: {
-      handler(newAppID) {
+    getAppIDState: {
+      handler(appState) {
+        const newAppID = appState && appState.appID ? appState.appID : '';
         this.setupIM(newAppID);
       },
       immediate: true
+    },
+    getAppStatus(status, previousStatus) {
+      if (status !== previousStatus && NON_PASSWORD_LOGIN_MODES.includes(status)) {
+        this.clearLoginNetworkRetry();
+        this.clearAutoLoginRetry();
+      }
     }
   },
   computed: {
     ...mapGetters('login', ['getAppStatus', 'getMobileSign', 'getSignMobile']),
     ...mapGetters('layer', ['getShowmask']),
-    ...mapGetters(['getAppID']),
+    ...mapGetters(['getAppID', 'getAppIDState']),
 
     showLogin() {
       return this.getAppStatus != 'chatting';
@@ -109,6 +156,22 @@ export default {
 
     showChatting() {
       return this.getAppStatus === 'chatting';
+    },
+
+    loginAttemptState() {
+      if (this.loginNetworkRetryTimer || (this.passwordLoginInFlight && this.loginNetworkRetryTimes > 0)) {
+        return 'retrying';
+      }
+      if (this.passwordLoginInFlight) {
+        return 'submitting';
+      }
+      if (this.initNetworkRetryTimer) {
+        return 'init_retrying';
+      }
+      if (this.imInitLoading) {
+        return 'initializing';
+      }
+      return 'idle';
     }
   },
   methods: {
@@ -199,25 +262,325 @@ export default {
       return this.$store.state.im;
     },
 
-    setupIM(newAppID) {
+    retryDelay(retryIndex) {
+      return retryIndex * AUTO_LOGIN_DELAY;
+    },
+
+    clearAutoLoginRetry() {
+      if (this.autoLoginTimer) {
+        clearTimeout(this.autoLoginTimer);
+      }
+      this.autoLoginTimer = null;
+      autoLoginTimes = 0;
+    },
+
+    clearInitNetworkRetry() {
+      if (this.initNetworkRetryTimer) {
+        clearTimeout(this.initNetworkRetryTimer);
+      }
+      this.initNetworkRetryTimer = null;
+      this.initNetworkRetryTimes = 0;
+      this.initNetworkRetryExhausted = false;
+      this.initNetworkRetryEligible = false;
+    },
+
+    clearLoginNetworkRetry(keepContext = false) {
+      if (this.loginNetworkRetryTimer) {
+        clearTimeout(this.loginNetworkRetryTimer);
+      }
+      this.loginNetworkRetryTimer = null;
+      this.loginNetworkRetryTimes = 0;
+      this.loginNetworkRetryExhausted = false;
+      this.loginNetworkRetryEligible = false;
+      this.passwordLoginInFlight = false;
+      if (!keepContext) {
+        this.passwordLoginContext = null;
+      }
+    },
+
+    discardExhaustedLoginAttempts() {
+      if (this.policyLoginRecoveryPending) {
+        this.policyLoginRecoveryPending = false;
+        this.getIM().logout({ linkLogin: true });
+        this.clearLoginNetworkRetry();
+      }
+      if (this.initNetworkRetryExhausted && !this.imInitLoading && !this.initNetworkRetryTimer) {
+        this.clearInitNetworkRetry();
+      }
+      if (this.loginNetworkRetryExhausted && !this.passwordLoginInFlight && !this.loginNetworkRetryTimer) {
+        this.clearLoginNetworkRetry();
+      }
+    },
+
+    isRetryableInitFailure(desc) {
+      const reason = `${desc || ''}`.toLowerCase();
+      return reason === 'noavailableendpoint' || reason.indexOf('network error') > -1 || reason.indexOf('timeout') > -1;
+    },
+
+    isRetryableLoginFailure(desc) {
+      const reason = `${desc || ''}`.toLowerCase();
+      return reason.indexOf('network error') > -1 || reason.indexOf('timeout') > -1 || reason.indexOf('econnaborted') > -1;
+    },
+
+    isRateLimitedLoginFailure(desc) {
+      return `${desc || ''}`.toLowerCase().indexOf('rate limited') > -1;
+    },
+
+    isPasswordLoginPageVisible() {
+      return this.getAppStatus === 'login';
+    },
+
+    scheduleInitNetworkRetry(reason) {
+      this.initNetworkRetryEligible = true;
+      if (this.sdkok || this.imInitLoading || this.initNetworkRetryTimer) {
+        return true;
+      }
+      if (this.initNetworkRetryTimes >= AUTO_LOGIN_TIMES_MAX) {
+        this.initNetworkRetryExhausted = true;
+        console.warn('Floo IM init network retry exhausted:', reason);
+        return false;
+      }
+
+      const retryIndex = this.initNetworkRetryTimes;
+      const retryCount = retryIndex + 1;
+      const delay = this.retryDelay(retryIndex);
+      const retryAppID = this.appid;
+      this.initNetworkRetryTimes = retryCount;
+      this.initNetworkRetryExhausted = false;
+      console.warn(`Floo IM init network retry ${retryCount}/${AUTO_LOGIN_TIMES_MAX} in ${delay} ms:`, reason);
+      if (!this.isPasswordLoginPageVisible()) {
+        this.$message({
+          message: this.$t('login.initNetworkRetrying', {
+            count: retryCount,
+            origin: `网络异常，正在进行第${retryCount}次初始化重试`
+          }),
+          type: 'warning',
+          duration: 1500
+        });
+      }
+      this.initNetworkRetryTimer = setTimeout(() => {
+        this.initNetworkRetryTimer = null;
+        if (this.sdkok || this.imInitLoading || retryAppID !== this.appid) {
+          return;
+        }
+        this.setupIM(retryAppID, { force: true, preserveInitNetworkRetry: true });
+      }, delay);
+      return true;
+    },
+
+    sendPasswordLogin(loginInfo, loginSource = loginInfo && loginInfo.loginSource) {
+      if (!this.sdkok || !loginInfo || !loginInfo.username || `${loginInfo.app_id || ''}` !== `${this.appid || ''}`) {
+        return false;
+      }
+      this.passwordLoginContext = {
+        username: loginInfo.username,
+        password: loginInfo.password,
+        app_id: loginInfo.app_id,
+        loginSource: loginSource || 'password'
+      };
+      this.passwordLoginInFlight = true;
+      this.getIM().login({
+        name: loginInfo.username,
+        password: loginInfo.password
+      });
+      return true;
+    },
+
+    startPasswordLogin(loginInfo, preserveAutoLoginRetry = false) {
+      if (!preserveAutoLoginRetry) {
+        this.clearAutoLoginRetry();
+      }
+      this.clearLoginNetworkRetry();
+      return this.sendPasswordLogin(loginInfo, preserveAutoLoginRetry ? 'token_relogin' : 'password');
+    },
+
+    scheduleLoginNetworkRetry(reason) {
+      this.passwordLoginInFlight = false;
+      this.loginNetworkRetryEligible = true;
+      if (!this.sdkok || !this.passwordLoginContext || this.loginNetworkRetryTimer) {
+        return false;
+      }
+      if (this.loginNetworkRetryTimes >= AUTO_LOGIN_TIMES_MAX) {
+        this.loginNetworkRetryExhausted = true;
+        console.warn('Password login network retry exhausted:', reason);
+        return false;
+      }
+
+      const retryIndex = this.loginNetworkRetryTimes;
+      const retryCount = retryIndex + 1;
+      const delay = this.retryDelay(retryIndex);
+      this.loginNetworkRetryTimes = retryCount;
+      this.loginNetworkRetryExhausted = false;
+      console.warn(`Password login network retry ${retryCount}/${AUTO_LOGIN_TIMES_MAX} in ${delay} ms:`, reason);
+      if (!this.isPasswordLoginPageVisible()) {
+        this.$message({
+          message: this.$t('login.networkRetrying', {
+            count: retryCount,
+            origin: `网络异常，正在进行第${retryCount}次登录重试`
+          }),
+          type: 'warning',
+          duration: 1500
+        });
+      }
+      this.loginNetworkRetryTimer = setTimeout(() => {
+        this.loginNetworkRetryTimer = null;
+        if (!this.sdkok || this.passwordLoginInFlight || !this.passwordLoginContext) {
+          return;
+        }
+        this.sendPasswordLogin(this.passwordLoginContext);
+      }, delay);
+      return true;
+    },
+
+    scheduleRateLimitedTokenRelogin() {
+      if (!this.sdkok || !this.passwordLoginContext || this.passwordLoginContext.loginSource !== 'token_relogin') {
+        return false;
+      }
+      this.passwordLoginInFlight = false;
+      this.loginNetworkRetryEligible = true;
+      this.loginNetworkRetryExhausted = false;
+      this.loginNetworkRetryTimer = setTimeout(() => {
+        this.loginNetworkRetryTimer = null;
+        if (!this.sdkok || this.passwordLoginInFlight || !this.passwordLoginContext) {
+          return;
+        }
+        this.sendPasswordLogin(this.passwordLoginContext);
+      }, LOGIN_RATE_LIMIT_RETRY_DELAY);
+      return true;
+    },
+
+    handleSocketLoginPolicyFailure() {
+      const initialLoginFailure = !['chatting', 'support'].includes(this.getAppStatus);
+      this.passwordLoginInFlight = false;
+      if (initialLoginFailure) {
+        this.policyLoginRecoveryPending = true;
+      }
+    },
+
+    handleNetworkOnline() {
+      if (this.initNetworkRetryEligible && this.initNetworkRetryExhausted && !this.sdkok && !this.imInitLoading && !this.initNetworkRetryTimer) {
+        console.log('Network online, restart Floo IM init retry');
+        this.initNetworkRetryTimes = 0;
+        this.initNetworkRetryExhausted = false;
+        this.scheduleInitNetworkRetry('online');
+        return;
+      }
+      if (
+        this.loginNetworkRetryEligible &&
+        this.loginNetworkRetryExhausted &&
+        this.sdkok &&
+        !this.passwordLoginInFlight &&
+        !this.loginNetworkRetryTimer &&
+        this.passwordLoginContext
+      ) {
+        console.log('Network online, restart password login retry');
+        this.loginNetworkRetryTimes = 0;
+        this.loginNetworkRetryExhausted = false;
+        this.scheduleLoginNetworkRetry('online');
+      }
+    },
+
+    getDnsErrorReason(desc) {
+      if (desc === 'NoAvailableEndpoint') {
+        return this.$t('error.noAvailableEndpoint');
+      }
+      return desc;
+    },
+
+    finishIMInit(attemptId = this.imInitAttemptId) {
+      if (attemptId !== this.imInitAttemptId) {
+        return;
+      }
+      this.imInitLoading = false;
+    },
+
+    retryIMInit(reason = 'manual_retry') {
+      const targetAppID = `${this.appid || this.retrieveAppId() || ''}`.trim();
+      if (!targetAppID || this.sdkok || this.imInitLoading) {
+        return false;
+      }
+      console.log('retry floo IM init', reason, targetAppID);
+      this.clearInitNetworkRetry();
+      this.setupIM(targetAppID, { force: true });
+      return true;
+    },
+
+    openLoginMode(mode) {
+      if (this.sdkok) {
+        this.$store.dispatch('login/actionChangeAppStatus', mode);
+        return;
+      }
+      if (this.imInitLoading) {
+        this.$message({
+          message: this.$t('login.initializing'),
+          type: 'warning',
+          duration: 2000
+        });
+        return;
+      }
+
+      this.pendingLoginMode = mode;
+      if (this.retryIMInit(`open_${mode}`)) {
+        this.$message({
+          message: this.$t('login.initializing'),
+          type: 'warning',
+          duration: 2000
+        });
+        return;
+      }
+
+      this.pendingLoginMode = '';
+      this.$message({
+        message: this.$t('login.unavailableUntilReady'),
+        type: 'warning',
+        duration: 2000
+      });
+    },
+
+    setupIM(newAppID, { force = false, preserveInitNetworkRetry = false } = {}) {
+      if (newAppID && this.imInitLoading && newAppID === this.appid) {
+        console.log('Floo IM init is still loading for app:', newAppID);
+        return;
+      }
       // not prepare for same appid except the previous preparation is aborted;
-      if (newAppID && (newAppID !== this.appid || !this.sdkok)) {
+      if (newAppID && (force || newAppID !== this.appid || !this.sdkok)) {
+        const previousAppID = this.appid;
+        if (!preserveInitNetworkRetry) {
+          this.clearInitNetworkRetry();
+        }
+        if (newAppID !== previousAppID) {
+          this.clearAutoLoginRetry();
+          this.clearLoginNetworkRetry();
+        }
+        this.imInitAttemptId += 1;
+        this.imInitLoading = true;
         this.sdkok = false;
         this.isAppInfoReady = false;
         this.appid = newAppID;
+        if (newAppID !== previousAppID) {
+          this.pendingLoginMode = '';
+        }
         this.saveAppId(this.appid);
 
         const im = this.getIM();
-        im && im.logout && im.logout({ quitAllWeb: false });
+        if (im && im.logout && newAppID !== previousAppID) {
+          im.logout({ quitAllWeb: false });
+        }
 
         this.initFlooIM();
-        this.waitForFlooReadyAndLogin(0);
+        this.waitForFlooReadyAndLogin(0, this.imInitAttemptId);
       } else {
         console.log('Invalid AppID', newAppID);
       }
     },
 
-    waitForFlooReadyAndLogin(times) {
+    waitForFlooReadyAndLogin(times, attemptId = this.imInitAttemptId) {
+      if (attemptId !== this.imInitAttemptId) {
+        return;
+      }
+      if (!this.imInitLoading && !this.sdkok) {
+        return;
+      }
       const im = this.getIM();
       //通常来讲，初始化过程会非常快，但由于涉及网络调用，这个时间并无法保证；如果你的业务非常依赖初始化成功，请等待；
       if (im && im.isAppInfoReady && im.isAppInfoReady()) {
@@ -228,8 +591,21 @@ export default {
       }
       if (im && im.isReady && im.isReady()) {
         console.log('flooim 初始化成功 ', times);
+        this.finishIMInit(attemptId);
+        this.clearInitNetworkRetry();
         this.sdkok = true;
-        if (this.intent.link && !this.intent.hasParseLink) {
+        if (autoLoginTimes && !this.autoLoginTimer && !this.passwordLoginInFlight) {
+          const loginInfo = this.getLoginInfo();
+          if (this.startPasswordLogin(loginInfo, true)) {
+            console.log('SDK初始化完成，继续Token自动登录');
+            return;
+          }
+        }
+        const pendingLoginMode = this.pendingLoginMode;
+        this.pendingLoginMode = '';
+        if (pendingLoginMode) {
+          this.$store.dispatch('login/actionChangeAppStatus', pendingLoginMode);
+        } else if (this.intent.link && !this.intent.hasParseLink) {
           this.parseLink();
         } else {
           if (this.intent.code) {
@@ -243,10 +619,14 @@ export default {
       if (times < INIT_CHECK_TIMES_MAX) {
         let that = this;
         setTimeout(() => {
-          that.waitForFlooReadyAndLogin(times + 1);
+          that.waitForFlooReadyAndLogin(times + 1, attemptId);
         }, 1000);
       } else {
         console.error('flooim 初始化失败，请重新初始化');
+        this.finishIMInit(attemptId);
+        if (!this.scheduleInitNetworkRetry('init timeout')) {
+          this.alert(this.$t('error.initTimeout'));
+        }
       }
     },
 
@@ -256,7 +636,7 @@ export default {
         // dnsServer: "https://dns.lanyingim.com/v2/app_dns",
         appid: this.appid,
         ws: false, // uniapp版需要设置为true, web版需要设置为false
-        autoLogin: this.intent.code || this.intent.link ? false : true,
+        autoLogin: this.intent.code || this.intent.link || this.pendingLoginMode ? false : true,
         logLevel: logLevel
       };
       console.log('Init floo IM for ', this.appid);
@@ -297,24 +677,42 @@ export default {
     },
 
     addIMListeners() {
-      let that = this;
-      this.getIM().on({
-        loginSuccess: () => {
-          autoLoginTimes = 0;
-          that.clearWXMPLaunchState();
-          that.$store.dispatch('login/actionChangeLoginStatus', true);
-          if (that.intent.action === 'support') {
-            if (that.intent.linkMode === 'lanying-support') {
-              if (!that.linkChangeAccount) {
-                that.pendingSupportNavigation = !that.checkMobile();
-                that.$store.dispatch('login/actionChangeAppStatus', 'minimize');
-                parent.postMessage(
-                  JSON.stringify({
-                    type: 'lanying_toggle_chat',
-                    size: 'minimize'
-                  }),
-                  '*'
-                );
+      const im = this.getIM();
+      if (!im) {
+        return;
+      }
+      if (!this.imListeners) {
+        let that = this;
+        this.imListeners = {
+          loginSuccess: () => {
+            that.policyLoginRecoveryPending = false;
+            that.clearAutoLoginRetry();
+            that.clearLoginNetworkRetry();
+            that.clearWXMPLaunchState();
+            that.$store.dispatch('login/actionChangeLoginStatus', true);
+            if (that.intent.action === 'support') {
+              if (that.intent.linkMode === 'lanying-support') {
+                if (!that.linkChangeAccount) {
+                  that.pendingSupportNavigation = !that.checkMobile();
+                  that.$store.dispatch('login/actionChangeAppStatus', 'minimize');
+                  parent.postMessage(
+                    JSON.stringify({
+                      type: 'lanying_toggle_chat',
+                      size: 'minimize'
+                    }),
+                    '*'
+                  );
+                } else {
+                  that.pendingSupportNavigation = false;
+                  that.$store.dispatch('login/actionChangeAppStatus', 'support');
+                  parent.postMessage(
+                    JSON.stringify({
+                      type: 'lanying_toggle_chat',
+                      size: 'large'
+                    }),
+                    '*'
+                  );
+                }
               } else {
                 that.pendingSupportNavigation = false;
                 that.$store.dispatch('login/actionChangeAppStatus', 'support');
@@ -326,176 +724,244 @@ export default {
                   '*'
                 );
               }
+            } else if (that.intent.action === 'delete') {
+              that.pendingSupportNavigation = false;
+              that.asyncDeleteUser();
             } else {
               that.pendingSupportNavigation = false;
-              that.$store.dispatch('login/actionChangeAppStatus', 'support');
-              parent.postMessage(
-                JSON.stringify({
-                  type: 'lanying_toggle_chat',
-                  size: 'large'
-                }),
-                '*'
-              );
+              that.$store.dispatch('login/actionChangeAppStatus', 'chatting');
             }
-          } else if (that.intent.action === 'delete') {
-            that.pendingSupportNavigation = false;
-            that.asyncDeleteUser();
-          } else {
-            that.pendingSupportNavigation = false;
-            that.$store.dispatch('login/actionChangeAppStatus', 'chatting');
-          }
-          that.maybeRedirectToIntentPage();
-          that.maybeFeedbackLoginUser();
-          //that.maybeLaunchWXMP();
-          let info = that.getLoginInfo();
-          info.user_id = that.getIM().userManage.getUid();
-          that.saveLoginInfoList(info);
-          // this.bindDeviceToken( device_token, notifier_name );
-        },
-        loginFail: (msg) => {
-          console.log('autoLoginTimes = ' + autoLoginTimes);
-          if (autoLoginTimes) {
-            console.log('登陆失败, error: ' + msg);
-          } else if (msg.includes('Operation rejected')) {
-            that.alert(that.$t('登陆失败, 请检查用户名/密码/AppID是否正确'));
-          } else {
-            that.alert(that.$t('login.loginFailedWithError', { message: msg }));
-          }
-        },
-        flooNotice: (msg) => {
-          const { category, desc } = msg;
-          console.log('Floo Notice: ' + category + ' : ' + desc);
-          switch (category) {
-            case 'action':
-              if ('relogin' == desc) {
-                console.log('Token失效，尝试自动登录中');
-                const info = that.getLoginInfo();
-                if (info.username && autoLoginTimes < AUTO_LOGIN_TIMES_MAX) {
-                  console.log('Token失效，尝试自动登录中:', autoLoginTimes);
-                  if (autoLoginTimes) {
-                    that.$message({
-                      message: that.$t('login.retrying', { count: autoLoginTimes }),
-                      type: 'warning',
-                      duration: 1500
-                    });
-                  }
-                  setTimeout(() => {
-                    that.getIM().login({
-                      name: info.username,
-                      password: info.password
-                    });
-                  }, autoLoginTimes * AUTO_LOGIN_DELAY);
-                  autoLoginTimes++;
-                } else {
-                  autoLoginTimes = 0;
-                  if (!that.linkChangeAccount) {
-                    console.log('自动登录失败次数过多，请手工登录。');
-                    setTimeout(() => {
-                      that.alert(that.$t('自动登录失败次数过多,请重新手工登录'));
-                    }, 500);
-                  }
-                  if (that.intent.action === 'support') {
-                    that.imLogout(true);
-                    if (that.linkChangeAccount) {
+            that.maybeRedirectToIntentPage();
+            that.maybeFeedbackLoginUser();
+            //that.maybeLaunchWXMP();
+            let info = that.getLoginInfo();
+            info.user_id = that.getIM().userManage.getUid();
+            that.saveLoginInfoList(info);
+            // this.bindDeviceToken( device_token, notifier_name );
+          },
+          loginFail: (msg) => {
+            that.passwordLoginInFlight = false;
+            console.log('autoLoginTimes = ' + autoLoginTimes);
+            if (msg === 'socket_failure' && that.autoLoginTimer) {
+              console.warn('Socket login failed, waiting for the scheduled token relogin');
+              return;
+            }
+            if (that.passwordLoginContext && that.isRateLimitedLoginFailure(msg)) {
+              that.clearAutoLoginRetry();
+              if (!that.scheduleRateLimitedTokenRelogin()) {
+                that.clearLoginNetworkRetry();
+              }
+              that.$message({
+                message: that.$t('login.rateLimitedStatus', {
+                  origin: '请求过于频繁，请稍后再试'
+                }),
+                type: 'warning',
+                duration: 5000,
+                showClose: true
+              });
+              return;
+            }
+            if (that.passwordLoginContext && that.isRetryableLoginFailure(msg)) {
+              if (that.scheduleLoginNetworkRetry(msg)) {
+                return;
+              }
+              that.loginNetworkRetryExhausted = true;
+              that.$message({
+                message: that.$t('login.networkRetryFailedStatus', {
+                  origin: '网络连接失败，请检查网络后重试'
+                }),
+                type: 'error',
+                duration: 5000,
+                showClose: true
+              });
+              return;
+            }
+
+            const tokenReloginFailed = that.passwordLoginContext && that.passwordLoginContext.loginSource === 'token_relogin';
+            const sessionRecoveryFailed = msg === 'socket_failure' && ['chatting', 'support'].includes(that.getAppStatus);
+            that.clearAutoLoginRetry();
+            that.clearLoginNetworkRetry();
+            if (msg.includes('Operation rejected')) {
+              that.alert(that.$t('登陆失败, 请检查用户名/密码/AppID是否正确'));
+            } else if (msg !== 'socket_failure') {
+              that.alert(that.$t('login.loginFailedWithError', { message: msg }));
+            }
+            if (sessionRecoveryFailed) {
+              if (that.intent.action === 'support') {
+                that.imLogout(true);
+              } else {
+                that.$store.dispatch('login/actionChangeLoginStatus', false);
+                that.$store.dispatch('login/actionChangeAppStatus', 'login');
+              }
+            }
+            if (tokenReloginFailed && !(sessionRecoveryFailed && that.intent.action === 'support')) {
+              setTimeout(() => {
+                that.imLogout(that.intent.action === 'support');
+              }, 0);
+            }
+          },
+          flooNotice: (msg) => {
+            const { category, desc } = msg;
+            console.log('Floo Notice: ' + category + ' : ' + desc);
+            switch (category) {
+              case 'action':
+                if ('relogin' == desc) {
+                  console.log('Token失效，尝试自动登录中');
+                  const info = that.getLoginInfo();
+                  if (that.autoLoginTimer) {
+                    console.log('Token自动登录重试已在等待中');
+                  } else if (info.username && autoLoginTimes < AUTO_LOGIN_TIMES_MAX) {
+                    console.log('Token失效，尝试自动登录中:', autoLoginTimes);
+                    if (autoLoginTimes) {
+                      that.$message({
+                        message: that.$t('login.retrying', { count: autoLoginTimes }),
+                        type: 'warning',
+                        duration: 1500
+                      });
+                    }
+                    that.autoLoginTimer = setTimeout(() => {
+                      that.autoLoginTimer = null;
+                      that.startPasswordLogin(info, true);
+                    }, autoLoginTimes * AUTO_LOGIN_DELAY);
+                    autoLoginTimes++;
+                  } else {
+                    that.clearAutoLoginRetry();
+                    if (!that.linkChangeAccount) {
+                      console.log('自动登录失败次数过多，请手工登录。');
                       setTimeout(() => {
-                        that.imLogin();
+                        that.alert(that.$t('自动登录失败次数过多,请重新手工登录'));
                       }, 500);
                     }
-                  } else if (that.intent.action === 'delete') {
+                    if (that.intent.action === 'support') {
+                      that.imLogout(true);
+                      if (that.linkChangeAccount) {
+                        setTimeout(() => {
+                          that.imLogin();
+                        }, 500);
+                      }
+                    } else if (that.intent.action === 'delete') {
+                      // do nothing.
+                    } else {
+                      that.imLogout();
+                    }
+                  }
+                } else if ('relogin_manually' == desc) {
+                  if (that.intent.action === 'delete') {
                     // do nothing.
                   } else {
-                    that.imLogout();
+                    if (that.intent.action === 'support') {
+                      that.imLogout(true);
+                    } else {
+                      that.alert(that.$t('请重新登录'));
+                      that.imLogout();
+                    }
                   }
-                }
-              } else if ('relogin_manually' == desc) {
-                if (that.intent.action === 'delete') {
-                  // do nothing.
                 } else {
-                  if (that.intent.action === 'support') {
-                    that.imLogout(true);
+                  console.log('Floo Notice: unknown action ', desc);
+                }
+                break;
+              case 'userNotice':
+                console.log('Floo Notice: 收到用户/设备通知 : ', desc);
+                break;
+              case 'loginMessage':
+                that.$store.dispatch('login/actionAddLoginLog', desc);
+                break;
+              case 'conversation_deleted':
+                console.log('Floo Notice: 会话被删除：', desc.toString());
+                break;
+              default:
+                console.log('Floo Notice: unknown category ' + category);
+            }
+          },
+          flooError: (msg) => {
+            const { category, desc, code } = msg;
+            const initError = that.imInitLoading && !that.sdkok;
+            if (initError) {
+              that.finishIMInit();
+            }
+            switch (category) {
+              case 'USER_BANNED':
+                that.alert(that.$t('error.userWithReason', { reason: desc }));
+                break;
+              case 'DNS_FAILED':
+                if (code && (code === 99998 || code === 99997)) {
+                  that.pendingLoginMode = '';
+                  that.clearInitNetworkRetry();
+                  if (that.intent && that.intent.action === 'support') {
+                    that.alert(that.$t('DNS错误: 无效AppID，重置为默认AppID'));
+                    setTimeout(() => {
+                      that.$store.dispatch('actionChangeAppID', 'welovemaxim');
+                    }, 500);
+                    let currentUrl = new URL(window.location.href);
+                    currentUrl.searchParams.delete('code');
+                    currentUrl.searchParams.set('link', '3qur4g');
+                    window.history.replaceState({}, document.title, currentUrl.toString());
                   } else {
-                    that.alert(that.$t('请重新登录'));
-                    that.imLogout();
+                    if (that.intent.link && !that.intent.hasParseLink) {
+                      that.maybeChangeLinkAppId();
+                    } else {
+                      that.alert(that.$t('DNS错误: 无效AppID'));
+                    }
                   }
-                }
-              } else {
-                console.log('Floo Notice: unknown action ', desc);
-              }
-              break;
-            case 'userNotice':
-              console.log('Floo Notice: 收到用户/设备通知 : ', desc);
-              break;
-            case 'loginMessage':
-              that.$store.dispatch('login/actionAddLoginLog', desc);
-              break;
-            case 'conversation_deleted':
-              console.log('Floo Notice: 会话被删除：', desc.toString());
-              break;
-            default:
-              console.log('Floo Notice: unknown category ' + category);
-          }
-        },
-        flooError: (msg) => {
-          const { category, desc, code } = msg;
-          switch (category) {
-            case 'USER_BANNED':
-              that.alert(that.$t('error.userWithReason', { reason: desc }));
-              break;
-            case 'DNS_FAILED':
-              if (code && (code === 99998 || code === 99997)) {
-                if (that.intent && that.intent.action === 'support') {
-                  that.alert(that.$t('DNS错误: 无效AppID，重置为默认AppID'));
-                  setTimeout(() => {
-                    that.$store.dispatch('actionChangeAppID', 'welovemaxim');
-                  }, 500);
-                  let currentUrl = new URL(window.location.href);
-                  currentUrl.searchParams.delete('code');
-                  currentUrl.searchParams.set('link', '3qur4g');
-                  window.history.replaceState({}, document.title, currentUrl.toString());
                 } else {
+                  if (initError && that.isRetryableInitFailure(desc)) {
+                    if (that.scheduleInitNetworkRetry(desc)) {
+                      break;
+                    }
+                  } else {
+                    that.pendingLoginMode = '';
+                  }
                   if (that.intent.link && !that.intent.hasParseLink) {
                     that.maybeChangeLinkAppId();
                   } else {
-                    that.alert(that.$t('DNS错误: 无效AppID'));
+                    that.alert(that.$t('error.dnsWithReason', { reason: that.getDnsErrorReason(desc) }));
                   }
                 }
-              } else {
-                if (that.intent.link && !that.intent.hasParseLink) {
-                  that.maybeChangeLinkAppId();
-                } else {
-                  that.alert(that.$t('error.dnsWithReason', { reason: desc }));
+                break;
+              case 'APP_BANNED':
+                that.pendingLoginMode = '';
+                that.clearInitNetworkRetry();
+                that.alert(that.$t('APP已被封禁！'));
+                if (this.intent.link && !this.intent.hasParseLink) {
+                  this.maybeChangeLinkAppId();
                 }
-              }
-              break;
-            case 'APP_BANNED':
-              that.alert(that.$t('APP已被封禁！'));
-              if (this.intent.link && !this.intent.hasParseLink) {
-                this.maybeChangeLinkAppId();
-              }
-              break;
-            case 'APP_FROZEN':
-              that.alert(that.$t('APP已被冻结！'));
-              if (this.intent.link && !this.intent.hasParseLink) {
-                this.maybeChangeLinkAppId();
-              }
-              break;
-            case 'APP_REVOKED':
-              that.alert(that.$t('AppID已失效！'));
-              if (this.intent.link && !this.intent.hasParseLink) {
-                this.maybeChangeLinkAppId();
-              }
-              break;
-            case 'LICENSE':
-              that.alert(that.$t('error.serviceRenewal', { reason: desc }));
-              break;
-            case 'FAIL':
-              that.flooFailError(desc);
-              break;
-            default:
-              console.log('Floo Error：' + category + ' : ' + desc);
+                break;
+              case 'APP_FROZEN':
+                if (!initError) {
+                  that.handleSocketLoginPolicyFailure();
+                }
+                that.pendingLoginMode = '';
+                that.clearInitNetworkRetry();
+                that.alert(that.$t('APP已被冻结！'));
+                if (this.intent.link && !this.intent.hasParseLink) {
+                  this.maybeChangeLinkAppId();
+                }
+                break;
+              case 'APP_REVOKED':
+                that.pendingLoginMode = '';
+                that.clearInitNetworkRetry();
+                that.alert(that.$t('AppID已失效！'));
+                if (this.intent.link && !this.intent.hasParseLink) {
+                  this.maybeChangeLinkAppId();
+                }
+                break;
+              case 'LICENSE':
+                that.handleSocketLoginPolicyFailure();
+                that.alert(that.$t('error.serviceRenewal', { reason: desc }));
+                break;
+              case 'FAIL':
+                that.flooFailError(desc);
+                break;
+              default:
+                console.log('Floo Error：' + category + ' : ' + desc);
+            }
           }
-        }
-      });
+        };
+      }
+      if (im.off) {
+        im.off(this.imListeners);
+      }
+      im.on(this.imListeners);
     },
 
     //如果你在原生App中集成Web版，尤其是Uniapp这样的场景，你才可能需要绑定 DeviceToken 以利用厂商推送通道。
@@ -622,17 +1088,17 @@ export default {
     },
 
     imLogin() {
+      if (!this.sdkok) {
+        this.retryIMInit('im_login');
+        return;
+      }
       const im = this.getIM();
       if (!this.isIMLogin()) {
         const loginInfo = this.getLoginInfo();
 
         console.log('GOT USER: ', JSON.stringify(loginInfo));
         if (loginInfo && loginInfo.username && loginInfo.app_id == this.appid) {
-          im.login({
-            //TODO: change name to username
-            name: loginInfo.username,
-            password: loginInfo.password
-          });
+          this.startPasswordLogin(loginInfo);
         } else if (loginInfo && loginInfo.user_id && loginInfo.app_id == this.appid) {
           im.idLogin({
             user_id: loginInfo.user_id,
@@ -674,6 +1140,10 @@ export default {
     },
 
     imLogout(linkLogin = false, quitAllWeb = false) {
+      this.policyLoginRecoveryPending = false;
+      this.clearInitNetworkRetry();
+      this.clearLoginNetworkRetry();
+      this.clearAutoLoginRetry();
       this.clearWXMPLaunchState();
       if (this.intent.action === 'delete') {
         this.$store.dispatch('login/actionChangeAppStatus', 'achieve');

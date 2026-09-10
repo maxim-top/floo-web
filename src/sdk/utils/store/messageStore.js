@@ -3,11 +3,269 @@ import { metaToCustomer, numToString, toLong, toNumber } from '../tools';
 import recentStore from './recentStore';
 import { getItem, removeAllItems, saveItem, removeItem } from './storeBase';
 import { STATIC_MESSAGE_STATUS, STATIC_MESSAGE_OPTYPE, STATIC_MESSAGE_TYPE } from '../../utils/static';
-import { fire } from '../cusEvent';
+import { fire, bind } from '../cusEvent';
 import infoStore from './infoStore';
 import { makeRosterRTCMessage } from '../../core/base/messageMaker';
+import { markHistoryMessagesRead, mergeLatestMessages } from './messageStoreUtils';
 
 const max_message_count = 100;
+const MESSAGE_PARTITION_NUMBER = 31;
+const NETWORK_DISCONNECTED_ERROR_REASON = 'Network disconnected';
+const MESSAGE_SEND_TIMEOUT_ERROR_REASON = 'Message send timeout';
+const MESSAGE_SEND_TIMEOUT = 30000;
+const sendingMessageTimers = {
+  roster: new Map(),
+  group: new Map()
+};
+const reportedSendingFailureMids = new Set();
+const MAX_REPORTED_SENDING_FAILURES = 200;
+const deletedHistoryMessageIds = {
+  roster: new Map(),
+  group: new Map()
+};
+let deletedHistoryMessageIdsOwner = '';
+
+const rememberReportedSendingFailure = (key) => {
+  reportedSendingFailureMids.add(key);
+  if (reportedSendingFailureMids.size > MAX_REPORTED_SENDING_FAILURES) {
+    reportedSendingFailureMids.delete(reportedSendingFailureMids.values().next().value);
+  }
+};
+
+const clearSendingMessageTimer = (clientMid) => {
+  const key = `${toNumber(clientMid)}`;
+  Object.keys(sendingMessageTimers).forEach((type) => {
+    const timer = sendingMessageTimers[type].get(key);
+    if (timer) clearTimeout(timer);
+    sendingMessageTimers[type].delete(key);
+  });
+};
+
+const reportUnconfirmedSendingMessage = (meta, errorReason = MESSAGE_SEND_TIMEOUT_ERROR_REASON) => {
+  const clientMid = meta && meta.id;
+  if (!clientMid) return;
+  const key = `${toNumber(clientMid)}`;
+  if (reportedSendingFailureMids.has(key)) return;
+  rememberReportedSendingFailure(key);
+  clearSendingMessageTimer(clientMid);
+  log.warn('Message send was not confirmed:', key, errorReason);
+  fire('onSendingMessageStatusChanged', {
+    status: 'failed',
+    mid: toNumber(clientMid),
+    message: metaToCustomer(meta),
+    errorReason
+  });
+};
+
+const armSendingMessageTimer = (type, meta) => {
+  const clientMid = meta && meta.id;
+  if (!clientMid) return;
+  const key = `${toNumber(clientMid)}`;
+  clearSendingMessageTimer(clientMid);
+  reportedSendingFailureMids.delete(key);
+  const timer = setTimeout(() => {
+    sendingMessageTimers[type].delete(key);
+    reportUnconfirmedSendingMessage(meta);
+  }, MESSAGE_SEND_TIMEOUT);
+  sendingMessageTimers[type].set(key, timer);
+};
+
+const reportPendingMessagesOnDisconnect = () => {
+  ['roster', 'group'].forEach((type) => {
+    const storageKey = type === 'roster' ? 'key_roster_sending_message' : 'key_group_sending_message';
+    const messages = getItem(storageKey) || [];
+    messages.forEach((meta) => reportUnconfirmedSendingMessage(meta, NETWORK_DISCONNECTED_ERROR_REASON));
+  });
+};
+
+const resetSendingMessageTracking = () => {
+  Object.keys(sendingMessageTimers).forEach((type) => {
+    sendingMessageTimers[type].forEach((timer) => clearTimeout(timer));
+    sendingMessageTimers[type].clear();
+  });
+  reportedSendingFailureMids.clear();
+};
+
+bind('socketDisconnected', reportPendingMessagesOnDisconnect);
+bind('logout', resetSendingMessageTracking);
+
+const removeSendingMessage = (type, clientMid) => {
+  const storageKey = type === 'roster' ? 'key_roster_sending_message' : 'key_group_sending_message';
+  const messages = getItem(storageKey) || [];
+  const index = messages.findIndex((item) => toNumber(item.id) === toNumber(clientMid));
+  if (index < 0) return;
+  messages.splice(index, 1);
+  saveItem(storageKey, messages);
+};
+
+bind('onSendingMessageStatusChanged', ({ status, mid, errorCode } = {}) => {
+  if (status !== 'sent' && status !== 'failed') return;
+  clearSendingMessageTimer(mid);
+  const key = `${toNumber(mid)}`;
+  if (status === 'sent') {
+    reportedSendingFailureMids.delete(key);
+    return;
+  }
+
+  const isUnconfirmedFailure = reportedSendingFailureMids.has(key);
+  const isDefinitiveFailure = errorCode !== undefined && errorCode !== null;
+  if (isDefinitiveFailure || !isUnconfirmedFailure) {
+    removeSendingMessage('roster', mid);
+    removeSendingMessage('group', mid);
+  }
+  rememberReportedSendingFailure(key);
+});
+
+const failSendingMessage = (type, meta, errorReason = NETWORK_DISCONNECTED_ERROR_REASON) => {
+  const clientMid = meta && meta.id;
+  if (!clientMid) return;
+  removeSendingMessage(type, clientMid);
+  clearSendingMessageTimer(clientMid);
+  const message = metaToCustomer(meta);
+  fire('onSendingMessageStatusChanged', {
+    status: 'failed',
+    mid: toNumber(clientMid),
+    message,
+    errorReason
+  });
+  reportedSendingFailureMids.delete(`${toNumber(clientMid)}`);
+};
+
+const resetDeletedHistoryMessageIds = () => {
+  deletedHistoryMessageIdsOwner = `${infoStore.getUid() || ''}`;
+  deletedHistoryMessageIds.roster.clear();
+  deletedHistoryMessageIds.group.clear();
+};
+
+const ensureDeletedHistoryMessageIdsOwner = () => {
+  const owner = `${infoStore.getUid() || ''}`;
+  if (owner !== deletedHistoryMessageIdsOwner) resetDeletedHistoryMessageIds();
+};
+
+const rememberDeletedMessage = (type, conversationId, messageId) => {
+  ensureDeletedHistoryMessageIdsOwner();
+  const key = `${conversationId}`;
+  if (!deletedHistoryMessageIds[type].has(key)) deletedHistoryMessageIds[type].set(key, new Set());
+  deletedHistoryMessageIds[type].get(key).add(`${messageId}`);
+};
+
+const isDeletedMessage = (type, conversationId, messageId) => {
+  ensureDeletedHistoryMessageIdsOwner();
+  const ids = deletedHistoryMessageIds[type].get(`${conversationId}`);
+  return !!(ids && ids.has(`${messageId}`));
+};
+
+const createMessagePartitionCache = () => ({
+  roster: new Map(),
+  group: new Map()
+});
+
+let messagePartitionCacheOwner = '';
+let messagePartitionCache = createMessagePartitionCache();
+
+const resetMessagePartitionCache = () => {
+  messagePartitionCacheOwner = `${infoStore.getUid() || ''}`;
+  messagePartitionCache = createMessagePartitionCache();
+};
+
+const ensureMessagePartitionCacheOwner = () => {
+  const owner = `${infoStore.getUid() || ''}`;
+  if (owner !== messagePartitionCacheOwner) resetMessagePartitionCache();
+};
+
+const messagePartitionId = (conversationId) => {
+  const id = Number(conversationId) || 0;
+  return ((id % MESSAGE_PARTITION_NUMBER) + MESSAGE_PARTITION_NUMBER) % MESSAGE_PARTITION_NUMBER;
+};
+
+const getConversationMessageMap = (type, conversationId) => {
+  ensureMessagePartitionCacheOwner();
+  const partition = messagePartitionId(conversationId);
+  const cache = messagePartitionCache[type];
+  if (!cache.has(partition)) {
+    const key = type === 'roster' ? 'key_roster_message_store' : 'key_group_message_store';
+    cache.set(partition, getItem(key, true, conversationId) || {});
+  }
+  return cache.get(partition);
+};
+
+const saveConversationMessageMap = (type, conversationId, messageMap) => {
+  ensureMessagePartitionCacheOwner();
+  const key = type === 'roster' ? 'key_roster_message_store' : 'key_group_message_store';
+  messagePartitionCache[type].set(messagePartitionId(conversationId), messageMap);
+  saveItem(key, messageMap, true, conversationId);
+};
+
+const cloneStoredValue = (value) => {
+  if (Array.isArray(value)) return value.map(cloneStoredValue);
+  if (!value || typeof value !== 'object') return value;
+  if (typeof value.low !== 'undefined' && typeof value.high !== 'undefined') return toLong(value);
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return value;
+  return Object.keys(value).reduce((result, key) => {
+    result[key] = cloneStoredValue(value[key]);
+    return result;
+  }, {});
+};
+
+bind('logout', resetMessagePartitionCache);
+bind('logout', resetDeletedHistoryMessageIds);
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', ({ key } = {}) => {
+    if (typeof key !== 'string') return;
+    if (key.indexOf('_key_roster_message_store_') >= 0) messagePartitionCache.roster.clear();
+    if (key.indexOf('_key_group_message_store_') >= 0) messagePartitionCache.group.clear();
+  });
+}
+
+const createUnreadCountCache = () => ({
+  roster: Object.create(null),
+  group: Object.create(null)
+});
+
+let unreadCountCacheOwner = '';
+let unreadCountCache = createUnreadCountCache();
+
+const resetUnreadCountCache = () => {
+  unreadCountCacheOwner = `${infoStore.getUid() || ''}`;
+  unreadCountCache = createUnreadCountCache();
+};
+
+const ensureUnreadCountCacheOwner = () => {
+  const owner = `${infoStore.getUid() || ''}`;
+  if (owner !== unreadCountCacheOwner) {
+    unreadCountCacheOwner = owner;
+    unreadCountCache = createUnreadCountCache();
+  }
+};
+
+const getCachedUnreadCount = (type, conversationId) => {
+  ensureUnreadCountCacheOwner();
+  const key = `${conversationId}`;
+  const cache = unreadCountCache[type];
+  return Object.prototype.hasOwnProperty.call(cache, key) ? cache[key] : undefined;
+};
+
+const setCachedUnreadCount = (type, conversationId, unreadCount) => {
+  ensureUnreadCountCacheOwner();
+  unreadCountCache[type][`${conversationId}`] = unreadCount;
+};
+
+const invalidateUnreadCount = (type, conversationId) => {
+  if (conversationId === undefined || conversationId === null) return;
+  ensureUnreadCountCacheOwner();
+  delete unreadCountCache[type][`${conversationId}`];
+};
+
+bind('imLocalStorageConversationMessagesPruned', ({ type, conversationIds } = {}) => {
+  if (!unreadCountCache[type] || !Array.isArray(conversationIds)) return;
+  ensureMessagePartitionCacheOwner();
+  conversationIds.forEach((conversationId) => {
+    invalidateUnreadCount(type, conversationId);
+    messagePartitionCache[type].delete(messagePartitionId(conversationId));
+  });
+});
 
 const isAutoSent = (meta) => {
   // READ_ACK and READ_ALL are auto sent by sdk.
@@ -47,6 +305,22 @@ const insertMeta = (allMessages, meta) => {
     }
   }
   return allMessages;
+};
+
+const saveConversationMessages = (type, conversationId, messages = [], { isHistory = false } = {}) => {
+  if (!messages.length) return;
+  const allMessageMap = getConversationMessageMap(type, conversationId);
+  const storedMessages = allMessageMap[conversationId] || [];
+  const storableMessages = messages.filter(
+    (meta) => meta && meta.type !== 'command' && meta.type !== 'forward' && (!isHistory || !isDeletedMessage(type, conversationId, meta.id))
+  );
+  if (!storableMessages.length) return;
+
+  const mergedMessages = mergeLatestMessages(storedMessages, storableMessages, max_message_count, isHistory);
+  if (mergedMessages === storedMessages) return;
+  allMessageMap[conversationId] = mergedMessages;
+  saveConversationMessageMap(type, conversationId, allMessageMap);
+  invalidateUnreadCount(type, conversationId);
 };
 
 const calculateCallTime = (time) => {
@@ -143,6 +417,7 @@ const messageStore = {
       allMsg.splice(0, len - max_message_count);
     }
     saveItem('key_roster_sending_message', allMsg);
+    armSendingMessageTimer('roster', meta);
 
     const { to, id } = meta;
     fire('onSendingMessageStatusChanged', {
@@ -151,6 +426,10 @@ const messageStore = {
       mid: id,
       message: metaToCustomer(meta)
     });
+  },
+
+  failSendingRosterMessage: (meta, errorReason) => {
+    failSendingMessage('roster', meta, errorReason);
   },
 
   dealSendedRosterRTCMessage: (message) => {
@@ -195,16 +474,19 @@ const messageStore = {
 
     if (!server_mid) {
       // Assume reason is "client msg id duplicated"
-      log.log('failed to send message due to: ', syncMb.status.reason);
-
-      //需要删除临存储的消息
+      const reason = (syncMb.status && syncMb.status.reason) || 'Message send failed';
+      log.log('failed to send message due to: ', reason);
       const index = allMsg.findIndex((item) => toNumber(item.id) === toNumber(client_mid));
       if (index > -1) {
-        const allMsg = getItem('key_roster_sending_message') || [];
-        allMsg.splice(index, 1);
+        messageStore.failSendingRosterMessage(allMsg[index], reason);
+      } else {
+        clearSendingMessageTimer(client_mid);
+        reportedSendingFailureMids.delete(`${toNumber(client_mid)}`);
       }
       return;
     }
+    clearSendingMessageTimer(client_mid);
+    reportedSendingFailureMids.delete(`${toNumber(client_mid)}`);
     const index = allMsg.findIndex((item) => toNumber(item.id) === toNumber(client_mid));
     if (index > -1) {
       const meta = allMsg[index];
@@ -253,17 +535,11 @@ const messageStore = {
     const uid = toNumber(infoStore.getUid());
     const toUid = toNumber(to);
     let saveUid = fromUid === uid ? toUid : fromUid;
-    const allRosterMessageMap = getItem('key_roster_message_store', true, saveUid) || {};
-    const allMessages = allRosterMessageMap[saveUid] || [];
-    insertMeta(allMessages, meta);
-
-    if (allMessages.length > max_message_count) {
-      allRosterMessageMap[saveUid] = allMessages.slice(allMessages.length - max_message_count);
-    } else {
-      allRosterMessageMap[saveUid] = allMessages;
-    }
-    saveItem('key_roster_message_store', allRosterMessageMap, true, saveUid);
+    saveConversationMessages('roster', saveUid, [meta]);
   },
+
+  saveRosterMessages: (rosterId, messages) =>
+    saveConversationMessages('roster', rosterId, markHistoryMessagesRead(messages, STATIC_MESSAGE_STATUS.READ, infoStore.getUid()), { isHistory: true }),
 
   saveInCallStatus: (status) => {
     saveItem('key_rtc_in_call', status);
@@ -274,17 +550,18 @@ const messageStore = {
   },
 
   getRosterMessage: (roster_id) => {
-    const allRosterMessageMap = getItem('key_roster_message_store', true, roster_id) || {};
-    return allRosterMessageMap[roster_id] || [];
+    const allRosterMessageMap = getConversationMessageMap('roster', roster_id);
+    return cloneStoredValue(allRosterMessageMap[roster_id] || []);
   },
   saveFormatedRosterMessage: (roster_id, messageArr = []) => {
-    const allRosterMessageMap = getItem('key_roster_message_store', true, roster_id) || {};
+    const allRosterMessageMap = getConversationMessageMap('roster', roster_id);
     allRosterMessageMap[roster_id] = messageArr;
-    saveItem('key_roster_message_store', allRosterMessageMap, true, roster_id);
+    saveConversationMessageMap('roster', roster_id, allRosterMessageMap);
+    invalidateUnreadCount('roster', roster_id);
   },
 
   getRosterUnreadMessageIdsByRosterid: (roster_id) => {
-    const allRosterMessageMap = getItem('key_roster_message_store', true, roster_id) || {};
+    const allRosterMessageMap = getConversationMessageMap('roster', roster_id);
     const ridMessages = allRosterMessageMap[roster_id] || [];
     const ret = [];
     ridMessages.forEach((msg) => {
@@ -295,17 +572,19 @@ const messageStore = {
   },
 
   deleteRosterMessageByRosterId: (roster_id) => {
-    const allRosterMessageMap = getItem('key_roster_message_store', true, roster_id) || {};
+    const allRosterMessageMap = getConversationMessageMap('roster', roster_id);
     const messages = allRosterMessageMap[roster_id];
     if (messages) {
       delete allRosterMessageMap[roster_id];
     }
-    saveItem('key_roster_message_store', allRosterMessageMap, true, roster_id);
+    saveConversationMessageMap('roster', roster_id, allRosterMessageMap);
+    invalidateUnreadCount('roster', roster_id);
   },
   deleteSingleRosterMessage: (roster_id, message_id) => {
     // roster_id，是自己个。。删除消息，form to 都是自己
-    const allRosterMessageMap = getItem('key_roster_message_store', true, roster_id) || {};
+    const allRosterMessageMap = getConversationMessageMap('roster', roster_id);
     const messageId = numToString(message_id);
+    rememberDeletedMessage('roster', roster_id, messageId);
     const rosterMessages = allRosterMessageMap[roster_id] || [];
     const index = rosterMessages.findIndex((x) => {
       const id = numToString(x.id);
@@ -314,7 +593,8 @@ const messageStore = {
     if (index > -1) {
       rosterMessages.splice(index, 1);
       allRosterMessageMap[roster_id] = rosterMessages;
-      saveItem('key_roster_message_store', allRosterMessageMap, true, roster_id);
+      saveConversationMessageMap('roster', roster_id, allRosterMessageMap);
+      invalidateUnreadCount('roster', roster_id);
     }
   },
 
@@ -328,6 +608,7 @@ const messageStore = {
       allMsg.splice(0, len - max_message_count);
     }
     saveItem('key_group_sending_message', allMsg);
+    armSendingMessageTimer('group', meta);
 
     const { to, id } = meta;
     fire('onSendingMessageStatusChanged', {
@@ -338,11 +619,28 @@ const messageStore = {
     });
   },
 
+  failSendingGroupMessage: (meta, errorReason) => {
+    failSendingMessage('group', meta, errorReason);
+  },
+
   dealSendedGroupMessage: (syncMb) => {
     const { client_mid, server_mid } = syncMb;
     const allMsg = getItem('key_group_sending_message') || [];
     const index = allMsg.findIndex((item) => toNumber(item.id) === toNumber(client_mid));
 
+    if (!server_mid) {
+      const reason = (syncMb.status && syncMb.status.reason) || 'Message send failed';
+      log.log('failed to send group message due to: ', reason);
+      if (index > -1) {
+        messageStore.failSendingGroupMessage(allMsg[index], reason);
+      } else {
+        clearSendingMessageTimer(client_mid);
+        reportedSendingFailureMids.delete(`${toNumber(client_mid)}`);
+      }
+      return;
+    }
+    clearSendingMessageTimer(client_mid);
+    reportedSendingFailureMids.delete(`${toNumber(client_mid)}`);
     if (index > -1) {
       const meta = allMsg[index];
       meta.id = server_mid;
@@ -374,30 +672,24 @@ const messageStore = {
       return;
     }
     const groupId = toNumber(to); //群文本消息，只有to没有gid， 群通知只有gid 没有 to
-    const allGroupMessageMap = getItem('key_group_message_store', true, groupId) || {};
-    const allMessages = allGroupMessageMap[groupId] || [];
-    insertMeta(allMessages, meta);
-
-    if (allMessages.length > max_message_count) {
-      allGroupMessageMap[groupId] = allMessages.slice(allMessages.length - max_message_count);
-    } else {
-      allGroupMessageMap[groupId] = allMessages;
-    }
-
-    saveItem('key_group_message_store', allGroupMessageMap, true, groupId);
+    saveConversationMessages('group', groupId, [meta]);
   },
+
+  saveGroupMessages: (groupId, messages) =>
+    saveConversationMessages('group', groupId, markHistoryMessagesRead(messages, STATIC_MESSAGE_STATUS.READ, infoStore.getUid()), { isHistory: true }),
 
   getGroupMessage: (gid) => {
-    const allGroupMessageMap = getItem('key_group_message_store', true, gid) || {};
-    return allGroupMessageMap[gid] || [];
+    const allGroupMessageMap = getConversationMessageMap('group', gid);
+    return cloneStoredValue(allGroupMessageMap[gid] || []);
   },
   saveFormatedGroupMessage: (group_id, messageArr = []) => {
-    const allGroupMessageMap = getItem('key_group_message_store', true, group_id) || {};
+    const allGroupMessageMap = getConversationMessageMap('group', group_id);
     allGroupMessageMap[group_id] = messageArr;
-    saveItem('key_group_message_store', allGroupMessageMap, true, group_id);
+    saveConversationMessageMap('group', group_id, allGroupMessageMap);
+    invalidateUnreadCount('group', group_id);
   },
   getGroupUnreadMessageIdsByGid: (gid) => {
-    const allGroupMessageMap = getItem('key_group_message_store', true, gid) || {};
+    const allGroupMessageMap = getConversationMessageMap('group', gid);
     const gidMessages = allGroupMessageMap[gid] || [];
     const ret = [];
     gidMessages.forEach((msg) => {
@@ -408,15 +700,17 @@ const messageStore = {
   },
 
   deleteGroupMessageByGid: (gid) => {
-    const allGroupMessageMap = getItem('key_group_message_store', true, gid) || {};
+    const allGroupMessageMap = getConversationMessageMap('group', gid);
     if (allGroupMessageMap[gid]) {
       delete allGroupMessageMap[gid];
     }
-    saveItem('key_group_message_store', allGroupMessageMap, true, gid);
+    saveConversationMessageMap('group', gid, allGroupMessageMap);
+    invalidateUnreadCount('group', gid);
   },
   deleteSingleGroupMessage: (gid, messageId) => {
-    const allGroupMessageMap = getItem('key_group_message_store', true, gid) || {};
+    const allGroupMessageMap = getConversationMessageMap('group', gid);
     messageId = numToString(messageId);
+    rememberDeletedMessage('group', gid, messageId);
     const groupMessages = allGroupMessageMap[gid] || [];
     const index = groupMessages.findIndex((x) => {
       const id = numToString(x.id);
@@ -426,7 +720,8 @@ const messageStore = {
     if (index > -1) {
       groupMessages.splice(index, 1);
       allGroupMessageMap[gid] = groupMessages;
-      saveItem('key_group_message_store', allGroupMessageMap, true, gid);
+      saveConversationMessageMap('group', gid, allGroupMessageMap);
+      invalidateUnreadCount('group', gid);
     }
   },
 
@@ -434,6 +729,8 @@ const messageStore = {
    * unread ...
    */
   getUnreadByRosterId: (rid) => {
+    const cachedUnreadCount = getCachedUnreadCount('roster', rid);
+    if (cachedUnreadCount !== undefined) return cachedUnreadCount;
     const messages = messageStore.getRosterMessage(rid) || [];
     let ret = 0;
     const uid = infoStore.getUid();
@@ -460,10 +757,13 @@ const messageStore = {
         }
       }
     });
+    setCachedUnreadCount('roster', rid, ret);
     return ret;
   },
 
   getUnreadByGroupId: (gid) => {
+    const cachedUnreadCount = getCachedUnreadCount('group', gid);
+    if (cachedUnreadCount !== undefined) return cachedUnreadCount;
     const messages = messageStore.getGroupMessage(gid) || [];
     let ret = 0;
     const uid = infoStore.getUid();
@@ -474,12 +774,13 @@ const messageStore = {
         ret++;
       }
     });
+    setCachedUnreadCount('group', gid, ret);
     return ret;
   },
 
   getRosterMessageById: (roster_id, mid) => {
     const messageId = numToString(mid);
-    const allRosterMessageMap = getItem('key_roster_message_store', true, roster_id) || {};
+    const allRosterMessageMap = getConversationMessageMap('roster', roster_id);
     for (var x1 in allRosterMessageMap) {
       const sx = allRosterMessageMap[x1];
       if (sx && sx.length) {
@@ -490,7 +791,7 @@ const messageStore = {
   },
   getGroupMessageById: (group_id, mid) => {
     const messageId = numToString(mid);
-    const allGroupMessageMap = getItem('key_group_message_store', true, group_id) || {};
+    const allGroupMessageMap = getConversationMessageMap('group', group_id);
     for (var x in allGroupMessageMap) {
       const sx = allGroupMessageMap[x];
       if (sx && sx.length) {
@@ -514,6 +815,8 @@ const messageStore = {
     removeItem('key_group_sending_message');
     removeItem('key_roster_sending_message');
     removeItem('key_rtc_in_call');
+    resetMessagePartitionCache();
+    resetUnreadCountCache();
   }
 };
 

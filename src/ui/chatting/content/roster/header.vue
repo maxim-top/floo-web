@@ -69,6 +69,13 @@
               </svg>
               <span>{{ $t('删除会话') }}</span>
             </div>
+            <ConversationNotificationMenu
+              v-if="!isSystemNotice"
+              :value="rosterNotificationMode"
+              :options="notificationModeOptions"
+              :disabled="muteNotificationUpdating || !muteNotificationReady"
+              @change="updateMuteNotification"
+            />
           </div>
         </div>
       </div>
@@ -78,6 +85,7 @@
 
 <script>
 import { mapGetters } from 'vuex';
+import ConversationNotificationMenu from '../components/conversationNotificationMenu.vue';
 
 export default {
   name: 'RosterChat',
@@ -87,7 +95,8 @@ export default {
       showMobileMenu: false,
       supportContacts: [],
       creatingNewSession: false,
-      compactSupportActions: false
+      compactSupportActions: false,
+      muteNotificationUpdating: false
     };
   },
   mounted() {
@@ -96,6 +105,7 @@ export default {
     window.addEventListener('orientationchange', this.updateCompactSupportActions);
     this.updateCompactSupportActions();
     this.refreshSupportContacts();
+    this.$store.getters.im.on('onRosterInfoUpdate', this.handleRosterInfoUpdate);
     this.$store.getters.im.on('onInputStatusMessage', (message) => {
       const { from, ext } = message;
       if (from == this.getSid) {
@@ -118,23 +128,25 @@ export default {
     document.removeEventListener('click', this.closeMobileMenu);
     window.removeEventListener('resize', this.updateCompactSupportActions);
     window.removeEventListener('orientationchange', this.updateCompactSupportActions);
+    const im = this.$store.getters.im;
+    if (im) {
+      im.off('onRosterInfoUpdate', this.handleRosterInfoUpdate);
+    }
   },
-  components: {},
+  components: {
+    ConversationNotificationMenu
+  },
   computed: {
     ...mapGetters('content', ['getRosterInfo', 'getSid']),
     ...mapGetters('forward', ['getShowMultiForwardStatus']),
     isSystemNotice() {
-      return this.getSid === 0;
+      return Number(this.getSid) === 0;
     },
     rosterName() {
       if (this.isSystemNotice) {
         return this.$t('系统通知');
       }
-      let name = this.getRosterInfo.alias || this.getRosterInfo.nick_name || this.getRosterInfo.username;
-      if (!name) {
-        this.$store.dispatch('content/actionUpdateRoster');
-      }
-      return name;
+      return this.getRosterInfo.alias || this.getRosterInfo.nick_name || this.getRosterInfo.username;
     },
     isSupportContact() {
       if (this.isSystemNotice) {
@@ -161,11 +173,86 @@ export default {
     showMenuNewSession() {
       return !this.isSystemNotice && (!this.isSupportContact || this.compactSupportActions);
     },
+    muteNotificationReady() {
+      return !!this.getRosterInfo.user_id && `${this.getRosterInfo.user_id}` === `${this.getSid}`;
+    },
+    rosterNotificationMode() {
+      return this.getRosterInfo.mute_notification === true ? 1 : 0;
+    },
+    notificationModeOptions() {
+      return [
+        {
+          value: 0,
+          label: this.$t('conversationNotifications.modeAll', { origin: '接收并提醒消息' })
+        },
+        {
+          value: 1,
+          label: this.$t('conversationNotifications.modeSilent', { origin: '接收但不提醒消息' })
+        }
+      ];
+    },
     currentUserId() {
       return this.$store.getters.im.userManage.getUid();
     }
   },
   methods: {
+    handleRosterInfoUpdate(ids) {
+      if (Array.isArray(ids) && ids.some((id) => `${id}` === `${this.getSid}`)) {
+        this.$store.dispatch('content/actionUpdateRoster', { sid: this.getSid, force: false }).catch(() => {});
+      }
+    },
+    updateMuteNotification(value) {
+      if (this.muteNotificationUpdating || this.isSystemNotice || !this.muteNotificationReady) {
+        return;
+      }
+      const mode = Number(value);
+      if (![0, 1].includes(mode)) {
+        return;
+      }
+      if (mode === this.rosterNotificationMode) {
+        this.closeMobileMenu();
+        return;
+      }
+      const enabled = mode === 1;
+      const userId = this.getSid;
+      const previousInfo = this.getRosterInfo;
+      this.muteNotificationUpdating = true;
+      this.$store.commit('content/setRosterInfoBySid', {
+        sid: userId,
+        value: Object.assign({}, previousInfo, { mute_notification: enabled })
+      });
+      this.closeMobileMenu();
+      this.$store.getters.im.rosterManage
+        .asyncUpdateRosterExt({
+          user_id: userId,
+          mute_notification: enabled
+        })
+        .then((updated) => {
+          if (updated === false) {
+            return Promise.reject(new Error('Roster notification setting was not updated'));
+          }
+          this.$message.success(this.$t('conversationNotifications.updateSuccess', { origin: '通知设置已更新' }));
+          return this.$store
+            .dispatch('content/actionUpdateRoster', { sid: userId, force: true })
+            .catch((err) => {
+              console.error('Failed to refresh roster notification setting:', err);
+            })
+            .finally(() => {
+              this.$store.dispatch('contact/actionGetConversationList');
+            });
+        })
+        .catch((err) => {
+          console.error('Failed to update roster notification setting:', err);
+          this.$store.commit('content/setRosterInfoBySid', {
+            sid: userId,
+            value: previousInfo
+          });
+          this.$message.error(this.$t('conversationNotifications.updateFailed', { origin: '通知设置更新失败' }));
+        })
+        .finally(() => {
+          this.muteNotificationUpdating = false;
+        });
+    },
     updateCompactSupportActions() {
       if (typeof window === 'undefined' || !window.matchMedia) {
         this.compactSupportActions = false;
@@ -206,22 +293,22 @@ export default {
     formatTimestampPart(value) {
       return `${value}`.padStart(2, '0');
     },
-    buildDefaultSessionName() {
+    buildDefaultSessionName(peerName) {
       const now = new Date();
       const timestamp = `${now.getFullYear()}-${this.formatTimestampPart(now.getMonth() + 1)}-${this.formatTimestampPart(now.getDate())} ${this.formatTimestampPart(
         now.getHours()
       )}:${this.formatTimestampPart(now.getMinutes())}:${this.formatTimestampPart(now.getSeconds())}`;
-      return this.$t('与{name}的新会话 {timestamp}', { name: this.rosterName || this.getSid, timestamp });
+      return this.$t('与{name}的新会话 {timestamp}', { name: peerName, timestamp });
     },
-    buildNewSessionMetadata() {
+    buildNewSessionMetadata(peerUserId, peerName) {
       return {
         new_session_metadata: {
           scene: 'roster_chat',
-          peer_user_id: Number(this.getSid),
+          peer_user_id: Number(peerUserId),
           created_by_user_id: Number(this.currentUserId),
           created_at: Date.now(),
           name_source: 'user_confirmed',
-          peer_name_snapshot: this.rosterName || `${this.getSid}`
+          peer_name_snapshot: peerName
         }
       };
     },
@@ -236,12 +323,13 @@ export default {
             sid: groupId
           });
           this.$store.dispatch('contact/actionSetSkipConversationAutoSelectOnce', true);
-          this.$store.dispatch('contact/actionGetConversationList');
+          window.localStorage.setItem('lastActiveChat', groupId);
           this.$store.dispatch('header/actionChangeHeaderStatus', 'conversation');
           this.$store.dispatch('content/actionSetType', {
             sid: groupId,
             type: 'groupchat'
           });
+          this.$store.dispatch('contact/actionGetConversationList', { immediate: true });
         });
     },
     createNewSessionHandler() {
@@ -250,13 +338,16 @@ export default {
         return;
       }
       this.closeMobileMenu();
-      const name = this.buildDefaultSessionName();
+      const peerUserId = this.getSid;
+      const peerName = this.rosterName || `${peerUserId}`;
+      const name = this.buildDefaultSessionName(peerName);
+      const metadata = this.buildNewSessionMetadata(peerUserId, peerName);
       this.creatingNewSession = true;
       return this.$store.getters.im.groupManage
         .asyncCreate({
           name,
           type: 3,
-          user_list: [this.getSid]
+          user_list: [peerUserId]
         })
         .then((groupInfo) => {
           const groupId = groupInfo && groupInfo.group_id;
@@ -266,7 +357,7 @@ export default {
           return this.$store.getters.im.groupManage
             .asyncUpdateExt({
               group_id: groupId,
-              value: JSON.stringify(this.buildNewSessionMetadata())
+              value: JSON.stringify(metadata)
             })
             .then(() => {
               this.openNewGroupConversation(groupId);

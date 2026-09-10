@@ -8,6 +8,7 @@ import groupManage from '../../manage/groupManage';
 import dnsManager from '../../manage/dnsManager';
 import userManage from '../../manage/userManage';
 import sysManage from '../../manage/sysManage';
+import { setSocketLoginResultGuard } from './loginAttemptGuard';
 /**
  * @module flooim
  */
@@ -18,6 +19,185 @@ let isLogin = false;
 let stopAutoLogin = false;
 let appStatus = '';
 let isReloading = false;
+let initVersion = 0;
+let loginVersion = 0;
+let pendingPasswordLogin = null;
+const AUTO_LOGIN_PREPARATION_RETRY_DELAY = 2000;
+const AUTO_LOGIN_PREPARATION_RETRY_DELAY_MAX = 10000;
+const AUTO_LOGIN_RATE_LIMIT_RETRY_DELAY = 30000;
+const RETRYABLE_LOGIN_HTTP_STATUS = [408, 500, 502, 503, 504];
+
+const getLoginErrorStatus = (error = {}) => Number(error.response ? error.response.status : error.code);
+
+const isLoginRateLimitedError = (error) => getLoginErrorStatus(error) === 429;
+
+const isLoginPreparationNetworkError = (error) => {
+  if (!error || error.__CANCEL__) {
+    return false;
+  }
+  const status = getLoginErrorStatus(error);
+  if (!error.isAxiosError) {
+    return RETRYABLE_LOGIN_HTTP_STATUS.includes(status);
+  }
+  return !error.response || RETRYABLE_LOGIN_HTTP_STATUS.includes(status);
+};
+
+const prepareAutoLogin = ({ currentInitVersion, currentLoginVersion, token, retryTimes = 0 }) => {
+  if (currentInitVersion !== initVersion || currentLoginVersion !== loginVersion || token !== infoStore.getToken()) {
+    return;
+  }
+  const rosterRequest = rosterManage.asyncGetRosterIdList(true);
+  const groupRequest = io.groupUserjoined({});
+  Promise.all([rosterRequest, groupRequest])
+    .then((res) => {
+      if (currentInitVersion !== initVersion || currentLoginVersion !== loginVersion || token !== infoStore.getToken()) {
+        return;
+      }
+      const groupItems = Array.isArray(res[1]) ? res[1] : null;
+      const groups = groupItems || groupStore.getGroupInfoList();
+      if (groupItems) {
+        groupStore.saveJoinedGroups(groupItems);
+      }
+      isLogin = true;
+      fire('imRostersGroupslistReady', {
+        rosters: res[0],
+        groups
+      });
+      log.log('get roster, group over .... will io connect');
+      io.connect(config);
+    })
+    .catch((error) => {
+      if (currentInitVersion !== initVersion || currentLoginVersion !== loginVersion || token !== infoStore.getToken()) {
+        return;
+      }
+      isLogin = false;
+      log.warn('Prepare auto login failed: ', error && error.message);
+      fire('flooNotice', {
+        category: 'loginMessage',
+        desc: 'get roster list failure:' + (error && error.message)
+      });
+      const rateLimited = isLoginRateLimitedError(error);
+      if (!rateLimited && !isLoginPreparationNetworkError(error)) {
+        return;
+      }
+      const nextRetryTimes = retryTimes + 1;
+      const delay = rateLimited ? AUTO_LOGIN_RATE_LIMIT_RETRY_DELAY : Math.min(nextRetryTimes * AUTO_LOGIN_PREPARATION_RETRY_DELAY, AUTO_LOGIN_PREPARATION_RETRY_DELAY_MAX);
+      fire('flooNotice', {
+        category: 'loginMessage',
+        desc: `auto login preparation ${rateLimited ? 'rate limited' : 'network failure'}, retrying ${nextRetryTimes} in ${delay} ms`
+      });
+      setTimeout(() => {
+        prepareAutoLogin({ currentInitVersion, currentLoginVersion, token, retryTimes: nextRetryTimes });
+      }, delay);
+    });
+};
+
+bind('refresh_fireplace', (fireplace) => {
+  if (fireplace) {
+    config = Object.assign({}, config, { fireplace });
+  }
+});
+
+const getAuthState = () => {
+  return {
+    isLogin,
+    uid: infoStore.getUid(),
+    token: infoStore.getToken(),
+    tokenAppId: infoStore.getTokenAppId(),
+    aesKey: infoStore.getAesKey()
+  };
+};
+
+const restoreAuthState = (authState) => {
+  if (authState.uid) {
+    infoStore.saveUid(authState.uid);
+  } else {
+    infoStore.removeUid();
+  }
+  if (authState.token) {
+    infoStore.saveToken(authState.token);
+  } else {
+    infoStore.deleteToken();
+  }
+  if (authState.tokenAppId) {
+    infoStore.saveTokenAppId(authState.tokenAppId);
+  } else {
+    infoStore.deleteTokenAppId();
+  }
+  if (authState.aesKey) {
+    infoStore.saveAesKey(authState.aesKey);
+  } else {
+    infoStore.deleteAesKey();
+  }
+  isLogin = authState.isLogin;
+};
+
+const cancelPendingPasswordLogin = () => {
+  const pendingLogin = pendingPasswordLogin;
+  const hasQueuedLogin = loginSwap && loginSwap.type === 'login';
+  if (!pendingLogin && !hasQueuedLogin) {
+    return false;
+  }
+  loginVersion++;
+  pendingPasswordLogin = null;
+  if (hasQueuedLogin) {
+    loginSwap = null;
+  }
+  if (pendingLogin && pendingLogin.authApplied) {
+    const connectionWasReplaced = pendingLogin.phase === 'connecting';
+    if (connectionWasReplaced) {
+      io.disConnect();
+    }
+    if (connectionWasReplaced && pendingLogin.authState.isLogin) {
+      restoreAuthState(
+        Object.assign({}, pendingLogin.authState, {
+          isLogin: false
+        })
+      );
+    } else {
+      restoreAuthState(pendingLogin.authState);
+    }
+  }
+  return true;
+};
+
+const completePendingPasswordLogin = () => {
+  const pendingLogin = pendingPasswordLogin;
+  if (!pendingLogin || pendingLogin.phase !== 'connecting' || pendingLogin.version !== loginVersion) {
+    return;
+  }
+  if (pendingLogin.groupItems) {
+    groupStore.saveJoinedGroups(pendingLogin.groupItems);
+  }
+  fire('imRostersGroupslistReady', {
+    rosters: pendingLogin.rosters,
+    groups: pendingLogin.groups
+  });
+  pendingPasswordLogin = null;
+};
+
+bind('loginSuccess', () => {
+  window.sessionStorage.removeItem('key_stop_auto_login');
+  completePendingPasswordLogin();
+});
+setSocketLoginResultGuard(() => {
+  if (pendingPasswordLogin && pendingPasswordLogin.phase !== 'connecting') {
+    log.warn('Ignore Socket login result from previous connection during password login');
+    return false;
+  }
+  return true;
+});
+bind('loginFail', (message) => {
+  if (message !== 'socket_failure') {
+    return;
+  }
+  if (pendingPasswordLogin && pendingPasswordLogin.phase === 'connecting') {
+    cancelPendingPasswordLogin();
+  } else {
+    isLogin = false;
+    io.disConnect();
+  }
+});
 /**
  * 初始化SDK
  * @function flooim
@@ -41,6 +221,10 @@ let isReloading = false;
  * {% lanying_code_snippet repo="lanying-im-web",class="",function="flooim" %}{% endlanying_code_snippet %}
  */
 const webim = function ({ autoLogin = true, dnsServer, appid = 'welovemaxim', ws = false, logLevel = 'debug', linkServer = 'https://lanyinglink.com/info' }) {
+  const currentInitVersion = ++initVersion;
+  cancelPendingPasswordLogin();
+  loginVersion++;
+  isLogin = false;
   appStatus = '';
   sdkOk = false;
   log.setLogLevel(logLevel);
@@ -55,21 +239,24 @@ const webim = function ({ autoLogin = true, dnsServer, appid = 'welovemaxim', ws
   dnsManager
     .asyncGetDns(dnsServers, appid, ws, source, path)
     .then((res) => {
+      if (currentInitVersion !== initVersion) {
+        return;
+      }
       appStatus = dnsManager.getAppStatus(appid);
       if (appStatus == 'banned') {
-        fire('flooError', { category: 'APP_BANNED', desc: 'app is banned' });
+        fireInitError({ category: 'APP_BANNED', desc: 'app is banned' });
         return;
       } else if (appStatus == 'frozen') {
-        fire('flooError', { category: 'APP_FROZEN', desc: 'app is frozen' });
+        fireInitError({ category: 'APP_FROZEN', desc: 'app is frozen' });
         return;
       } else if (appStatus == 'revoked') {
-        fire('flooError', { category: 'APP_REVOKED', desc: 'app is revoked' });
+        fireInitError({ category: 'APP_REVOKED', desc: 'app is revoked' });
         return;
       }
       const { ratel, fireplace } = res;
       if (!ratel || !fireplace) {
         log.log('DNS error, check the server: ', dnsServer, 'appStatus:', appStatus);
-        fire('flooError', { category: 'DNS_FAILED', desc: dnsServer });
+        fireInitError({ category: 'DNS_FAILED', desc: dnsServer });
         return;
       }
 
@@ -99,32 +286,26 @@ const webim = function ({ autoLogin = true, dnsServer, appid = 'welovemaxim', ws
         const tokenAppId = infoStore.getTokenAppId();
         if (user_id && token && tokenAppId == appid) {
           infoStore.saveUid(user_id);
-          const rosterRequest = rosterManage.asyncGetRosterIdList(true);
-          const groupRequet = groupManage.asyncGetJoinedGroups(true);
-          Promise.all([rosterRequest, groupRequet])
-            .then((res) => {
-              const rosters = res[0];
-              const groups = res[1];
-              fire('imRostersGroupslistReady', {
-                rosters,
-                groups
-              });
-              log.log('get roster, group over .... will io connect');
-              io.connect(config);
-            })
-            .catch((ex) => {
-              fire('flooNotice', {
-                category: 'loginMessage',
-                desc: 'get roster list failure:' + ex.message
-              });
-            });
+          prepareAutoLogin({
+            currentInitVersion,
+            currentLoginVersion: loginVersion,
+            token
+          });
         }
       }
     })
     .catch((ex) => {
+      if (currentInitVersion !== initVersion) {
+        return;
+      }
       console.log('flooim init error, please retry later: ', ex);
-      fire('flooError', { category: 'DNS_FAILED', desc: ex.message, code: ex.code ? ex.code : 0 });
+      fireInitError({ category: 'DNS_FAILED', desc: ex.message, code: ex.code ? ex.code : 0 });
     });
+};
+
+// Keep initialization errors on the existing flooError contract.
+const fireInitError = (error) => {
+  fire('flooError', error);
 };
 
 const setup_servers = function (appID) {
@@ -186,6 +367,14 @@ const decideSource = function () {
  * {% lanying_code_snippet repo="lanying-im-web",class="im",function="login" %}{% endlanying_code_snippet %}
  */
 webim.login = function (opt) {
+  cancelPendingPasswordLogin();
+  const currentLoginVersion = ++loginVersion;
+  pendingPasswordLogin = {
+    version: currentLoginVersion,
+    authState: getAuthState(),
+    authApplied: false,
+    phase: 'token'
+  };
   console.log('webim.login', opt, 'sdkOk:', sdkOk);
   if (!sdkOk) {
     loginSwap = {
@@ -195,15 +384,24 @@ webim.login = function (opt) {
     return;
   }
   fire('flooNotice', { category: 'loginMessage', desc: 'getting token...' });
-  io.tokenUser(opt)
+  io.tokenUser(opt, {
+    isCurrent: () => currentLoginVersion === loginVersion
+  })
     .then((res) => {
+      if (currentLoginVersion !== loginVersion) {
+        return;
+      }
       const { token, user_id, public_key } = res;
+      if (pendingPasswordLogin && pendingPasswordLogin.version === currentLoginVersion) {
+        pendingPasswordLogin.authApplied = true;
+      }
       infoStore.saveUid(user_id);
       infoStore.saveToken(token);
       infoStore.saveTokenAppId(infoStore.getAppid());
       infoStore.saveAesKey(public_key);
+      pendingPasswordLogin.phase = 'preparing';
       const rosterRequest = rosterManage.asyncGetRosterIdList(true);
-      const groupRequet = groupManage.asyncGetJoinedGroups(true);
+      const groupRequet = io.groupUserjoined({});
       console.log('Get token success');
       isLogin = true;
 
@@ -213,12 +411,12 @@ webim.login = function (opt) {
       });
       Promise.all([rosterRequest, groupRequet])
         .then((res) => {
+          if (currentLoginVersion !== loginVersion) {
+            return;
+          }
           const rosters = res[0];
-          const groups = res[1];
-          fire('imRostersGroupslistReady', {
-            rosters,
-            groups
-          });
+          const groupItems = Array.isArray(res[1]) ? res[1] : null;
+          const groups = groupItems || groupStore.getGroupInfoList();
           log.log('get roster, group over .... will io connect');
           config = Object.assign(
             {
@@ -227,18 +425,42 @@ webim.login = function (opt) {
             },
             config
           );
+          pendingPasswordLogin = Object.assign({}, pendingPasswordLogin, {
+            phase: 'connecting',
+            rosters,
+            groupItems,
+            groups
+          });
           io.connect(config);
           loginSwap = null;
         })
         .catch((ex) => {
+          if (currentLoginVersion !== loginVersion) {
+            return;
+          }
+          log.warn('Prepare password login failed: ', ex && ex.message);
           fire('flooNotice', {
             category: 'loginMessage',
             desc: 'get roster list failure:' + ex.message
           });
+          cancelPendingPasswordLogin();
+          if (isLoginRateLimitedError(ex)) {
+            fire('loginFail', 'login preparation failure:Rate Limited:' + ex.message);
+          } else {
+            fire('loginFail', isLoginPreparationNetworkError(ex) ? 'login preparation failure:Network Error:' + ex.message : 'login preparation failure');
+          }
         });
     })
     .catch((ex) => {
-      fire('loginFail', 'token failure:' + ex.message);
+      if (currentLoginVersion !== loginVersion) {
+        return;
+      }
+      pendingPasswordLogin = null;
+      if (isLoginRateLimitedError(ex)) {
+        fire('loginFail', 'token failure:Rate Limited:' + ex.message);
+      } else {
+        fire('loginFail', isLoginPreparationNetworkError(ex) ? 'token failure:Network Error:' + ex.message : 'token failure:' + ex.message);
+      }
     });
 };
 
@@ -253,6 +475,7 @@ webim.login = function (opt) {
  * {% lanying_code_snippet repo="lanying-im-web",class="im",function="qrlogin" %}{% endlanying_code_snippet %}
  */
 webim.qrlogin = function (opt) {
+  cancelPendingPasswordLogin();
   console.log('webim.qrlogin', opt);
   if (!sdkOk) {
     loginSwap = {
@@ -319,6 +542,7 @@ webim.qrlogin = function (opt) {
  * {% lanying_code_snippet repo="lanying-im-web",class="im",function="tokenLogin" %}{% endlanying_code_snippet %}
  */
 webim.tokenLogin = function (user_id, token, public_key) {
+  cancelPendingPasswordLogin();
   console.log('webim.tokenLogin', user_id);
   if (!sdkOk) {
     loginSwap = {
@@ -380,6 +604,7 @@ webim.tokenLogin = function (user_id, token, public_key) {
  * {% lanying_code_snippet repo="lanying-im-web",class="im",function="idLogin" %}{% endlanying_code_snippet %}
  */
 webim.idLogin = function (opt) {
+  cancelPendingPasswordLogin();
   io.tokenId(opt)
     .then((res) => {
       const { token, user_id, public_key } = res;
@@ -552,6 +777,8 @@ webim.kickAllWeb = function () {
  * {% lanying_code_snippet repo="lanying-im-web",class="im",function="logout" %}{% endlanying_code_snippet %}
  */
 webim.logout = function (opt) {
+  cancelPendingPasswordLogin();
+  loginVersion++;
   io.disConnect();
   window.sessionStorage.setItem('key_stop_auto_login', true);
   isLogin = false;

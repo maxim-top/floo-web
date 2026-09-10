@@ -47,6 +47,12 @@
             </svg>
             <span>{{ $t('删除会话') }}</span>
           </div>
+          <ConversationNotificationMenu
+            :value="groupNotificationMode"
+            :options="notificationModeOptions"
+            :disabled="notificationModeUpdating || !groupNotificationModeReady"
+            @change="updateGroupNotificationMode"
+          />
         </div>
       </div>
     </div>
@@ -55,21 +61,30 @@
 
 <script>
 import { mapGetters } from 'vuex';
+import ConversationNotificationMenu from '../components/conversationNotificationMenu.vue';
 
 export default {
   name: 'GroupChat',
   data() {
     return {
-      showMobileMenu: false
+      showMobileMenu: false,
+      notificationModeUpdating: false
     };
   },
   mounted() {
     document.addEventListener('click', this.closeMobileMenu);
+    this.$store.getters.im.on('onGroupListUpdate', this.handleGroupListUpdate);
   },
   beforeDestroy() {
     document.removeEventListener('click', this.closeMobileMenu);
+    const im = this.$store.getters.im;
+    if (im) {
+      im.off('onGroupListUpdate', this.handleGroupListUpdate);
+    }
   },
-  components: {},
+  components: {
+    ConversationNotificationMenu
+  },
   computed: {
     ...mapGetters('content', ['getGroupInfo', 'getSid']),
     ...mapGetters('forward', ['getShowMultiForwardStatus']),
@@ -79,9 +94,88 @@ export default {
         this.$store.dispatch('content/actionUpdateGroup');
       }
       return name;
+    },
+    groupNotificationModeReady() {
+      return !!this.getGroupInfo.group_id && `${this.getGroupInfo.group_id}` === `${this.getSid}`;
+    },
+    groupNotificationMode() {
+      const mode = Number(this.getGroupInfo.msg_mute_mode || 0);
+      return [0, 1, 2].includes(mode) ? mode : 0;
+    },
+    notificationModeOptions() {
+      return [
+        {
+          value: 0,
+          label: this.$t('conversationNotifications.modeAll', { origin: '接收并提醒消息' })
+        },
+        {
+          value: 1,
+          label: this.$t('conversationNotifications.modeSilent', { origin: '接收但不提醒消息' })
+        },
+        {
+          value: 2,
+          label: this.$t('conversationNotifications.modeNone', { origin: '不接收任何消息' })
+        }
+      ];
     }
   },
   methods: {
+    handleGroupListUpdate() {
+      const groupId = this.getSid;
+      this.$store.dispatch('content/actionUpdateGroup', { sid: groupId, force: false }).catch(() => {});
+    },
+    updateGroupNotificationMode(value) {
+      if (this.notificationModeUpdating || !this.groupNotificationModeReady) {
+        return;
+      }
+      const mode = Number(value);
+      if (![0, 1, 2].includes(mode)) {
+        return;
+      }
+      if (mode === this.groupNotificationMode) {
+        this.closeMobileMenu();
+        return;
+      }
+      const groupId = this.getSid;
+      const previousInfo = this.getGroupInfo;
+      this.notificationModeUpdating = true;
+      this.$store.commit('content/setGroupInfoBySid', {
+        sid: groupId,
+        value: Object.assign({}, previousInfo, { msg_mute_mode: mode })
+      });
+      this.closeMobileMenu();
+      this.$store.getters.im.groupManage
+        .asyncGroupMsgMutemode({
+          group_id: groupId,
+          msg_mute_mode: mode
+        })
+        .then((updated) => {
+          if (updated === false) {
+            return Promise.reject(new Error('Group notification setting was not updated'));
+          }
+          this.$message.success(this.$t('conversationNotifications.updateSuccess', { origin: '通知设置已更新' }));
+          return this.$store
+            .dispatch('content/actionUpdateGroup', { sid: groupId, force: true })
+            .catch((err) => {
+              console.error('Failed to refresh group notification setting:', err);
+            })
+            .finally(() => {
+              this.$store.dispatch('contact/actionSyncGroupList');
+              this.$store.dispatch('contact/actionGetConversationList');
+            });
+        })
+        .catch((err) => {
+          console.error('Failed to update group notification setting:', err);
+          this.$store.commit('content/setGroupInfoBySid', {
+            sid: groupId,
+            value: previousInfo
+          });
+          this.$message.error(this.$t('conversationNotifications.updateFailed', { origin: '通知设置更新失败' }));
+        })
+        .finally(() => {
+          this.notificationModeUpdating = false;
+        });
+    },
     goBackToList() {
       this.$store.dispatch('contact/actionSetSkipConversationAutoSelectOnce', true);
       this.$store.dispatch('header/actionChangeHeaderStatus', 'conversation');

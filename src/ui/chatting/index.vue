@@ -7,6 +7,8 @@
       'mobile-pane-chat': isMobile && mobileShowsChat,
       'mobile-pane-immersive': isMobile && mobileHidesTopbar,
       'mobile-pane-list': isMobile && !mobileShowsChat,
+      'mobile-pane-tab-content': isMobile && mobileShowsChat && mobileShowsTabBar,
+      'mobile-pane-no-transition': isMobile && suppressMobilePaneTransition,
       'desktop-no-sidebar': desktopNoSidebar
     }"
   >
@@ -17,11 +19,11 @@
         <Contact />
       </div>
       <div class="app-main">
-        <Content />
+        <Content @settings-subpage-change="handleSettingsSubpageChange" />
       </div>
     </div>
     <ForwardTargetPanel />
-    <nav class="mobile-tab-bar" v-if="isMobile && !mobileShowsChat">
+    <nav class="mobile-tab-bar" v-if="mobileShowsTabBar">
       <button :class="{ 'mobile-tab-bar__item': true, active: getHeaderStatus === 'conversation' }" type="button" @click="selectDrawerTab('conversation')">
         <svg viewBox="0 0 24 24" aria-hidden="true" class="mobile-tab-bar__icon">
           <path d="M5 6.5h14v8H8l-3 3v-11z"></path>
@@ -35,7 +37,7 @@
         </svg>
         <span>{{ $t('通讯录') }}</span>
       </button>
-      <button :class="{ 'mobile-tab-bar__item': true, active: getHeaderStatus === 'setting' }" type="button" @click="selectDrawerTab('setting')">
+      <button :class="{ 'mobile-tab-bar__item': true, active: getHeaderStatus === 'setting' || getHeaderStatus === 'about_us' }" type="button" @click="selectDrawerTab('setting')">
         <svg viewBox="0 0 24 24" aria-hidden="true" class="mobile-tab-bar__icon">
           <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"></path>
           <path
@@ -54,6 +56,7 @@ import Contact from './contact';
 import Content from './content';
 import ForwardTargetPanel from './content/components/forwardTargetPanel.vue';
 import { toNumber } from '../third/tools';
+import { clearAllCachedGroupAvatars } from '../utils/groupAvatar';
 import { mapGetters } from 'vuex';
 
 // import { mapActions, mapState, mapGetters } from "vuex";
@@ -70,10 +73,13 @@ export default {
     return {
       callMap: new Map(),
       isMobile: false,
-      showGlobalDrawer: false
+      showGlobalDrawer: false,
+      suppressMobilePaneTransition: false,
+      settingsSubpageActive: false
     };
   },
   mounted() {
+    this.$store.dispatch('content/actionSetMessageSessionOwner', this.$store.getters.im.userManage.getUid());
     {
       const au = document.getElementById('phone_ring_player');
       au.muted = false;
@@ -91,8 +97,29 @@ export default {
     });
 
     this.$store.getters.im.on('onGroupListUpdate', () => {
-      this.$store.dispatch('contact/actionClearGroupList');
-      this.$store.dispatch('contact/actionLazyGetGroupList');
+      this.$store.dispatch('contact/actionGetConversationList');
+      if (this.$store.getters['header/getHeaderStatus'] === 'contact') {
+        this.$store.dispatch('contact/actionSyncGroupList');
+        return;
+      }
+    });
+
+    this.$store.getters.im.on('onGroupMemberChanged', (group_id) => {
+      this.$store.dispatch('contact/actionRefreshGroupAvatar', group_id);
+    });
+
+    this.$store.getters.im.on('loginSuccess', () => {
+      clearAllCachedGroupAvatars();
+      this.$store.dispatch('contact/actionResetGroupAvatarFetchState');
+      this.$store.dispatch('content/actionSetMessageSessionOwner', this.$store.getters.im.userManage.getUid());
+      this.$store.dispatch('content/actionResetHistoryBlocks');
+    });
+
+    this.$store.getters.im.on('logout', () => {
+      clearAllCachedGroupAvatars();
+      this.$store.dispatch('contact/actionResetGroupAvatarFetchState');
+      this.$store.dispatch('content/actionResetMessageSessions');
+      this.$store.dispatch('content/actionSetMessageSessionOwner', '');
     });
 
     this.$store.getters.im.on('recentlistUpdate', () => {
@@ -106,6 +133,8 @@ export default {
     this.$store.getters.im.on('onRosterInfoUpdate', () => {
       this.$store.dispatch('contact/actionGetConversationList');
     });
+
+    this.$store.getters.im.on('onReceiveHistoryMsg', this.receiveHistoryBatch);
 
     this.$store.getters.im.on('onRosterRTCMessage', (message) => {
       let that = this;
@@ -187,6 +216,12 @@ export default {
   },
   beforeDestroy() {
     window.removeEventListener('resize', this.handleResize);
+    if (this.mobileTabTransitionFrame) {
+      cancelAnimationFrame(this.mobileTabTransitionFrame);
+      this.mobileTabTransitionFrame = null;
+    }
+    const im = this.$store.getters.im;
+    if (im) im.off('onReceiveHistoryMsg', this.receiveHistoryBatch);
   },
   computed: {
     ...mapGetters('content', ['getViewType']),
@@ -200,7 +235,12 @@ export default {
     },
     mobileHidesTopbar() {
       if (!this.isMobile) return false;
-      return ['rosterchat', 'groupchat'].includes(this.getViewType);
+      return this.settingsSubpageActive || ['rosterchat', 'groupchat'].includes(this.getViewType);
+    },
+    mobileShowsTabBar() {
+      if (!this.isMobile) return false;
+      if (!this.mobileShowsChat) return true;
+      return (this.getHeaderStatus === 'setting' && this.getViewType === 'setting') || (this.getHeaderStatus === 'about_us' && this.getViewType === 'verification');
     },
     desktopNoSidebar() {
       if (this.isMobile) return false;
@@ -208,6 +248,12 @@ export default {
     }
   },
   methods: {
+    handleSettingsSubpageChange(active) {
+      this.settingsSubpageActive = !!active;
+    },
+    receiveHistoryBatch(payload) {
+      this.$store.dispatch('content/actionReceiveHistoryBatch', payload);
+    },
     handleResize() {
       this.isMobile = window.innerWidth <= 768;
       if (!this.isMobile) {
@@ -222,10 +268,26 @@ export default {
     closeGlobalDrawer() {
       this.showGlobalDrawer = false;
     },
+    suppressMobileTabTransition() {
+      this.suppressMobilePaneTransition = true;
+      if (this.mobileTabTransitionFrame) {
+        cancelAnimationFrame(this.mobileTabTransitionFrame);
+      }
+      this.$nextTick(() => {
+        this.mobileTabTransitionFrame = requestAnimationFrame(() => {
+          this.mobileTabTransitionFrame = requestAnimationFrame(() => {
+            this.suppressMobilePaneTransition = false;
+            this.mobileTabTransitionFrame = null;
+          });
+        });
+      });
+    },
     selectDrawerTab(tab) {
+      this.suppressMobileTabTransition();
       this.closeGlobalDrawer();
       if (tab === 'conversation') {
         this.$store.dispatch('header/actionChangeHeaderStatus', 'conversation');
+        this.$store.dispatch('content/actionSetType', { sid: undefined });
       } else if (tab === 'contact') {
         this.$store.dispatch('header/actionChangeHeaderStatus', 'contact');
         this.$store.dispatch('content/actionSetType', { sid: undefined });

@@ -1,6 +1,8 @@
 /* eslint-disable */
 const webpack = require('webpack');
 const path = require('path');
+const childProcess = require('child_process');
+const packageInfo = require('./package.json');
 
 const devEnv = require('./config/webpack.dev.config');
 const pordEnv = require('./config/webpack.prod.config');
@@ -11,6 +13,20 @@ if (process.env.NODE_ENV === 'development') {
 } else if (process.env.NODE_ENV === 'production') {
   env = pordEnv;
 }
+
+const padTimePart = (value) => `${value}`.padStart(2, '0');
+const buildDate = new Date();
+const buildTime = `${buildDate.getFullYear()}-${padTimePart(buildDate.getMonth() + 1)}-${padTimePart(buildDate.getDate())}`;
+let buildCommit = 'unknown';
+try {
+  buildCommit = childProcess.execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], { cwd: __dirname, encoding: 'utf8' }).trim();
+} catch (error) {
+  // Source archives may not contain Git metadata; keep a visible fallback.
+}
+
+process.env.VUE_APP_FLOO_WEB_VERSION = packageInfo.version;
+process.env.VUE_APP_FLOO_WEB_BUILD_COMMIT = buildCommit;
+process.env.VUE_APP_FLOO_WEB_BUILD_TIME = buildTime;
 
 module.exports = {
   lintOnSave: true,
